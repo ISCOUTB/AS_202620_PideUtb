@@ -26,10 +26,10 @@ estudiantes deben dedicar a realizar y recoger sus compras.
   nuevo](../arc42.md#102-esc-01-----primer-pedido-de-un-estudiante-nuevo)                             y la claridad del flujo inicial.
 
   [ESC-02 --- Pedido de un estudiante recurrente en hora                                           Evalúa la eficiencia de uso durante
-  pico](../arc42.md#103-esc-02--pedido-de-un-estudiante-recurrente-en-hora-pico)                   una situación de alta demanda.
+  pico](../arc42.md#103-esc-02-----pedido-de-un-estudiante-recurrente-en-hora-pico)                   una situación de alta demanda.
 
   [ESC-03 --- Gestión del estado de pedidos por el                                                 Evalúa la facilidad y rapidez de
-  establecimiento](../arc42.md#104-esc-03--gestión-del-estado-de-pedidos-por-el-establecimiento)   uso del panel del establecimiento.
+  establecimiento](../arc42.md#104-esc-03-----gestión-del-estado-de-pedidos-por-el-establecimiento)   uso del panel del establecimiento.
 
   [ESC-05 --- Error en el proceso de pago](../arc42.md#106-esc-05--error-en-el-proceso-de-pago)    Evalúa la claridad del manejo de
                                                                                                    errores y la posibilidad de
