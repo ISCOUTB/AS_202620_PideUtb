@@ -31,7 +31,7 @@ estudiantes deben dedicar a realizar y recoger sus compras.
   [ESC-03 --- Gestión del estado de pedidos por el                                                 Evalúa la facilidad y rapidez de
   establecimiento](../arc42.md#104-esc-03-----gestión-del-estado-de-pedidos-por-el-establecimiento)   uso del panel del establecimiento.
 
-  [ESC-05 --- Error en el proceso de pago](../arc42.md#106-esc-05--error-en-el-proceso-de-pago)    Evalúa la claridad del manejo de
+  [ESC-05 --- Error en el proceso de pago](../arc42.md#106-esc-05-----error-en-el-proceso-de-pago)    Evalúa la claridad del manejo de
                                                                                                    errores y la posibilidad de
                                                                                                    reintentar sin perder el pedido.
   ------------------------------------------------------------------------------------------------------------------------------------
@@ -48,7 +48,7 @@ entrega.
   Escenario                                                                Relación con confiabilidad
   ------------------------------------------------------------------------ -----------------------------------
   [ESC-04 --- Verificación del código de                                   Busca garantizar que el código
-  recogida](../arc42.md#105-esc-04--verificación-del-código-de-recogida)   corresponda al pedido y no pueda
+  recogida](../arc42.md#105-esc-04-----verificación-del-código-de-recogida)   corresponda al pedido y no pueda
                                                                            reutilizarse después de una
                                                                            entrega.
 
