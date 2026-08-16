@@ -23,7 +23,7 @@ estudiantes deben dedicar a realizar y recoger sus compras.
   Escenario                                                                                        Relación con usabilidad
   ------------------------------------------------------------------------------------------------ -----------------------------------
   [ESC-01 --- Primer pedido de un estudiante                                                       Evalúa la facilidad de aprendizaje
-  nuevo](../arc42.md#102-esc-01--primer-pedido-de-un-estudiante-nuevo)                             y la claridad del flujo inicial.
+  nuevo](../arc42.md#102-esc-01-----primer-pedido-de-un-estudiante-nuevo)                             y la claridad del flujo inicial.
 
   [ESC-02 --- Pedido de un estudiante recurrente en hora                                           Evalúa la eficiencia de uso durante
   pico](../arc42.md#103-esc-02--pedido-de-un-estudiante-recurrente-en-hora-pico)                   una situación de alta demanda.
