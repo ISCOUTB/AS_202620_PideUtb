@@ -272,6 +272,95 @@ Las principales interacciones externas son:
 
 ------------------------------------------------------------------------
 
+## 4. Estrategia de solución
+
+### 4.1 Decisiones tecnológicas de fondo
+
+Las decisiones tecnológicas base ya fueron fijadas como restricciones en
+la sección 2: FastAPI y Python para el backend, Supabase (PostgreSQL)
+para persistencia y autenticación, Wompi en Sandbox para pagos, y un
+frontend web con HTML/CSS/JavaScript. La estrategia de solución de esta
+sección se centra en **cómo se organiza el código dentro de esas
+restricciones**, es decir, en el estilo arquitectónico interno del
+backend.
+
+### 4.2 Estilo arquitectónico elegido
+
+El equipo evaluó tres estilos arquitectónicos posibles para organizar el
+backend: **arquitectura por capas**, **arquitectura hexagonal (puertos y
+adaptadores)** y **monolito modular**. La comparación completa, con
+criterios y puntajes, se documenta en
+[`docs/comparativa-arquitectura.md`](docs/comparativa-arquitectura.md) y
+la decisión formal queda registrada en
+[`docs/adr/0001-estilo-arquitectonico.md`](docs/adr/0001-estilo-arquitectonico.md).
+
+Se eligió un **monolito modular**: un único desplegable backend
+organizado internamente en módulos de dominio (pedidos, menú, pagos,
+usuarios/autenticación), cada uno con sus propias capas internas
+(rutas/API, lógica de aplicación, acceso a datos). Los módulos exponen
+una interfaz clara entre sí y evitan el acceso directo al detalle interno
+de otro módulo.
+
+### 4.3 Motivación
+
+  -----------------------------------------------------------------------
+  Objetivo de calidad                 Cómo lo favorece el monolito modular
+  ----------------------------------- -----------------------------------
+  **Usabilidad** (entrega dentro del  Al no introducir la sobrecarga de
+  plazo fijo, sin retrabajo de        puertos/adaptadores de hexagonal,
+  arquitectura)                       el equipo puede dedicar más tiempo
+                                       a construir el flujo de usuario en
+                                       lugar de a la infraestructura
+                                       arquitectónica.
+
+  **Confiabilidad**                   Separar por dominios (pedidos,
+                                       pagos, usuarios) reduce el riesgo
+                                       de que un cambio en un módulo
+                                       rompa la lógica de otro.
+
+  **Curva de aprendizaje del equipo** Los tres integrantes son
+  (equipo de 3 generalistas sin       generalistas full-stack sin
+  roles fijos)                        experiencia previa reportada en
+                                       hexagonal; el monolito modular es
+                                       más cercano a la forma en que ya
+                                       organizan features por carpetas.
+
+  **Alineación con el tamaño del      PideUTB no tiene una lógica de
+  proyecto**                          dominio lo suficientemente compleja
+                                       como para justificar el
+                                       desacoplamiento estricto que ofrece
+                                       hexagonal.
+
+  **Despliegue en Vercel**            Un único desplegable sin capas
+                                       adicionales de indirección
+                                       simplifica el empaquetado
+                                       serverless.
+  -----------------------------------------------------------------------
+
+### 4.4 Consecuencias para la estructura del código
+
+-   El backend se organiza por **paquetes de dominio** (por ejemplo:
+    `pedidos/`, `menu/`, `pagos/`, `usuarios/`), y no por tipo técnico
+    (no hay una carpeta única `controllers/` o `models/` para todo el
+    sistema).
+-   Cada módulo de dominio mantiene internamente su propia separación de
+    responsabilidades (rutas, lógica de aplicación, acceso a datos), sin
+    imponer la ceremonia completa de puertos y adaptadores.
+-   La comunicación entre módulos se realiza a través de una interfaz
+    explícita (funciones o clases de servicio expuestas), evitando que un
+    módulo acceda directamente a las tablas o al almacenamiento interno
+    de otro.
+-   Esta decisión no es definitiva ni irreversible: si en una entrega
+    posterior la complejidad del dominio lo justifica, algún módulo
+    puntual podría evolucionar hacia un estilo más desacoplado (por
+    ejemplo, aislar la integración con Wompi detrás de una interfaz tipo
+    puerto/adaptador), sin necesidad de reescribir todo el sistema.
+-   El esqueleto ejecutable de la sección de arranque del repositorio
+    (ver README) ya refleja esta organización mediante paquetes vacíos
+    correspondientes a cada módulo de dominio.
+
+------------------------------------------------------------------------
+
 ## 10. Requisitos de calidad
 
 Los requisitos de calidad se expresan mediante escenarios verificables.
