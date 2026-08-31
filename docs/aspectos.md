@@ -107,3 +107,22 @@ nuevos tiempos de espera.
   recogida](../arc42.md#105-esc-04--verificación-del-código-de-recogida)                           validar el código.
   ------------------------------------------------------------------------------------------------------------------------------------
 
+
+## Tabla de aspectos (trazabilidad completa)
+
+> Esta tabla conecta cada aspecto con un escenario concreto, la táctica
+> arquitectónica usada para atenderlo y la prueba que verifica que
+> efectivamente se cumple. **En esta entrega solo la fila de
+> Usabilidad está completa hasta la columna "Prueba"**; las demás
+> filas se irán completando en próximas entregas a medida que se
+> implementen los módulos de los que dependen (`pagos`, `usuarios`).
+
+| Aspecto | Escenario | Estímulo → Respuesta | Medida de respuesta | Táctica arquitectónica | Prueba |
+|---|---|---|---|---|---|
+| **Usabilidad** | [ESC-01](../arc42.md#102-esc-01-----primer-pedido-de-un-usuario-nuevo) — Primer pedido de un usuario nuevo | Usuario nuevo (estudiante o profesor) intenta consultar un establecimiento y crear su primer pedido → lo logra sin ayuda externa, con un único request mínimo (`establecimiento_id`, `item_id`, `cantidad`) | Menos de 3 minutos, sin errores de navegación (medida definida en arc42 §10.2) | Separación de responsabilidades por módulo: `menu.service` valida disponibilidad y precio, `pedidos.service` solo orquesta esa llamada y arma el pedido. Esto permite endpoints simples y mensajes de error específicos (`404` ítem no existe, `409` no disponible) en vez de errores genéricos que confundirían al usuario nuevo | `backend/tests/test_pedidos.py::test_crear_pedido_exitoso`, `::test_crear_pedido_item_no_encontrado` y `::test_crear_pedido_item_no_disponible` — verifican que el flujo completo responde `201` con los datos del pedido, y que un ítem inválido responde con un error claro y no un `500` |
+| Confiabilidad | [ESC-04](../arc42.md#105-esc-04-----verificación-del-código-de-recogida) — Verificación del código de recogida | — | — | — | *Pendiente — depende del módulo `pagos` (próxima entrega)* |
+| Seguridad | [ESC-04](../arc42.md#105-esc-04-----verificación-del-código-de-recogida) — Verificación del código de recogida | — | — | — | *Pendiente — depende del módulo `pagos`* |
+| Disponibilidad | [ESC-02](../arc42.md#103-esc-02-----pedido-de-un-usuario-recurrente-en-hora-pico) — Pedido en hora pico | — | — | — | *Pendiente — requiere prueba de carga* |
+| Rendimiento | ESC-02, ESC-03, ESC-04 | — | — | — | *Pendiente* |
+
+
