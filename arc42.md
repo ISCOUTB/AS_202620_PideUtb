@@ -395,6 +395,13 @@ C4Container
     Rel(api, supabase, "Lee/escribe datos, valida identidad", "HTTPS/API")
     Rel(api, wompi, "Solicita y confirma cobros", "HTTPS/API")
 ```
+**Leyenda del diagrama**
+| Color | Elemento del diagrama | Qué representa |
+|---|---|---|
+| Azul oscuro | `Person(...)` | Personas que se conectan al sistema: usuario (estudiante o profesor), personal del establecimiento, administrador. |
+| Azul claro | `System(...)` | El software que estamos construyendo: PideUTB. |
+| Gris | `System_Ext(...)` | Servicios externos de los que depende nuestro software: Wompi y Supabase. |
+
 
 **Nota de despliegue:** frontend y API se despliegan como servicios
 separados en Vercel, pero la API sigue siendo un único contenedor
