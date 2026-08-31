@@ -1,24 +1,16 @@
-"""
-Punto de entrada de la aplicación PideUTB.
-
-Este módulo solo levanta la aplicación y expone un endpoint de salud
-para verificar que el esqueleto arranca correctamente. No contiene
-lógica de negocio: los módulos de dominio (pedidos, menu, pagos,
-usuarios) se implementarán a partir de la semana 4, siguiendo la
-organización de monolito modular definida en el ADR 0001
-(docs/adr/0001-estilo-arquitectonico.md).
-"""
-
 from fastapi import FastAPI
 
-app = FastAPI(
-    title="PideUTB",
-    description="Sistema web para realizar pedidos de comida dentro del campus de la UTB.",
-    version="0.1.0",
-)
+from app.menu.router import router as menu_router
+from app.pedidos.router import router as pedidos_router
+
+app = FastAPI(title="PideUTB API")
+
+app.include_router(menu_router)
+app.include_router(pedidos_router)
+# app.include_router(pagos_router)      # pendiente — próxima entrega
+# app.include_router(usuarios_router)   # pendiente
 
 
 @app.get("/health")
-def health_check() -> dict:
-    """Endpoint de verificación de disponibilidad del backend."""
+def health():
     return {"status": "ok"}
