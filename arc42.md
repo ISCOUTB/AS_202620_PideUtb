@@ -240,6 +240,12 @@ C4Context
     Rel(pideutb, wompi, "Envía solicitudes de pago y recibe estados de transacción", "HTTPS/API")
     Rel(pideutb, supabase, "Consulta y almacena datos del sistema", "HTTPS/API")
 ```
+**Leyenda del diagrama**
+| Color | Elemento del diagrama | Qué representa |
+|---|---|---|
+| Azul oscuro | `Person(...)` | Personas que se conectan al sistema: usuario (estudiante o profesor), personal del establecimiento, administrador. |
+| Azul claro | `System(...)` | El software que estamos construyendo: PideUTB. |
+| Gris | `System_Ext(...)` | Servicios externos de los que depende nuestro software: Wompi y Supabase. |
 
 ### 3.3 Alcance y relaciones externas
 
@@ -395,13 +401,14 @@ C4Container
     Rel(api, supabase, "Lee/escribe datos, valida identidad", "HTTPS/API")
     Rel(api, wompi, "Solicita y confirma cobros", "HTTPS/API")
 ```
-**Leyenda del diagrama**
+**Leyenda del diagrama.** Igual que en el Nivel 1 (§3.2), los colores
+son los que aplica Mermaid por defecto a cada tipo de elemento:
+
 | Color | Elemento del diagrama | Qué representa |
 |---|---|---|
-| Azul oscuro | `Person(...)` | Personas que se conectan al sistema: usuario (estudiante o profesor), personal del establecimiento, administrador. |
-| Azul claro | `System(...)` | El software que estamos construyendo: PideUTB. |
-| Gris | `System_Ext(...)` | Servicios externos de los que depende nuestro software: Wompi y Supabase. |
-
+| Azul oscuro | `Person(...)` | Personas que se conectan al sistema. |
+| Azul claro | `Container(...)` dentro de `System_Boundary` | Piezas desplegables del software que estamos construyendo (frontend y API). |
+| Gris | `System_Ext(...)` | Servicios externos de los que depende nuestro software: Supabase y Wompi. |
 
 **Nota de despliegue:** frontend y API se despliegan como servicios
 separados en Vercel, pero la API sigue siendo un único contenedor
