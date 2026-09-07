@@ -95,7 +95,6 @@ Declaramos estos puntos abiertamente en lugar de darlos por cerrados:
 | **Restricción asignada de S5** ([`docs/restriccion-s5.md`](docs/restriccion-s5.md) §1) | El enunciado lo asigna el docente y no lo tenemos registrado. Preferimos dejar la sección marcada como pendiente antes que documentar una restricción supuesta, que produciría un diagnóstico no verificable. El punto de medición sí está diagnosticado (§2) y la línea base medida (§3) |
 | **ADR del reto (`0002`)** y contraste contra el umbral | Dependen del punto anterior. La tabla de contraste ya está preparada en §6 |
 | **Etiqueta `corte-1`** | El docente indicó crearla sobre el commit de la próxima entrega. No la creamos sobre trabajo posterior al cierre porque equivaldría a presentar como entrega del corte algo que llegó tarde |
-| **Reparto de contribución** | Depende del equipo, no del repositorio. El historial muestra 3 cuentas, con participación desigual |
 
 ## 4. Cómo verificar
 
