@@ -9,7 +9,7 @@ El backend sigue un estilo de **monolito modular**, organizado por módulos de d
 - [`arc42.md`](arc42.md) — sección 4, estrategia de solución.
 - [`docs/comparativa-arquitectura.md`](docs/comparativa-arquitectura.md) — matriz comparativa de estilos evaluados.
 - [`docs/adr/0001-estilo-arquitectonico.md`](docs/adr/0001-estilo-arquitectonico.md) — ADR con la decisión formal.
-- [`docs/c4/`](docs/c4/) — diagramas C4 (contexto, contenedores y módulos) como código Mermaid.
+- [`docs/c4/`](docs/C4/) — diagramas C4 (contexto, contenedores y módulos) como código Mermaid.
 
 ## Cómo arrancar el backend
 
