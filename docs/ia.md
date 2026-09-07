@@ -74,6 +74,11 @@ El contenido generado fue revisado por el equipo antes de incorporarlo al reposi
   del repositorio): resumen dirigido a la nueva revisión docente con el mapa de
   rutas de cada documento exigido, lo corregido, lo pendiente y los comandos de
   verificación.
+- **Corrección de los hallazgos de seguridad de SonarCloud** en el paso de
+  instalación de dependencias del workflow: generación de `requirements.in` y
+  del lock `requirements-ci.txt` con versiones exactas y hashes
+  (`pip-compile --generate-hashes`), e instalación en CI con
+  `--require-hashes --only-binary=:all:`.
 
 ### Qué se rechazó y por qué
 
@@ -91,6 +96,8 @@ se incorporó. Lo descartado y su motivo:
 | Crear la etiqueta `corte-1` sobre un commit posterior al cierre | **Rechazada** | Etiquetar trabajo posterior al cierre como si fuera la entrega del corte sería incorrecto. La etiqueta se creará sobre el commit de la próxima entrega, como indicó el docente |
 | Redactar `CORRECCIONES.md` afirmando que se corrigió **todo** lo observado | **Rechazada** | Cuatro puntos siguen abiertos (restricción asignada, ADR del reto, etiqueta `corte-1` y reparto de contribución). Un documento que los diera por cerrados sería desmentido por el propio repositorio en la revisión. Se declara explícitamente lo pendiente con su motivo |
 | Completar las filas ESC-02 a ESC-05 de la tabla de aspectos con rutas de código "previstas" para que la tabla se viera completa | **Rechazada** | Ya descartado antes por el mismo motivo: los módulos `pagos` y `usuarios` están vacíos y sería trazabilidad falsa |
+| Reemplazar `requirements.txt` por el lock con hashes, para tener un solo archivo de dependencias | **Rechazada** | El lock se resuelve para Linux y CPython 3.11/3.12; imponerlo como instalación local rompería el entorno de los integrantes que trabajan en Windows. Se mantiene `requirements.txt` para desarrollo y el lock se usa solo en CI |
+| Atribuir el fallo del Quality Gate a los permisos del workflow sin leer el informe de SonarCloud | **Rechazada tras comprobarla** | Fue la primera hipótesis y resultó equivocada: al declarar `permissions` el gate siguió en C. Los hallazgos reales estaban en la instalación de dependencias. Se corrigió solo después de leer las reglas concretas en el informe |
 
 Todo el contenido incorporado fue revisado por el equipo antes de aceptarlo, y
 las pruebas se ejecutaron en verde (`pytest`, 5 pruebas) antes de subir los

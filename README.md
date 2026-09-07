@@ -62,6 +62,17 @@ Cada push y cada pull request ejecutan la suite completa en GitHub Actions
 3.12. El estado del último run está en la insignia del encabezado; el historial
 completo en la [pestaña Actions](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/ci.yml).
 
+CI no instala desde `requirements.txt` sino desde `requirements-ci.txt`, un lock
+con versiones exactas y hashes generado con `pip-compile --generate-hashes` a
+partir de `requirements.in`. Así cada build resuelve exactamente las mismas
+versiones y ningún paquete ejecuta su `setup.py` al instalarse. Para regenerarlo
+tras cambiar una dependencia:
+
+```bash
+pip install pip-tools
+pip-compile --generate-hashes --output-file=requirements-ci.txt requirements.in
+```
+
 ### Medir la línea base de rendimiento
 
 ```bash
@@ -87,7 +98,9 @@ backend/
 │   ├── test_health.py      # Prueba automatizada base
 │   ├── test_pedidos.py     # Prueba del corte vertical (crear pedido)
 │   └── test_linea_base.py  # Regresión sobre la línea base de latencia
-├── requirements.txt
+├── requirements.in         # Dependencias directas (rangos legibles)
+├── requirements-ci.txt     # Lock con versiones exactas y hashes, usado por CI
+├── requirements.txt        # Instalación local
 └── pytest.ini
 
 docs/

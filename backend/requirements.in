@@ -1,0 +1,7 @@
+# Dependencias directas del backend de PideUTB (rangos legibles).
+# El archivo bloqueado para CI se genera con:
+#   pip-compile --generate-hashes --output-file=requirements-ci.txt requirements.in
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+httpx>=0.27,<1.0
+pytest>=8.0,<9.0
