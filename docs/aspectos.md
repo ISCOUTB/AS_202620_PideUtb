@@ -22,11 +22,11 @@ estudiantes deben dedicar a realizar y recoger sus compras.
   ------------------------------------------------------------------------------------------------------------------------------------
   Escenario                                                                                        Relación con usabilidad
   ------------------------------------------------------------------------------------------------ -----------------------------------
-  [ESC-01 --- Primer pedido de un estudiante                                                       Evalúa la facilidad de aprendizaje
-  nuevo](../arc42.md#102-esc-01-----primer-pedido-de-un-estudiante-nuevo)                             y la claridad del flujo inicial.
+  [ESC-01 --- Primer pedido de un usuario                                                       Evalúa la facilidad de aprendizaje
+  nuevo](../arc42.md#102-esc-01-----primer-pedido-de-un-usuario-nuevo)                             y la claridad del flujo inicial.
 
-  [ESC-02 --- Pedido de un estudiante recurrente en hora                                           Evalúa la eficiencia de uso durante
-  pico](../arc42.md#103-esc-02-----pedido-de-un-estudiante-recurrente-en-hora-pico)                   una situación de alta demanda.
+  [ESC-02 --- Pedido de un usuario recurrente en hora                                           Evalúa la eficiencia de uso durante
+  pico](../arc42.md#103-esc-02-----pedido-de-un-usuario-recurrente-en-hora-pico)                   una situación de alta demanda.
 
   [ESC-03 --- Gestión del estado de pedidos por el                                                 Evalúa la facilidad y rapidez de
   establecimiento](../arc42.md#104-esc-03-----gestión-del-estado-de-pedidos-por-el-establecimiento)   uso del panel del establecimiento.
@@ -81,8 +81,8 @@ especialmente durante los horarios de mayor demanda.
   --------------------------------------------------------------------------------------------------------------------
   Escenario                                                                        Relación con disponibilidad
   -------------------------------------------------------------------------------- -----------------------------------
-  [ESC-02 --- Pedido de un estudiante recurrente en hora                           Considera el funcionamiento del
-  pico](../arc42.md#103-esc-02--pedido-de-un-estudiante-recurrente-en-hora-pico)   sistema durante una situación de
+  [ESC-02 --- Pedido de un usuario recurrente en hora                           Considera el funcionamiento del
+  pico](../arc42.md#103-esc-02--pedido-de-un-usuario-recurrente-en-hora-pico)   sistema durante una situación de
                                                                                    posible alta concurrencia.
 
   --------------------------------------------------------------------------------------------------------------------
@@ -97,8 +97,8 @@ nuevos tiempos de espera.
   ------------------------------------------------------------------------------------------------------------------------------------
   Escenario                                                                                        Relación con rendimiento
   ------------------------------------------------------------------------------------------------ -----------------------------------
-  [ESC-02 --- Pedido de un estudiante recurrente en hora                                           Establece un tiempo objetivo para
-  pico](../arc42.md#103-esc-02--pedido-de-un-estudiante-recurrente-en-hora-pico)                   completar el proceso de pedido.
+  [ESC-02 --- Pedido de un usuario recurrente en hora                                           Establece un tiempo objetivo para
+  pico](../arc42.md#103-esc-02--pedido-de-un-usuario-recurrente-en-hora-pico)                   completar el proceso de pedido.
 
   [ESC-03 --- Gestión del estado de pedidos por el                                                 Establece un tiempo objetivo para
   establecimiento](../arc42.md#104-esc-03--gestión-del-estado-de-pedidos-por-el-establecimiento)   actualizar el estado de un pedido.
