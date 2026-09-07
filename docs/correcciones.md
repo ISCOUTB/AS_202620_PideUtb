@@ -24,7 +24,7 @@ Estados: ✅ corregido · 🟡 parcial · ⏳ pendiente (con el motivo).
 | Ligar arc42 §4 a ESC-01/02/03 con tácticas por escenario | ✅ | [§4.3 motivación por escenario](arc42/arc42.md#seccion-4) reescrita con una fila por escenario priorizado y umbral, y nueva [§4.4 tácticas por escenario](arc42/arc42.md#tacticas-por-escenario) |
 | Rehacer la matriz comparativa con filas por escenario | ✅ | [`docs/comparativa-arquitectura.md` § Matriz por escenario](comparativa-arquitectura.md): una fila por escenario, con qué mejora y qué empeora en cada estilo, y una fila de balance |
 | Enlazar el ADR 0001 desde `docs/aspectos.md` y desde el escenario que lo motiva | ✅ | Columna ADR de la tabla de aspectos, y sección Trazabilidad del [ADR-0001](adr/0001-estilo-arquitectonico.md), que nombra ESC-01 como escenario motivador |
-| Workflow en `.github/workflows/` que ejecute `pytest`, con run en verde | ✅ | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) — `pytest` en Python 3.11 y 3.12, en cada push y pull request |
+| Workflow en `.github/workflows/` que ejecute `pytest`, con run en verde | ✅ | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) — `pytest` en Python 3.11 y 3.12, en cada push y pull request. **Run en verde:** [Actions run #3](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34160302534) |
 | Mover `arc42.md` a `docs/arc42/` y el C4 a `docs/c4/` | ✅ | Ver semanas 1 y 2 |
 
 ## Semana 4
@@ -36,7 +36,7 @@ Estados: ✅ corregido · 🟡 parcial · ⏳ pendiente (con el motivo).
 | Completar la tabla de aspectos con ID, C4, ADR, Código y Pruebas | ✅ | [`docs/aspectos.md`](aspectos.md) |
 | Añadir al ADR la trazabilidad (commit que lo implementa y pruebas) | ✅ | [ADR-0001 § Trazabilidad](adr/0001-estilo-arquitectonico.md): commits `b5f0310` y `2e165bb`, archivos de código y las tres pruebas de `test_pedidos.py` |
 | No versionar el entorno virtual `.venv-1` | ✅ | Ya no hay archivos de entorno virtual rastreados; `.gitignore` cubre `.venv/` y `.venv-*/` |
-| Ejecutar las pruebas en CI y dejar el enlace al run en verde | ✅ | Pipeline creado; el enlace al run se añade al README cuando GitHub lo ejecute |
+| Ejecutar las pruebas en CI y dejar el enlace al run en verde | ✅ | **Run en verde sobre `master`:** [Actions run #3](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34160302534) — commit `ae52cca`, 5 pruebas en Python 3.11 y 3.12, conclusión `success` |
 | Glosario y secciones 1-6, 9, 10 y 12 visibles en `docs/arc42/` | ✅ | Todas presentes en [`docs/arc42/arc42.md`](arc42/arc42.md) |
 
 ## Semana 5 · Primer corte
@@ -45,7 +45,7 @@ Estados: ✅ corregido · 🟡 parcial · ⏳ pendiente (con el motivo).
 |---|---|---|
 | Documentar la restricción asignada y su diagnóstico | 🟡 | [`docs/restriccion-s5.md`](restriccion-s5.md) §§ 1-2. El diagnóstico del punto de medición está hecho; **el enunciado de la restricción asignada debe transcribirlo el equipo**: no está registrado en ningún punto del repositorio y no se documenta una restricción supuesta |
 | Medir una línea base | ✅ | [`docs/restriccion-s5.md` §3](restriccion-s5.md): 300 peticiones a `POST /pedidos` — p50 2,85 ms, **p95 3,32 ms**. Instrumento reproducible: `backend/scripts/medir_linea_base.py` |
-| Cubrir el cambio con una prueba en CI | ✅ | `backend/tests/test_linea_base.py::test_p95_de_crear_pedido_bajo_umbral`, ejecutada por el workflow |
+| Cubrir el cambio con una prueba en CI | ✅ | `backend/tests/test_linea_base.py::test_p95_de_crear_pedido_bajo_umbral`, ejecutada en verde por el workflow ([run #3](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34160302534)) |
 | Registrar el ADR del reto | ⏳ | Será `docs/adr/0002-*.md`; depende de la restricción asignada |
 | Implementar el cambio y contrastarlo con el umbral | ⏳ | [`docs/restriccion-s5.md`](restriccion-s5.md) §§ 5-6, con la tabla de contraste ya preparada |
 | Completar la cadena de ocho columnas en `docs/aspectos.md` | ✅ | Completa de punta a punta para ESC-01; ESC-02 a ESC-05 tienen escenario, C4 y ADR, y quedan marcadas ⏳ hasta que existan los módulos `pagos` y `usuarios` |
@@ -54,6 +54,23 @@ Estados: ✅ corregido · 🟡 parcial · ⏳ pendiente (con el motivo).
 | Retirar `.venv-1/` del repositorio | ✅ | Ver semana 4 |
 | Crear la etiqueta `corte-1` sobre el commit correcto | ⏳ | **Decisión del equipo.** El docente indicó crearla sobre el commit de la próxima entrega. No se creó sobre trabajo posterior al cierre porque etiquetarlo como si fuera la entrega del corte sería incorrecto |
 | Documento de correcciones a la revisión preliminar | ✅ | Este documento |
+
+## Evidencia de integración continua
+
+El pipeline [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) ejecuta la
+suite completa (`pytest`, 5 pruebas) en Python 3.11 y 3.12 en cada push y cada
+pull request.
+
+| Run | Rama | Commit | Evento | Resultado |
+|---|---|---|---|---|
+| [#3](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34160302534) | `master` | `ae52cca` | push (merge de las correcciones) | ✅ success |
+| [#4](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34160449532) | `rama-santiago` | `61f31ec` | push | ✅ success |
+| [#2](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34160277327) | rama de correcciones | `61f31ec` | pull request | ✅ success |
+| [#1](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34160100344) | rama de correcciones | `61f31ec` | push | ✅ success |
+
+El run de referencia para la entrega es el **#3**, porque corresponde al estado
+de `master` después de integrar las correcciones. El historial completo está en
+la [pestaña Actions](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/ci.yml).
 
 ## Resumen
 
