@@ -218,34 +218,7 @@ con sistemas externos necesarios para su funcionamiento.
 
 ### 3.2 Diagrama de contexto (C4 --- Nivel 1)
 
-El siguiente diagrama representa el sistema PideUTB, sus principales
-usuarios y los sistemas externos con los que interactúa.
-
-``` mermaid
-C4Context
-    title Diagrama de Contexto — PideUTB
-
-    Person(usuario, "Usuario (estudiante o profesor)", "Consulta menús, realiza pedidos, paga y recoge su comida con un código")
-    Person(establecimiento, "Personal del establecimiento", "Gestiona productos, precios y estado de los pedidos")
-    Person(admin, "Administrador", "Administra aspectos generales de la plataforma")
-
-    System(pideutb, "PideUTB", "Sistema web para realizar pedidos de comida dentro del campus")
-
-    System_Ext(wompi, "Wompi (Sandbox)", "Pasarela de pagos utilizada para transacciones de prueba")
-    System_Ext(supabase, "Supabase", "Servicios gestionados de base de datos y autenticación")
-
-    Rel(usuario, pideutb, "Consulta menús, realiza pedidos, paga y recibe código")
-    Rel(establecimiento, pideutb, "Gestiona productos y pedidos")
-    Rel(admin, pideutb, "Administra la plataforma")
-    Rel(pideutb, wompi, "Envía solicitudes de pago y recibe estados de transacción", "HTTPS/API")
-    Rel(pideutb, supabase, "Consulta y almacena datos del sistema", "HTTPS/API")
-```
-**Leyenda del diagrama**
-| Color | Elemento del diagrama | Qué representa |
-|---|---|---|
-| Azul oscuro | `Person(...)` | Personas que se conectan al sistema: usuario (estudiante o profesor), personal del establecimiento, administrador. |
-| Azul claro | `System(...)` | El software que estamos construyendo: PideUTB. |
-| Gris | `System_Ext(...)` | Servicios externos de los que depende nuestro software: Wompi y Supabase. |
+El diagrama representa el sistema PideUTB, sus principales usuarios y los sistemas externos con los que interactúa. Se documenta como código Mermaid en [`docs/c4/nivel1-contexto.md`](docs/c4/nivel1-contexto.md), junto con su leyenda de colores.
 
 ### 3.3 Alcance y relaciones externas
 
@@ -373,82 +346,12 @@ de otro módulo.
 
 ### 5.1 Nivel 1 — Diagrama de contenedores (C4 — Nivel 2)
 
-El diagrama de contexto (sección 3.2) mostró a PideUTB como una caja
-negra. El siguiente diagrama abre esa caja y muestra sus piezas
-desplegables: el frontend web, la API backend y los sistemas externos
-de los que depende.
-
-``` mermaid
-C4Container
-    title Diagrama de Contenedores — PideUTB
-
-    Person(usuario, "Usuario (estudiante o profesor)")
-    Person(establecimiento, "Personal del establecimiento")
-    Person(admin, "Administrador")
-
-    System_Boundary(pideutb, "PideUTB") {
-        Container(frontend, "Frontend Web", "HTML, CSS, JavaScript", "Interfaz web consumida por los tres roles: consulta de menú, pedidos, gestión de estados.")
-        Container(api, "API PideUTB", "FastAPI (Python) — monolito modular", "Expone endpoints REST agrupados por módulo de dominio (pedidos, menu, pagos, usuarios). Los módulos solo se comunican entre sí por funciones públicas de servicio (ver ADR-0001).")
-    }
-
-    System_Ext(supabase, "Supabase", "Persistencia (PostgreSQL) y autenticación.")
-    System_Ext(wompi, "Wompi Sandbox", "Procesamiento de pagos de prueba.")
-
-    Rel(usuario, frontend, "Usa", "HTTPS")
-    Rel(establecimiento, frontend, "Usa", "HTTPS")
-    Rel(admin, frontend, "Usa", "HTTPS")
-    Rel(frontend, api, "Consume", "HTTPS/JSON")
-    Rel(api, supabase, "Lee/escribe datos, valida identidad", "HTTPS/API")
-    Rel(api, wompi, "Solicita y confirma cobros", "HTTPS/API")
-```
-**Leyenda del diagrama.** Igual que en el Nivel 1 (§3.2), los colores
-son los que aplica Mermaid por defecto a cada tipo de elemento:
-
-| Color | Elemento del diagrama | Qué representa |
-|---|---|---|
-| Azul oscuro | `Person(...)` | Personas que se conectan al sistema. |
-| Azul claro | `Container(...)` dentro de `System_Boundary` | Piezas desplegables del software que estamos construyendo (frontend y API). |
-| Gris | `System_Ext(...)` | Servicios externos de los que depende nuestro software: Supabase y Wompi. |
-
-**Nota de despliegue:** frontend y API se despliegan como servicios
-separados en Vercel, pero la API sigue siendo un único contenedor
-internamente (monolito modular) — no hay un contenedor por módulo de
-dominio.
+El diagrama de contexto (sección 3.2) mostró a PideUTB como una caja negra. El diagrama de contenedores abre esa caja y muestra sus piezas desplegables: el frontend web, la API backend y los sistemas externos de los que depende. Se documenta como código Mermaid en [`docs/c4/nivel2-contenedores.md`](docs/c4/nivel2-contenedores.md).
 
 ### 5.2 Nivel 2 — Módulos internos de la API (caja blanca)
 
-El contenedor "API PideUTB" se descompone en los cuatro módulos de
-dominio definidos en la estrategia de solución (sección 4). Cada uno
-sigue la misma estructura interna:
+El contenedor "API PideUTB" se descompone en los cuatro módulos de dominio definidos en la estrategia de solución (sección 4). Cada uno sigue la misma estructura interna (`models.py`, `router.py`, `service.py`, `repository.py`). El diagrama de módulos y la regla de comunicación entre ellos (ADR-0001) se documentan en [`docs/c4/nivel3-modulos.md`](docs/c4/nivel3-modulos.md).
 
-```
-modulo/
-├── models.py       # entidades y esquemas Pydantic del módulo
-├── router.py        # endpoints FastAPI (capa de entrada HTTP)
-├── service.py        # lógica de negocio + INTERFAZ PÚBLICA del módulo
-└── repository.py    # acceso a datos (Supabase)
-```
-
-``` mermaid
-graph TD
-    subgraph API["API PideUTB (FastAPI)"]
-        M[menu]
-        P[pedidos]
-        PG[pagos]
-        U[usuarios]
-    end
-    P -->|"llama a menu.service.obtener_item()"| M
-    P -.->|"llamará a pagos.service (próx. entrega)"| PG
-    P -.->|"validará usuario vía usuarios.service (pendiente)"| U
-
-    style PG stroke-dasharray: 5 5
-    style U stroke-dasharray: 5 5
-```
-
-**Regla de comunicación (ADR-0001):** un módulo solo puede invocar
-funciones exportadas por el `service.py` de otro módulo. Está prohibido
-importar `repository.py` o acceder a `models.py` de un módulo distinto
-directamente.
 
 ### 5.3 Responsabilidad de cada módulo
 
