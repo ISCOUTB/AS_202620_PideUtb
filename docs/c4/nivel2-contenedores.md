@@ -1,6 +1,6 @@
 # C4 — Nivel 2: Diagrama de contenedores
 
-> Referenciado desde [`arc42.md` §5.1](../../arc42.md#51-nivel-1--diagrama-de-contenedores-c4--nivel-2).
+> Referenciado desde [`arc42.md` §5.1](../arc42/arc42.md#c4-contenedores).
 
 El diagrama de contexto ([Nivel 1](nivel1-contexto.md)) mostró a PideUTB como una caja negra. El siguiente diagrama abre esa caja y muestra sus piezas desplegables: el frontend web, la API backend y los sistemas externos de los que depende.
 

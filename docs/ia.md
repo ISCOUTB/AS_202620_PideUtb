@@ -44,3 +44,45 @@ Para esta entrega, Claude fue utilizado como apoyo en los siguientes aspectos:
 - **Materiales de apoyo para la entrega:** se utilizó Claude para generar el PDF de resumen ejecutivo de la entrega, el guion de sustentación oral y la guía de reparto de commits entre los integrantes del equipo.
 
 El contenido generado fue revisado por el equipo antes de incorporarlo al repositorio. Las pruebas automatizadas se ejecutaron localmente (`pytest`) para confirmar que el corte vertical funciona antes de aceptarlo, y se validó que las nuevas secciones de arc42 no contradijeran las decisiones ya tomadas en el ADR-0001.
+
+## Uso de IA en la quinta entrega (S5 — primer corte)
+
+**Herramienta utilizada:** Claude (Anthropic), vía Claude Code sobre el repositorio.
+
+### Qué se usó
+
+- **Reorganización de la documentación:** mover `arc42.md` a `docs/arc42/` y
+  renombrar `docs/C4/` a `docs/c4/`, corrigiendo todas las rutas relativas que
+  el movimiento rompió (README, `docs/aspectos.md`, los tres archivos de C4).
+- **Anclas estables:** sustituir las anclas autogeneradas de los títulos
+  (`#102-esc-01-----primer-pedido...`, que eran inconsistentes y se rompían al
+  editar el título) por anclas HTML explícitas `<a id="esc-01"></a>`.
+- **Tabla de trazabilidad de 8 columnas** en `docs/aspectos.md` (ID, aspecto,
+  escenario, medida, C4, ADR, código, pruebas).
+- **Sección 4 de arc42:** reescritura de la motivación para ligarla a ESC-01,
+  ESC-02 y ESC-03, y nueva subsección 4.4 con tácticas arquitectónicas por
+  escenario.
+- **Matriz comparativa por escenario** en `docs/comparativa-arquitectura.md`.
+- **Pipeline de CI** (`.github/workflows/ci.yml`) que ejecuta `pytest` en
+  Python 3.11 y 3.12.
+- **Script de medición de línea base** (`backend/scripts/medir_linea_base.py`)
+  y su prueba de regresión.
+
+### Qué se rechazó y por qué
+
+Esta sección responde a la observación del docente: la IA propuso más de lo que
+se incorporó. Lo descartado y su motivo:
+
+| Propuesta de la IA | Decisión | Motivo del rechazo |
+|---|---|---|
+| Partir `arc42.md` en un archivo por sección dentro de `docs/arc42/` (`01-introduccion.md`, `02-restricciones.md`, …) | **Rechazada** | Habría roto todos los enlaces externos ya entregados y publicados en entregas anteriores, y el documento todavía es lo bastante corto para leerse de corrido. Se mantiene un único `arc42.md` dentro de la carpeta exigida |
+| Añadir una novena columna "Táctica arquitectónica" a la tabla de aspectos | **Rechazada** | El formato pedido en el curso es de **ocho** columnas. La táctica se documenta en arc42 §4.4, enlazada desde el encabezado de la tabla |
+| Rellenar las filas ESC-02 a ESC-05 de la tabla de aspectos con código y pruebas "previstos" | **Rechazada** | Los módulos `pagos` y `usuarios` están vacíos: escribir rutas de archivos que no existen sería trazabilidad falsa. Se marcan explícitamente como ⏳ pendientes |
+| Fijar el umbral de la prueba de regresión en el p95 medido en local (3,32 ms) | **Rechazada** | Los runners compartidos de GitHub Actions tienen una varianza mucho mayor; ese umbral habría producido fallos intermitentes que enseñan al equipo a ignorar el CI. Se fijó en 50 ms, holgado pero suficiente para detectar una regresión de orden de magnitud |
+| Presentar la medición de latencia en proceso como "prueba de carga" de ESC-02 | **Rechazada** | ESC-02 exige concurrencia real en hora pico. La medición actual es una línea base del corte vertical, no una prueba de carga, y así queda rotulada en `docs/restriccion-s5.md` |
+| Redactar el diagnóstico de la restricción asignada de S5 a partir de una suposición | **Rechazada** | La restricción la asigna el docente y el equipo no la tiene registrada en el repositorio. Inventarla habría producido un documento no verificable. La sección queda marcada como pendiente de dato del equipo |
+| Crear la etiqueta `corte-1` sobre un commit posterior al cierre | **Rechazada** | Etiquetar trabajo posterior al cierre como si fuera la entrega del corte sería incorrecto. La etiqueta se creará sobre el commit de la próxima entrega, como indicó el docente |
+
+Todo el contenido incorporado fue revisado por el equipo antes de aceptarlo, y
+las pruebas se ejecutaron en verde (`pytest`, 5 pruebas) antes de subir los
+cambios.

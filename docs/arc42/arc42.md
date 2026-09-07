@@ -216,9 +216,13 @@ con sistemas externos necesarios para su funcionamiento.
 -   **Supabase** proporciona los servicios de persistencia de datos y
     las capacidades de autenticación utilizadas por el sistema.
 
+<a id="c4-contexto"></a>
+
 ### 3.2 Diagrama de contexto (C4 --- Nivel 1)
 
-El diagrama representa el sistema PideUTB, sus principales usuarios y los sistemas externos con los que interactúa. Se documenta como código Mermaid en [`docs/c4/nivel1-contexto.md`](docs/c4/nivel1-contexto.md), junto con su leyenda de colores.
+El diagrama representa el sistema PideUTB, sus principales usuarios y los sistemas externos con los que interactúa. Se documenta como código Mermaid en [`docs/c4/nivel1-contexto.md`](../c4/nivel1-contexto.md), junto con su leyenda de colores.
+
+<a id="alcance-externo"></a>
 
 ### 3.3 Alcance y relaciones externas
 
@@ -253,6 +257,8 @@ Las principales interacciones externas son:
 
 ------------------------------------------------------------------------
 
+<a id="seccion-4"></a>
+
 ## 4. Estrategia de solución
 
 ### 4.1 Decisiones tecnológicas de fondo
@@ -271,9 +277,9 @@ El equipo evaluó tres estilos arquitectónicos posibles para organizar el
 backend: **arquitectura por capas**, **arquitectura hexagonal (puertos y
 adaptadores)** y **monolito modular**. La comparación completa, con
 criterios y puntajes, se documenta en
-[`docs/comparativa-arquitectura.md`](docs/comparativa-arquitectura.md) y
+[`docs/comparativa-arquitectura.md`](../comparativa-arquitectura.md) y
 la decisión formal queda registrada en
-[`docs/adr/0001-estilo-arquitectonico.md`](docs/adr/0001-estilo-arquitectonico.md).
+[`docs/adr/0001-estilo-arquitectonico.md`](../adr/0001-estilo-arquitectonico.md).
 
 Se eligió un **monolito modular**: un único desplegable backend
 organizado internamente en módulos de dominio (pedidos, menú, pagos,
@@ -282,43 +288,38 @@ usuarios/autenticación), cada uno con sus propias capas internas
 una interfaz clara entre sí y evitan el acceso directo al detalle interno
 de otro módulo.
 
-### 4.3 Motivación
+### 4.3 Motivación: cómo el estilo elegido atiende los escenarios priorizados
 
-  -----------------------------------------------------------------------
-  Objetivo de calidad                 Cómo lo favorece el monolito modular
-  ----------------------------------- -----------------------------------
-  **Usabilidad** (entrega dentro del  Al no introducir la sobrecarga de
-  plazo fijo, sin retrabajo de        puertos/adaptadores de hexagonal,
-  arquitectura)                       el equipo puede dedicar más tiempo
-                                       a construir el flujo de usuario en
-                                       lugar de a la infraestructura
-                                       arquitectónica.
+La motivación no se expresa a nivel de atributos genéricos sino sobre los tres
+escenarios de mayor prioridad del [árbol de utilidad](#arbol-utilidad)
+(ESC-01, ESC-02 y ESC-03), que son los que la arquitectura debe hacer posibles.
 
-  **Confiabilidad**                   Separar por dominios (pedidos,
-                                       pagos, usuarios) reduce el riesgo
-                                       de que un cambio en un módulo
-                                       rompa la lógica de otro.
+| Escenario priorizado | Umbral a satisfacer | Cómo lo favorece el monolito modular | Qué se sacrifica |
+|---|---|---|---|
+| [**ESC-01**](#esc-01) — Primer pedido de un usuario nuevo (A/M) | < 3 min, sin errores de navegación | Sin la indirección de puertos/adaptadores, el equipo dedica el tiempo al flujo de usuario. Los módulos separados permiten devolver errores específicos (`404`, `409`) en vez de un `500` genérico que confundiría a un usuario nuevo | Menor aislamiento de la lógica frente al framework |
+| [**ESC-02**](#esc-02) — Pedido en hora pico (A/M) | < 2 min en el 90 % de los intentos | Un único desplegable elimina latencia de red entre servicios: la llamada `pedidos → menu` es una llamada en proceso, no un salto HTTP | No se puede escalar `pedidos` de forma independiente; si el umbral falla habrá que extraer el módulo |
+| [**ESC-03**](#esc-03) — Gestión del estado por el establecimiento (A/B) | ≤ 10 s y ≤ 3 interacciones | El módulo `pedidos` es dueño único del estado del pedido, así que la transición ocurre en un solo punto sin coordinación distribuida ni consistencia eventual | El panel comparte despliegue con el resto de la API |
 
-  **Curva de aprendizaje del equipo** Los tres integrantes son
-  (equipo de 3 generalistas sin       generalistas full-stack sin
-  roles fijos)                        experiencia previa reportada en
-                                       hexagonal; el monolito modular es
-                                       más cercano a la forma en que ya
-                                       organizan features por carpetas.
+Escenarios de menor prioridad ([ESC-04](#esc-04), [ESC-05](#esc-05)) dependen
+del módulo `pagos`, todavía no implementado; la decisión los contempla al
+mantener `pagos` como módulo aislable (ver 4.4).
 
-  **Alineación con el tamaño del      PideUTB no tiene una lógica de
-  proyecto**                          dominio lo suficientemente compleja
-                                       como para justificar el
-                                       desacoplamiento estricto que ofrece
-                                       hexagonal.
+<a id="tacticas-por-escenario"></a>
 
-  **Despliegue en Vercel**            Un único desplegable sin capas
-                                       adicionales de indirección
-                                       simplifica el empaquetado
-                                       serverless.
-  -----------------------------------------------------------------------
+### 4.4 Tácticas arquitectónicas por escenario
 
-### 4.4 Consecuencias para la estructura del código
+| Escenario | Táctica (clasificación ADD/SAiP) | Realización concreta en PideUTB | Estado |
+|---|---|---|---|
+| [ESC-01](#esc-01) | *Usabilidad* — separar la interfaz de usuario del modelo; soportar la iniciativa del usuario con mensajes de error específicos | `menu.service.obtener_item()` valida existencia y disponibilidad y devuelve `404`/`409` diferenciados; `pedidos.service` solo orquesta y arma el pedido | Implementada y verificada en CI |
+| [ESC-02](#esc-02) | *Rendimiento* — reducir la sobrecarga computacional y controlar la demanda de recursos | Comunicación intra-proceso entre módulos (sin salto de red); acceso a datos concentrado en `repository.py` para poder introducir caché de menú sin tocar la lógica de negocio | Base implementada; caché pendiente |
+| [ESC-03](#esc-03) | *Modificabilidad/Rendimiento* — encapsular y mantener un único dueño de los datos | El estado del pedido solo se transiciona dentro de `pedidos.service`; ningún otro módulo escribe esa tabla | Pendiente (panel del establecimiento) |
+| [ESC-04](#esc-04) | *Seguridad* — verificar la integridad y limitar el acceso; *Confiabilidad* — detectar la reutilización | Código de recogida de un solo uso, validado y marcado como canjeado en la misma operación dentro de `pagos`/`pedidos` | Pendiente (módulo `pagos`) |
+| [ESC-05](#esc-05) | *Disponibilidad* — detección de fallos y reintento sin pérdida de estado | El pedido se persiste antes de invocar la pasarela, de modo que un rechazo de Wompi no destruye el carrito | Pendiente (módulo `pagos`) |
+
+La trazabilidad de estas tácticas hasta el código y las pruebas está en
+[`docs/aspectos.md`](../aspectos.md).
+
+### 4.5 Consecuencias para la estructura del código
 
 -   El backend se organiza por **paquetes de dominio** (por ejemplo:
     `pedidos/`, `menu/`, `pagos/`, `usuarios/`), y no por tipo técnico
@@ -344,14 +345,20 @@ de otro módulo.
 
 ## 5. Vista de bloques
 
+<a id="c4-contenedores"></a>
+
 ### 5.1 Nivel 1 — Diagrama de contenedores (C4 — Nivel 2)
 
-El diagrama de contexto (sección 3.2) mostró a PideUTB como una caja negra. El diagrama de contenedores abre esa caja y muestra sus piezas desplegables: el frontend web, la API backend y los sistemas externos de los que depende. Se documenta como código Mermaid en [`docs/c4/nivel2-contenedores.md`](docs/c4/nivel2-contenedores.md).
+El diagrama de contexto (sección 3.2) mostró a PideUTB como una caja negra. El diagrama de contenedores abre esa caja y muestra sus piezas desplegables: el frontend web, la API backend y los sistemas externos de los que depende. Se documenta como código Mermaid en [`docs/c4/nivel2-contenedores.md`](../c4/nivel2-contenedores.md).
+
+<a id="c4-modulos"></a>
 
 ### 5.2 Nivel 2 — Módulos internos de la API (caja blanca)
 
-El contenedor "API PideUTB" se descompone en los cuatro módulos de dominio definidos en la estrategia de solución (sección 4). Cada uno sigue la misma estructura interna (`models.py`, `router.py`, `service.py`, `repository.py`). El diagrama de módulos y la regla de comunicación entre ellos (ADR-0001) se documentan en [`docs/c4/nivel3-modulos.md`](docs/c4/nivel3-modulos.md).
+El contenedor "API PideUTB" se descompone en los cuatro módulos de dominio definidos en la estrategia de solución (sección 4). Cada uno sigue la misma estructura interna (`models.py`, `router.py`, `service.py`, `repository.py`). El diagrama de módulos y la regla de comunicación entre ellos (ADR-0001) se documentan en [`docs/c4/nivel3-modulos.md`](../c4/nivel3-modulos.md).
 
+
+<a id="responsabilidad-modulos"></a>
 
 ### 5.3 Responsabilidad de cada módulo
 
@@ -376,10 +383,12 @@ El contenedor "API PideUTB" se descompone en los cuatro módulos de dominio defi
 
 ## 6. Vista de tiempo de ejecución (runtime)
 
+<a id="runtime-crear-pedido"></a>
+
 ### 6.1 Escenario: crear un pedido (corte vertical ejecutable de esta entrega)
 
 Este es el flujo implementado y ejecutable en esta entrega (ver
-[README — Corte vertical ejecutable](README.md#corte-vertical-ejecutable)).
+[README — Corte vertical ejecutable](../../README.md#corte-vertical-ejecutable)).
 
 ``` mermaid
 sequenceDiagram
@@ -434,13 +443,13 @@ la validación de entrada.)*
 ## 9. Decisiones de arquitectura
 
 Las decisiones arquitectónicas relevantes se documentan como ADRs en
-[`docs/adr/`](docs/adr/), siguiendo el formato estándar (contexto,
+[`docs/adr/`](../adr/), siguiendo el formato estándar (contexto,
 decisión, alternativas consideradas, consecuencias).
 
   ---------------------------------------------------------------------------------
   ID                                                    Título              Estado
   ------------------------------------------------------ ------------------- -------
-  [ADR-0001](docs/adr/0001-estilo-arquitectonico.md)     Estilo               Aceptada
+  [ADR-0001](../adr/0001-estilo-arquitectonico.md)     Estilo               Aceptada
                                                           arquitectónico:
                                                           monolito modular
   ---------------------------------------------------------------------------------
@@ -461,6 +470,8 @@ Los valores numéricos indicados en estos escenarios son **objetivos
 iniciales de calidad**. Todavía no representan resultados
 experimentales; posteriormente podrán comprobarse mediante pruebas del
 sistema.
+
+<a id="arbol-utilidad"></a>
 
 ### 10.1 Árbol de utilidad
 
@@ -501,6 +512,8 @@ PideUTB
 alto y riesgo técnico medio; `A/B`, impacto alto y riesgo bajo; `M/B`,
 impacto medio y riesgo bajo.
 
+<a id="esc-01"></a>
+
 ### 10.2 ESC-01 --- Primer pedido de un usuario nuevo
 
   -----------------------------------------------------------------------
@@ -530,6 +543,8 @@ impacto medio y riesgo bajo.
                                       de navegación.
   -----------------------------------------------------------------------
 
+<a id="esc-02"></a>
+
 ### 10.3 ESC-02 --- Pedido de un usuario recurrente en hora pico
 
   -----------------------------------------------------------------------
@@ -558,6 +573,8 @@ impacto medio y riesgo bajo.
                                       90 % de los intentos**.
   -----------------------------------------------------------------------
 
+<a id="esc-03"></a>
+
 ### 10.4 ESC-03 --- Gestión del estado de pedidos por el establecimiento
 
   -----------------------------------------------------------------------
@@ -584,6 +601,8 @@ impacto medio y riesgo bajo.
                                       interacciones**, sin necesidad de
                                       recargar manualmente la página.
   -----------------------------------------------------------------------
+
+<a id="esc-04"></a>
 
 ### 10.5 ESC-04 --- Verificación del código de recogida
 
@@ -614,6 +633,8 @@ impacto medio y riesgo bajo.
                                       reutilización de un código ya
                                       canjeado**.
   -----------------------------------------------------------------------
+
+<a id="esc-05"></a>
 
 ### 10.6 ESC-05 --- Error en el proceso de pago
 

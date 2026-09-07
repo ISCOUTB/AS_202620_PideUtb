@@ -1,128 +1,77 @@
-# Aspectos del proyecto
+# Aspectos de arquitectura — PideUTB
 
-## Usabilidad
+Este documento es el **índice de trazabilidad** del proyecto: conecta cada
+atributo de calidad con el escenario que lo hace verificable, el diagrama C4
+donde se ve la estructura que lo soporta, el ADR que justifica esa estructura,
+el código que la implementa y la prueba automatizada que la verifica.
 
-El sistema debe ser fácil de utilizar tanto para los estudiantes como
-para los establecimientos de comida del campus.
+- Escenarios completos (seis partes): [`arc42.md` §10](arc42/arc42.md#arbol-utilidad)
+- Tácticas por escenario: [`arc42.md` §4.5](arc42/arc42.md#tacticas-por-escenario)
+- Decisiones: [`docs/adr/`](adr/)
+- Diagramas: [`docs/c4/`](c4/)
 
-Para los estudiantes, el proceso de consultar los establecimientos,
-revisar los menús y precios, realizar un pedido y presentar el código de
-compra debe ser claro y sencillo.
+## Tabla de aspectos (8 columnas)
 
-Para los establecimientos, la visualización y gestión de los pedidos
-también debe realizarse de manera organizada, evitando pasos
-innecesarios.
+| ID | Aspecto de calidad | Escenario | Medida de respuesta (umbral) | C4 | ADR | Código | Pruebas |
+|---|---|---|---|---|---|---|---|
+| **ESC-01** | Usabilidad *(prioritario)* | [Primer pedido de un usuario nuevo](arc42/arc42.md#esc-01) | Flujo completo en **< 3 min**, sin errores de navegación | [N3 — módulos](c4/nivel3-modulos.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md) | `backend/app/pedidos/router.py:9` (`POST /pedidos`), `backend/app/pedidos/service.py`, `backend/app/menu/service.py` | `backend/tests/test_pedidos.py::test_crear_pedido_exitoso`, `::test_crear_pedido_item_no_encontrado`, `::test_crear_pedido_item_no_disponible` ✅ |
+| **ESC-02** | Disponibilidad · Rendimiento | [Pedido de un usuario recurrente en hora pico](arc42/arc42.md#esc-02) | **< 2 min** en al menos el **90 %** de los intentos | [N2 — contenedores](c4/nivel2-contenedores.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md) | `backend/app/pedidos/` (flujo base implementado; falta reúso de datos del usuario) | ⏳ Pendiente — requiere prueba de carga (S6) |
+| **ESC-03** | Usabilidad · Rendimiento | [Gestión del estado de pedidos por el establecimiento](arc42/arc42.md#esc-03) | **≤ 10 s** y **≤ 3 interacciones**, sin recargar la página | [N3 — módulos](c4/nivel3-modulos.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md) | ⏳ Pendiente — panel del establecimiento (S6) | ⏳ Pendiente |
+| **ESC-04** | Confiabilidad · Seguridad | [Verificación del código de recogida](arc42/arc42.md#esc-04) | Validación en **< 2 s**; rechazo del **100 %** de reutilizaciones | [N3 — módulos](c4/nivel3-modulos.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md) | ⏳ Pendiente — módulo `backend/app/pagos/` (vacío) | ⏳ Pendiente |
+| **ESC-05** | Usabilidad (manejo de errores) | [Error en el proceso de pago](arc42/arc42.md#esc-05) | Mensaje en **< 3 s**; pedido conservado en el **100 %** de los casos | [N2 — contenedores](c4/nivel2-contenedores.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md) | ⏳ Pendiente — integración Wompi Sandbox (S6) | ⏳ Pendiente |
 
-La usabilidad es el atributo de calidad prioritario porque uno de los
-objetivos principales del proyecto es reducir el tiempo que los
-estudiantes deben dedicar a realizar y recoger sus compras.
+**Leyenda:** ✅ verificado en CI · ⏳ pendiente en la entrega actual.
 
-### Escenarios relacionados
+Estado a la fecha: la cadena de trazabilidad está **completa de punta a punta
+para ESC-01** (escenario → C4 → ADR → código → prueba en verde en CI). Las
+demás filas tienen escenario, C4 y ADR, y quedan a la espera de los módulos
+`pagos` y `usuarios`.
 
-  ------------------------------------------------------------------------------------------------------------------------------------
-  Escenario                                                                                        Relación con usabilidad
-  ------------------------------------------------------------------------------------------------ -----------------------------------
-  [ESC-01 --- Primer pedido de un usuario                                                       Evalúa la facilidad de aprendizaje
-  nuevo](../arc42.md#102-esc-01-----primer-pedido-de-un-usuario-nuevo)                             y la claridad del flujo inicial.
+## Por qué estos atributos
 
-  [ESC-02 --- Pedido de un usuario recurrente en hora                                           Evalúa la eficiencia de uso durante
-  pico](../arc42.md#103-esc-02-----pedido-de-un-usuario-recurrente-en-hora-pico)                   una situación de alta demanda.
+### Usabilidad (prioritario)
 
-  [ESC-03 --- Gestión del estado de pedidos por el                                                 Evalúa la facilidad y rapidez de
-  establecimiento](../arc42.md#104-esc-03-----gestión-del-estado-de-pedidos-por-el-establecimiento)   uso del panel del establecimiento.
+El sistema debe ser fácil de usar tanto para los usuarios (estudiantes y
+profesores) como para los establecimientos. Para el usuario, consultar
+establecimientos, revisar menús y precios, hacer un pedido y presentar el
+código debe ser claro y sencillo; para el establecimiento, la gestión de
+pedidos debe evitar pasos innecesarios. Es el atributo prioritario porque el
+objetivo central del proyecto es **reducir el tiempo** que se pierde haciendo
+fila.
 
-  [ESC-05 --- Error en el proceso de pago](../arc42.md#106-esc-05-----error-en-el-proceso-de-pago)    Evalúa la claridad del manejo de
-                                                                                                   errores y la posibilidad de
-                                                                                                   reintentar sin perder el pedido.
-  ------------------------------------------------------------------------------------------------------------------------------------
+Escenarios: [ESC-01](arc42/arc42.md#esc-01) (facilidad de aprendizaje),
+[ESC-02](arc42/arc42.md#esc-02) (eficiencia de uso en alta demanda),
+[ESC-03](arc42/arc42.md#esc-03) (panel del establecimiento),
+[ESC-05](arc42/arc42.md#esc-05) (claridad del manejo de errores).
 
-## Confiabilidad
+### Confiabilidad
 
-La confiabilidad es importante porque los pedidos, pagos y códigos deben
-mantenerse correctamente asociados para evitar errores durante la
-entrega.
+Pedidos, pagos y códigos deben mantenerse correctamente asociados para evitar
+errores en la entrega. Escenario: [ESC-04](arc42/arc42.md#esc-04).
 
-### Escenario relacionado
+### Seguridad
 
-  ------------------------------------------------------------------------------------------------------------
-  Escenario                                                                Relación con confiabilidad
-  ------------------------------------------------------------------------ -----------------------------------
-  [ESC-04 --- Verificación del código de                                   Busca garantizar que el código
-  recogida](../arc42.md#105-esc-04-----verificación-del-código-de-recogida)   corresponda al pedido y no pueda
-                                                                           reutilizarse después de una
-                                                                           entrega.
+Proteger la información del sistema y evitar usos no autorizados de los
+pedidos y del mecanismo de entrega. La validación del código impide reutilizar
+un pedido ya entregado. Escenario: [ESC-04](arc42/arc42.md#esc-04).
 
-  ------------------------------------------------------------------------------------------------------------
+### Disponibilidad
 
-## Seguridad
+PideUTB debe poder utilizarse especialmente en los horarios de mayor demanda.
+Escenario: [ESC-02](arc42/arc42.md#esc-02).
 
-La seguridad es importante para proteger la información del sistema y
-evitar usos no autorizados de los pedidos y mecanismos de entrega.
+### Rendimiento
 
-### Escenario relacionado
+La plataforma no debe introducir nuevos tiempos de espera. Escenarios:
+[ESC-02](arc42/arc42.md#esc-02), [ESC-03](arc42/arc42.md#esc-03),
+[ESC-04](arc42/arc42.md#esc-04).
 
-  ------------------------------------------------------------------------------------------------------------
-  Escenario                                                                Relación con seguridad
-  ------------------------------------------------------------------------ -----------------------------------
-  [ESC-04 --- Verificación del código de                                   La validación del código ayuda a
-  recogida](../arc42.md#105-esc-04--verificación-del-código-de-recogida)   impedir la reutilización no
-                                                                           autorizada de un pedido ya
-                                                                           entregado.
+## Tensiones de calidad
 
-  ------------------------------------------------------------------------------------------------------------
+Las dos tensiones declaradas en la [ficha del problema](../ficha_problema.md)
+y arbitradas en [ADR-0001](adr/0001-estilo-arquitectonico.md):
 
-## Disponibilidad
-
-La disponibilidad es importante porque PideUTB debe poder utilizarse
-especialmente durante los horarios de mayor demanda.
-
-### Escenario relacionado
-
-  --------------------------------------------------------------------------------------------------------------------
-  Escenario                                                                        Relación con disponibilidad
-  -------------------------------------------------------------------------------- -----------------------------------
-  [ESC-02 --- Pedido de un usuario recurrente en hora                           Considera el funcionamiento del
-  pico](../arc42.md#103-esc-02--pedido-de-un-usuario-recurrente-en-hora-pico)   sistema durante una situación de
-                                                                                   posible alta concurrencia.
-
-  --------------------------------------------------------------------------------------------------------------------
-
-## Rendimiento
-
-El rendimiento es importante para evitar que la plataforma introduzca
-nuevos tiempos de espera.
-
-### Escenarios relacionados
-
-  ------------------------------------------------------------------------------------------------------------------------------------
-  Escenario                                                                                        Relación con rendimiento
-  ------------------------------------------------------------------------------------------------ -----------------------------------
-  [ESC-02 --- Pedido de un usuario recurrente en hora                                           Establece un tiempo objetivo para
-  pico](../arc42.md#103-esc-02--pedido-de-un-usuario-recurrente-en-hora-pico)                   completar el proceso de pedido.
-
-  [ESC-03 --- Gestión del estado de pedidos por el                                                 Establece un tiempo objetivo para
-  establecimiento](../arc42.md#104-esc-03--gestión-del-estado-de-pedidos-por-el-establecimiento)   actualizar el estado de un pedido.
-
-  [ESC-04 --- Verificación del código de                                                           Establece un tiempo objetivo para
-  recogida](../arc42.md#105-esc-04--verificación-del-código-de-recogida)                           validar el código.
-  ------------------------------------------------------------------------------------------------------------------------------------
-
-
-## Tabla de aspectos (trazabilidad completa)
-
-> Esta tabla conecta cada aspecto con un escenario concreto, la táctica
-> arquitectónica usada para atenderlo y la prueba que verifica que
-> efectivamente se cumple. **En esta entrega solo la fila de
-> Usabilidad está completa hasta la columna "Prueba"**; las demás
-> filas se irán completando en próximas entregas a medida que se
-> implementen los módulos de los que dependen (`pagos`, `usuarios`).
-
-| Aspecto | Escenario | Estímulo → Respuesta | Medida de respuesta | Táctica arquitectónica | Prueba |
-|---|---|---|---|---|---|
-| **Usabilidad** | [ESC-01](../arc42.md#102-esc-01-----primer-pedido-de-un-usuario-nuevo) — Primer pedido de un usuario nuevo | Usuario nuevo (estudiante o profesor) intenta consultar un establecimiento y crear su primer pedido → lo logra sin ayuda externa, con un único request mínimo (`establecimiento_id`, `item_id`, `cantidad`) | Menos de 3 minutos, sin errores de navegación (medida definida en arc42 §10.2) | Separación de responsabilidades por módulo: `menu.service` valida disponibilidad y precio, `pedidos.service` solo orquesta esa llamada y arma el pedido. Esto permite endpoints simples y mensajes de error específicos (`404` ítem no existe, `409` no disponible) en vez de errores genéricos que confundirían al usuario nuevo | `backend/tests/test_pedidos.py::test_crear_pedido_exitoso`, `::test_crear_pedido_item_no_encontrado` y `::test_crear_pedido_item_no_disponible` — verifican que el flujo completo responde `201` con los datos del pedido, y que un ítem inválido responde con un error claro y no un `500` |
-| Confiabilidad | [ESC-04](../arc42.md#105-esc-04-----verificación-del-código-de-recogida) — Verificación del código de recogida | — | — | — | *Pendiente — depende del módulo `pagos` (próxima entrega)* |
-| Seguridad | [ESC-04](../arc42.md#105-esc-04-----verificación-del-código-de-recogida) — Verificación del código de recogida | — | — | — | *Pendiente — depende del módulo `pagos`* |
-| Disponibilidad | [ESC-02](../arc42.md#103-esc-02-----pedido-de-un-usuario-recurrente-en-hora-pico) — Pedido en hora pico | — | — | — | *Pendiente — requiere prueba de carga* |
-| Rendimiento | ESC-02, ESC-03, ESC-04 | — | — | — | *Pendiente* |
-
-
+| Tensión | En conflicto | Cómo se resolvió |
+|---|---|---|
+| **T-1: Usabilidad vs. Seguridad** | ESC-01 (pedido en < 3 min, sin fricción) vs. ESC-04 (código no reutilizable, validación estricta) | Se privilegia la usabilidad en el flujo de compra y se concentra la validación estricta en el punto de entrega, no en cada paso del pedido |
+| **T-2: Rendimiento/Disponibilidad vs. Simplicidad de construcción** | ESC-02 (hora pico, < 2 min en el 90 %) vs. el plazo y el tamaño del equipo (3 integrantes, sin presupuesto) | Monolito modular en un solo desplegable: se acepta menos margen de escalado independiente a cambio de entregar a tiempo, con módulos separados que permiten extraer un servicio después si ESC-02 lo exige |
