@@ -1,6 +1,6 @@
 # C4 — Nivel 1: Diagrama de contexto
 
-> Referenciado desde [`arc42.md` §3.2](../../arc42.md#32-diagrama-de-contexto-c4-----nivel-1).
+> Referenciado desde [`arc42.md` §3.2](../arc42/arc42.md#c4-contexto).
 
 El siguiente diagrama representa el sistema PideUTB, sus principales usuarios y los sistemas externos con los que interactúa.
 
@@ -32,4 +32,4 @@ C4Context
 | Azul claro  | `System(...)`          | El software que estamos construyendo: PideUTB.                                                                    |
 | Gris        | `System_Ext(...)`      | Servicios externos de los que depende nuestro software: Wompi y Supabase.                                         |
 
-El C4 de nivel 1 muestra el sistema desde una perspectiva externa. No representa componentes internos como clases, módulos o tablas de la base de datos (ver [arc42.md §3.3](../../arc42.md#33-alcance-y-relaciones-externas) para el detalle de cada interacción).
+El C4 de nivel 1 muestra el sistema desde una perspectiva externa. No representa componentes internos como clases, módulos o tablas de la base de datos (ver [arc42.md §3.3](../arc42/arc42.md#alcance-externo) para el detalle de cada interacción).

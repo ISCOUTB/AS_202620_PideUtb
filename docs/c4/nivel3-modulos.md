@@ -1,6 +1,6 @@
 # C4 — Nivel 3: Módulos internos de la API (caja blanca)
 
-> Referenciado desde [`arc42.md` §5.2](../../arc42.md#52-nivel-2--módulos-internos-de-la-api-caja-blanca).
+> Referenciado desde [`arc42.md` §5.2](../arc42/arc42.md#c4-modulos).
 
 El contenedor "API PideUTB" (ver [Nivel 2](nivel2-contenedores.md)) se descompone en los cuatro módulos de dominio definidos en la estrategia de solución (arc42 §4). Cada uno sigue la misma estructura interna:
 
@@ -30,4 +30,4 @@ graph TD
 
 **Regla de comunicación (ADR-0001):** un módulo solo puede invocar funciones exportadas por el `service.py` de otro módulo. Está prohibido importar `repository.py` o acceder a `models.py` de un módulo distinto directamente.
 
-Ver [arc42.md §5.3](../../arc42.md#53-responsabilidad-de-cada-módulo) para la responsabilidad y estado de implementación de cada módulo.
+Ver [arc42.md §5.3](../arc42/arc42.md#responsabilidad-modulos) para la responsabilidad y estado de implementación de cada módulo.
