@@ -1,6 +1,6 @@
 # Diagramas C4 — PideUTB
 
-Diagramas del modelo C4 como código Mermaid, referenciados desde [`arc42.md`](../../arc42.md) (secciones 3.2 y 5).
+Diagramas del modelo C4 como código Mermaid, referenciados desde [`arc42.md`](../arc42/arc42.md) (secciones 3.2 y 5).
 
 | Nivel | Archivo | Qué muestra |
 |---|---|---|

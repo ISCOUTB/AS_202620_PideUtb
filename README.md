@@ -1,15 +1,31 @@
 # PideUTB
 
+[![CI](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/ci.yml/badge.svg)](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/ci.yml)
+
 Pide UTB es una plataforma web para realizar pedidos de comida dentro del campus universitario. Permite consultar menús y precios, realizar pedidos, gestionar pagos mediante una pasarela en ambiente Sandbox y recibir un código para verificar y recoger las compras de forma rápida y organizada.
 
 ## Arquitectura
 
 El backend sigue un estilo de **monolito modular**, organizado por módulos de dominio (`pedidos`, `menu`, `pagos`, `usuarios`). La decisión, sus alternativas y consecuencias están documentadas en:
 
-- [`arc42.md`](arc42.md) — sección 4, estrategia de solución.
+- [`docs/arc42/arc42.md`](docs/arc42/arc42.md#seccion-4) — sección 4, estrategia de solución.
 - [`docs/comparativa-arquitectura.md`](docs/comparativa-arquitectura.md) — matriz comparativa de estilos evaluados.
 - [`docs/adr/0001-estilo-arquitectonico.md`](docs/adr/0001-estilo-arquitectonico.md) — ADR con la decisión formal.
 - [`docs/c4/`](docs/c4/) — diagramas C4 (contexto, contenedores y módulos) como código Mermaid.
+
+### Índice de documentación
+
+| Documento | Contenido |
+|---|---|
+| [`ficha_problema.md`](ficha_problema.md) | Problema, usuarios, alcance y las dos tensiones de calidad |
+| [`docs/arc42/arc42.md`](docs/arc42/arc42.md) | Documentación arc42 completa (secciones 1-12, escenarios y glosario) |
+| [`docs/aspectos.md`](docs/aspectos.md) | Tabla de trazabilidad de 8 columnas: escenario → C4 → ADR → código → pruebas |
+| [`docs/adr/`](docs/adr/) | Decisiones de arquitectura (ADR) con su trazabilidad |
+| [`docs/c4/`](docs/c4/) | Diagramas C4 niveles 1, 2 y 3 en Mermaid |
+| [`docs/comparativa-arquitectura.md`](docs/comparativa-arquitectura.md) | Matrices comparativas por criterio y por escenario |
+| [`docs/restriccion-s5.md`](docs/restriccion-s5.md) | Restricción del reto, diagnóstico y línea base medida |
+| [`docs/correcciones.md`](docs/correcciones.md) | Respuesta punto por punto a la retroalimentación docente |
+| [`docs/ia.md`](docs/ia.md) | Uso de IA por entrega, incluido qué se rechazó y por qué |
 
 ## Cómo arrancar el backend
 
@@ -37,7 +53,23 @@ Con el entorno virtual ya activado (ver paso anterior):
 pytest
 ```
 
-El repositorio incluye la prueba base (`tests/test_health.py`) que verifica que la aplicación arranca y que el endpoint de salud responde correctamente, y ahora también `tests/test_pedidos.py`, que cubre el corte vertical ejecutable descrito más abajo.
+El repositorio incluye la prueba base (`tests/test_health.py`) que verifica que la aplicación arranca y que el endpoint de salud responde correctamente, `tests/test_pedidos.py`, que cubre el corte vertical ejecutable descrito más abajo, y `tests/test_linea_base.py`, que protege la línea base de latencia documentada en [`docs/restriccion-s5.md`](docs/restriccion-s5.md).
+
+### Integración continua
+
+Cada push y cada pull request ejecutan la suite completa en GitHub Actions
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) sobre Python 3.11 y
+3.12. El estado del último run está en la insignia del encabezado; el historial
+completo en la [pestaña Actions](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/ci.yml).
+
+### Medir la línea base de rendimiento
+
+```bash
+python scripts/medir_linea_base.py 300
+```
+
+Reporta min, p50, p95 y máximo de `POST /pedidos`. La medición de referencia y
+su interpretación están en [`docs/restriccion-s5.md`](docs/restriccion-s5.md).
 
 ## Estructura del proyecto
 
@@ -49,18 +81,27 @@ backend/
 │   ├── menu/            # Módulo de dominio: menú (implementado — lectura)
 │   ├── pagos/           # Módulo de dominio: pagos (vacío, próxima entrega)
 │   └── usuarios/        # Módulo de dominio: usuarios/autenticación (vacío, próxima entrega)
+├── scripts/
+│   └── medir_linea_base.py # Medición de latencia de POST /pedidos
 ├── tests/
-│   ├── test_health.py  # Prueba automatizada base
-│   └── test_pedidos.py # Prueba del corte vertical (crear pedido)
+│   ├── test_health.py      # Prueba automatizada base
+│   ├── test_pedidos.py     # Prueba del corte vertical (crear pedido)
+│   └── test_linea_base.py  # Regresión sobre la línea base de latencia
 ├── requirements.txt
 └── pytest.ini
 
 docs/
-├── adr/                     # Architecture Decision Records
-├── c4/                      # Diagramas C4 (contexto, contenedores, módulos) en Mermaid
-├── aspectos.md
+├── adr/                        # Architecture Decision Records
+├── arc42/                      # Documentación arc42
+├── c4/                         # Diagramas C4 (contexto, contenedores, módulos) en Mermaid
+├── aspectos.md                 # Trazabilidad: escenario → C4 → ADR → código → pruebas
 ├── comparativa-arquitectura.md
+├── correcciones.md             # Respuesta a la retroalimentación docente
+├── restriccion-s5.md           # Restricción del reto y línea base
 └── ia.md
+
+.github/workflows/
+└── ci.yml                      # Pipeline de pruebas
 ```
 
 ## Corte vertical ejecutable
@@ -69,7 +110,7 @@ Esta entrega implementa un flujo de negocio completo de punta a punta
 que cruza dos módulos (`pedidos` y `menu`), para demostrar que la
 arquitectura de monolito modular funciona en la práctica y no solo en
 el papel. El diagrama de secuencia está en
-[`arc42.md` §6](arc42.md#6-vista-de-tiempo-de-ejecución-runtime).
+[`arc42.md` §6](docs/arc42/arc42.md#runtime-crear-pedido).
 
 **Flujo:** un usuario (estudiante o profesor) crea un pedido indicando el establecimiento y
 el ítem de menú que quiere. `pedidos.service` valida el ítem llamando
@@ -112,8 +153,8 @@ pytest tests/test_pedidos.py -v
 
 Cubre el caso exitoso y los dos casos de error (ítem no encontrado /
 no disponible), que corresponden al escenario **ESC-01** de
-`arc42.md` §10.2 (fila de Usabilidad en `docs/aspectos.md`, columna
-"Prueba").
+[`arc42.md` §10.2](docs/arc42/arc42.md#esc-01) (fila ESC-01 de
+[`docs/aspectos.md`](docs/aspectos.md), columna "Pruebas").
 
 > **Nota:** los repositorios de `menu` y `pedidos` usan datos en
 > memoria en esta entrega (ver comentarios `TODO(supabase)` en el

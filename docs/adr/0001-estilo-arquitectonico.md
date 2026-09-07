@@ -107,3 +107,22 @@ interno de otro módulo.
     README) refleja ya esta organización, de modo que la semana 4 pueda
     iniciar directamente con lógica de negocio dentro de esta
     estructura.
+
+## Trazabilidad
+
+Qué escenario motiva esta decisión, dónde se ve, qué commit la implementa y
+qué prueba la verifica.
+
+| Elemento | Referencia |
+|---|---|
+| **Escenario que la motiva** | [ESC-01 — Primer pedido de un usuario nuevo](../arc42/arc42.md#esc-01) (prioridad A/M): el umbral de < 3 min sin errores de navegación exige un estilo que el equipo pueda construir dentro del plazo y que permita mensajes de error específicos por módulo |
+| **Escenarios adicionales afectados** | [ESC-02](../arc42/arc42.md#esc-02) (favorecido: sin salto de red entre módulos; costo aceptado: sin escalado independiente), [ESC-03](../arc42/arc42.md#esc-03) (favorecido: dueño único del estado del pedido) |
+| **Estrategia de solución (arc42)** | [§4.2 estilo elegido](../arc42/arc42.md#seccion-4) · [§4.3 motivación por escenario](../arc42/arc42.md#seccion-4) · [§4.4 tácticas por escenario](../arc42/arc42.md#tacticas-por-escenario) |
+| **Análisis que la sustenta** | [Matriz comparativa](../comparativa-arquitectura.md), incluida la [matriz por escenario](../comparativa-arquitectura.md) |
+| **Diagrama C4 que la refleja** | [Nivel 3 — módulos internos de la API](../c4/nivel3-modulos.md): los cuatro paquetes de dominio y la regla de comunicación por función pública de servicio |
+| **Commit que la implementa (esqueleto)** | `b5f0310` — *Entrega 3: arc42 sección 4, matriz comparativa, ADR 0001 y esqueleto ejecutable (monolito modular)*: crea `backend/app/{pedidos,menu,pagos,usuarios}/` |
+| **Commit que la ejercita (corte vertical)** | `2e165bb` — *Refactor FastAPI app and add routers*: `pedidos` llama a `menu` únicamente a través de `menu.service.obtener_item()` |
+| **Código que materializa la regla** | `backend/app/pedidos/service.py` (llama a la función pública de `menu`, nunca a `menu/repository.py`) · `backend/app/menu/service.py` (interfaz pública del módulo) · `backend/app/pedidos/router.py` (`POST /pedidos`) |
+| **Pruebas que la verifican** | `backend/tests/test_pedidos.py::test_crear_pedido_exitoso` (el flujo cruza el límite entre módulos y responde `201`) · `::test_crear_pedido_item_no_encontrado` (`404`) · `::test_crear_pedido_item_no_disponible` (`409`) — los dos últimos comprueban que la validación vive en `menu` y no se filtra como error genérico |
+| **Verificación automática** | [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) ejecuta `pytest` en cada push y pull request |
+| **Índice de trazabilidad** | Fila ESC-01 de [`docs/aspectos.md`](../aspectos.md) |
