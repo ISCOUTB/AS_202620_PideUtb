@@ -6,10 +6,17 @@ on:
   pull_request:
   workflow_dispatch:
 
+# El job solo clona el repositorio y ejecuta pruebas: no necesita permisos de
+# escritura. Se declara el mínimo en lugar de heredar los del repositorio.
+permissions:
+  contents: read
+
 jobs:
   pruebas:
     name: pytest (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
