@@ -67,6 +67,13 @@ El contenido generado fue revisado por el equipo antes de incorporarlo al reposi
   Python 3.11 y 3.12.
 - **Script de medición de línea base** (`backend/scripts/medir_linea_base.py`)
   y su prueba de regresión.
+- **Registro de la evidencia de CI:** una vez ejecutado el workflow, se usó
+  Claude para verificar los runs y añadir a `docs/correcciones.md` la sección
+  "Evidencia de integración continua" con los cuatro runs y sus resultados.
+- **Documento de correcciones para la revisión** (`CORRECCIONES.md`, en la raíz
+  del repositorio): resumen dirigido a la nueva revisión docente con el mapa de
+  rutas de cada documento exigido, lo corregido, lo pendiente y los comandos de
+  verificación.
 
 ### Qué se rechazó y por qué
 
@@ -82,6 +89,8 @@ se incorporó. Lo descartado y su motivo:
 | Presentar la medición de latencia en proceso como "prueba de carga" de ESC-02 | **Rechazada** | ESC-02 exige concurrencia real en hora pico. La medición actual es una línea base del corte vertical, no una prueba de carga, y así queda rotulada en `docs/restriccion-s5.md` |
 | Redactar el diagnóstico de la restricción asignada de S5 a partir de una suposición | **Rechazada** | La restricción la asigna el docente y el equipo no la tiene registrada en el repositorio. Inventarla habría producido un documento no verificable. La sección queda marcada como pendiente de dato del equipo |
 | Crear la etiqueta `corte-1` sobre un commit posterior al cierre | **Rechazada** | Etiquetar trabajo posterior al cierre como si fuera la entrega del corte sería incorrecto. La etiqueta se creará sobre el commit de la próxima entrega, como indicó el docente |
+| Redactar `CORRECCIONES.md` afirmando que se corrigió **todo** lo observado | **Rechazada** | Cuatro puntos siguen abiertos (restricción asignada, ADR del reto, etiqueta `corte-1` y reparto de contribución). Un documento que los diera por cerrados sería desmentido por el propio repositorio en la revisión. Se declara explícitamente lo pendiente con su motivo |
+| Completar las filas ESC-02 a ESC-05 de la tabla de aspectos con rutas de código "previstas" para que la tabla se viera completa | **Rechazada** | Ya descartado antes por el mismo motivo: los módulos `pagos` y `usuarios` están vacíos y sería trazabilidad falsa |
 
 Todo el contenido incorporado fue revisado por el equipo antes de aceptarlo, y
 las pruebas se ejecutaron en verde (`pytest`, 5 pruebas) antes de subir los
