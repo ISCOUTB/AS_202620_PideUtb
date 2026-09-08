@@ -68,7 +68,7 @@ observación estructural.
 
 - Se añadió [`.github/workflows/ci.yml`](.github/workflows/ci.yml): ejecuta
   `pytest` en Python 3.11 y 3.12 en cada push y cada pull request.
-- **Run en verde:** https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34160302534
+- **Run en verde:** https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34242376333
 - Se añadió `backend/scripts/medir_linea_base.py` y la prueba de regresión
   `backend/tests/test_linea_base.py`. **Línea base medida** sobre 300 peticiones
   a `POST /pedidos`: p50 **2,85 ms**, p95 **3,32 ms**

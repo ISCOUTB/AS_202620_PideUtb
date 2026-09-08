@@ -24,7 +24,7 @@ Estados: ✅ corregido · 🟡 parcial · ⏳ pendiente (con el motivo).
 | Ligar arc42 §4 a ESC-01/02/03 con tácticas por escenario | ✅ | [§4.3 motivación por escenario](arc42/arc42.md#seccion-4) reescrita con una fila por escenario priorizado y umbral, y nueva [§4.4 tácticas por escenario](arc42/arc42.md#tacticas-por-escenario) |
 | Rehacer la matriz comparativa con filas por escenario | ✅ | [`docs/comparativa-arquitectura.md` § Matriz por escenario](comparativa-arquitectura.md): una fila por escenario, con qué mejora y qué empeora en cada estilo, y una fila de balance |
 | Enlazar el ADR 0001 desde `docs/aspectos.md` y desde el escenario que lo motiva | ✅ | Columna ADR de la tabla de aspectos, y sección Trazabilidad del [ADR-0001](adr/0001-estilo-arquitectonico.md), que nombra ESC-01 como escenario motivador |
-| Workflow en `.github/workflows/` que ejecute `pytest`, con run en verde | ✅ | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) — `pytest` en Python 3.11 y 3.12, en cada push y pull request. **Run en verde:** [Actions run #3](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34160302534) |
+| Workflow en `.github/workflows/` que ejecute `pytest`, con run en verde | ✅ | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) — `pytest` en Python 3.11 y 3.12, en cada push y pull request. **Run en verde:** [Actions run #10](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34242376333) |
 | Mover `arc42.md` a `docs/arc42/` y el C4 a `docs/c4/` | ✅ | Ver semanas 1 y 2 |
 
 ## Semana 4
@@ -45,7 +45,7 @@ Estados: ✅ corregido · 🟡 parcial · ⏳ pendiente (con el motivo).
 |---|---|---|
 | Documentar la restricción asignada y su diagnóstico | 🟡 | [`docs/restriccion-s5.md`](restriccion-s5.md) §§ 1-2. El diagnóstico del punto de medición está hecho; **el enunciado de la restricción asignada debe transcribirlo el equipo**: no está registrado en ningún punto del repositorio y no se documenta una restricción supuesta |
 | Medir una línea base | ✅ | [`docs/restriccion-s5.md` §3](restriccion-s5.md): 300 peticiones a `POST /pedidos` — p50 2,85 ms, **p95 3,32 ms**. Instrumento reproducible: `backend/scripts/medir_linea_base.py` |
-| Cubrir el cambio con una prueba en CI | ✅ | `backend/tests/test_linea_base.py::test_p95_de_crear_pedido_bajo_umbral`, ejecutada en verde por el workflow ([run #3](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34160302534)) |
+| Cubrir el cambio con una prueba en CI | ✅ | `backend/tests/test_linea_base.py::test_p95_de_crear_pedido_bajo_umbral`, ejecutada en verde por el workflow ([run #10](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34242376333)) |
 | Registrar el ADR del reto | ⏳ | Será `docs/adr/0002-*.md`; depende de la restricción asignada |
 | Implementar el cambio y contrastarlo con el umbral | ⏳ | [`docs/restriccion-s5.md`](restriccion-s5.md) §§ 5-6, con la tabla de contraste ya preparada |
 | Completar la cadena de ocho columnas en `docs/aspectos.md` | ✅ | Completa de punta a punta para ESC-01; ESC-02 a ESC-05 tienen escenario, C4 y ADR, y quedan marcadas ⏳ hasta que existan los módulos `pagos` y `usuarios` |
