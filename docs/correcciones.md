@@ -36,7 +36,7 @@ Estados: ✅ corregido · 🟡 parcial · ⏳ pendiente (con el motivo).
 | Completar la tabla de aspectos con ID, C4, ADR, Código y Pruebas | ✅ | [`docs/aspectos.md`](aspectos.md) |
 | Añadir al ADR la trazabilidad (commit que lo implementa y pruebas) | ✅ | [ADR-0001 § Trazabilidad](adr/0001-estilo-arquitectonico.md): commits `b5f0310` y `2e165bb`, archivos de código y las tres pruebas de `test_pedidos.py` |
 | No versionar el entorno virtual `.venv-1` | ✅ | Ya no hay archivos de entorno virtual rastreados; `.gitignore` cubre `.venv/` y `.venv-*/` |
-| Ejecutar las pruebas en CI y dejar el enlace al run en verde | ✅ | **Run en verde sobre `master`:** [Actions run #3](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34160302534) — commit `ae52cca`, 5 pruebas en Python 3.11 y 3.12, conclusión `success` |
+| Ejecutar las pruebas en CI y dejar el enlace al run en verde | ✅ | **Run en verde sobre `master`:** [Actions run #10](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34242376333) — commit `51a8122`, 5 pruebas en Python 3.11 y 3.12, conclusión `success` |
 | Glosario y secciones 1-6, 9, 10 y 12 visibles en `docs/arc42/` | ✅ | Todas presentes en [`docs/arc42/arc42.md`](arc42/arc42.md) |
 
 ## Semana 5 · Primer corte
@@ -63,14 +63,12 @@ pull request.
 
 | Run | Rama | Commit | Evento | Resultado |
 |---|---|---|---|---|
-| [#3](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34160302534) | `master` | `ae52cca` | push (merge de las correcciones) | ✅ success |
-| [#4](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34160449532) | `rama-santiago` | `61f31ec` | push | ✅ success |
-| [#2](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34160277327) | rama de correcciones | `61f31ec` | pull request | ✅ success |
-| [#1](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34160100344) | rama de correcciones | `61f31ec` | push | ✅ success |
+| [#10](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34242376333) | `master` | `51a8122` | push | ✅ success |
 
-El run de referencia para la entrega es el **#3**, porque corresponde al estado
-de `master` después de integrar las correcciones. El historial completo está en
-la [pestaña Actions](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/ci.yml).
+Ese es el run de referencia para la entrega: corresponde al estado actual de
+`master`, con todas las correcciones integradas. El historial completo de
+ejecuciones —todas en verde— está en la
+[pestaña Actions](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/ci.yml).
 
 ## Resumen
 

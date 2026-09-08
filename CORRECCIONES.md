@@ -3,7 +3,7 @@
 **Equipo:** `Santiago-C0` · `daniarriet` · `ruddy2000utb-droid`
 **Repositorio:** https://github.com/ISCOUTB/AS_202620_PideUtb
 **Rama evaluable:** `master`
-**Estado de CI:** ✅ verde — [run #3](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34160302534) (commit `ae52cca`, 5 pruebas en Python 3.11 y 3.12)
+**Estado de CI:** ✅ verde — [run #10](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34242376333) (commit `51a8122`, 5 pruebas en Python 3.11 y 3.12)
 
 Este documento resume, para la nueva revisión, qué se corrigió de la
 retroalimentación de las semanas 1 a 5 y dónde quedó cada evidencia. El detalle
