@@ -1,18 +1,27 @@
-"""Interfaz pública del módulo `menu`.
+"""Interfaz pública del contexto Catálogo (módulo `menu`).
 
-Estas son las ÚNICAS funciones que otros módulos (como `pedidos`)
-tienen permitido llamar. Nada fuera de este archivo debe ser
-importado por otro módulo (ver ADR-0001 y arc42 §5.2).
+Responde siempre con tipos de `menu.contracts`, nunca con entidades
+internas. Ver ADR-0001 (regla de comunicación) y ADR-0002 (lenguaje
+publicado y propiedad de los datos de establecimiento).
 """
 from app.menu import repository
-from app.menu.models import ItemMenu
+from app.menu.contracts import ItemDisponible
 
 
-def obtener_item(item_id: int) -> ItemMenu | None:
-    """Devuelve el ítem de menú si existe, o None si no existe.
+def obtener_item(item_id: int) -> ItemDisponible | None:
+    """Devuelve el ítem publicado si existe, o `None` si no existe.
 
-    `pedidos.service` usa esta función para validar el ítem y obtener
-    su precio antes de crear un pedido, sin conocer cómo se almacenan
-    los ítems internamente.
+    `pedidos.service` usa esta función para validar el ítem y conocer su
+    precio y a qué establecimiento pertenece, sin saber cómo se almacena
+    el catálogo.
     """
-    return repository.buscar_por_id(item_id)
+    item = repository.buscar_por_id(item_id)
+    if item is None:
+        return None
+    return ItemDisponible(
+        item_id=item.id,
+        establecimiento_id=item.establecimiento_id,
+        nombre=item.nombre,
+        precio=item.precio,
+        disponible=item.disponible,
+    )
