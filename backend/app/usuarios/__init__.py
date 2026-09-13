@@ -1,7 +1,9 @@
-"""
-Módulo de dominio: usuarios.
+"""Contexto Cuentas (módulo `usuarios`).
 
-Paquete vacío por ahora. Existe para reflejar la organización por
-dominio definida en el ADR 0001 (monolito modular). La lógica de
-negocio de este módulo se implementará a partir de la semana 4.
+Gestiona las **Cuentas** del sistema: usuario (estudiante o profesor),
+establecimiento y administrador. «Usuario» y «Cuenta» no son sinónimos —
+ver el lenguaje ubicuo en arc42 §8.1 y `docs/ddd-contextos.md` §1.
+
+Es el único escritor de la entidad `Establecimiento` (ADR-0002). La
+autenticación y los roles se implementarán en la próxima entrega.
 """
