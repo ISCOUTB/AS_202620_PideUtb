@@ -68,9 +68,9 @@ El contenido generado fue revisado por el equipo antes de incorporarlo al reposi
 - **Script de medición de línea base** (`backend/scripts/medir_linea_base.py`)
   y su prueba de regresión.
 - **Registro de la evidencia de CI:** una vez ejecutado el workflow, se usó
-  Claude para verificar los runs y añadir a `docs/correcciones.md` la sección
+  Claude para verificar los runs y añadir al documento de correcciones la sección
   "Evidencia de integración continua" con los cuatro runs y sus resultados.
-- **Documento de correcciones para la revisión** (`CORRECCIONES.md`, en la raíz
+- **Documento de correcciones para la revisión** (`correcciones.md`, en la raíz
   del repositorio): resumen dirigido a la nueva revisión docente con el mapa de
   rutas de cada documento exigido, lo corregido, lo pendiente y los comandos de
   verificación.
@@ -94,7 +94,7 @@ se incorporó. Lo descartado y su motivo:
 | Presentar la medición de latencia en proceso como "prueba de carga" de ESC-02 | **Rechazada** | ESC-02 exige concurrencia real en hora pico. La medición actual es una línea base del corte vertical, no una prueba de carga, y así queda rotulada en `docs/restriccion-s5.md` |
 | Redactar el diagnóstico de la restricción asignada de S5 a partir de una suposición | **Rechazada** | La restricción la asigna el docente y el equipo no la tiene registrada en el repositorio. Inventarla habría producido un documento no verificable. La sección queda marcada como pendiente de dato del equipo |
 | Crear la etiqueta `corte-1` sobre un commit posterior al cierre | **Rechazada** | Etiquetar trabajo posterior al cierre como si fuera la entrega del corte sería incorrecto. La etiqueta se creará sobre el commit de la próxima entrega, como indicó el docente |
-| Redactar `CORRECCIONES.md` afirmando que se corrigió **todo** lo observado | **Rechazada** | Cuatro puntos siguen abiertos (restricción asignada, ADR del reto, etiqueta `corte-1` y reparto de contribución). Un documento que los diera por cerrados sería desmentido por el propio repositorio en la revisión. Se declara explícitamente lo pendiente con su motivo |
+| Redactar el documento de correcciones afirmando que se corrigió **todo** lo observado | **Rechazada** | Cuatro puntos siguen abiertos (restricción asignada, ADR del reto, etiqueta `corte-1` y reparto de contribución). Un documento que los diera por cerrados sería desmentido por el propio repositorio en la revisión. Se declara explícitamente lo pendiente con su motivo |
 | Completar las filas ESC-02 a ESC-05 de la tabla de aspectos con rutas de código "previstas" para que la tabla se viera completa | **Rechazada** | Ya descartado antes por el mismo motivo: los módulos `pagos` y `usuarios` están vacíos y sería trazabilidad falsa |
 | Reemplazar `requirements.txt` por el lock con hashes, para tener un solo archivo de dependencias | **Rechazada** | El lock se resuelve para Linux y CPython 3.11/3.12; imponerlo como instalación local rompería el entorno de los integrantes que trabajan en Windows. Se mantiene `requirements.txt` para desarrollo y el lock se usa solo en CI |
 | Atribuir el fallo del Quality Gate a los permisos del workflow sin leer el informe de SonarCloud | **Rechazada tras comprobarla** | Fue la primera hipótesis y resultó equivocada: al declarar `permissions` el gate siguió en C. Los hallazgos reales estaban en la instalación de dependencias. Se corrigió solo después de leer las reglas concretas en el informe |
@@ -102,3 +102,43 @@ se incorporó. Lo descartado y su motivo:
 Todo el contenido incorporado fue revisado por el equipo antes de aceptarlo, y
 las pruebas se ejecutaron en verde (`pytest`, 5 pruebas) antes de subir los
 cambios.
+
+## Uso de IA en la sexta entrega (S6 — Dominio y modularidad)
+
+**Herramienta utilizada:** Claude (Anthropic).
+
+### Qué se usó
+
+- **Auditoría del lenguaje ubicuo:** contrastar el glosario de arc42 §12 contra
+  la tabla de responsabilidad de módulos (§5.3) y contra el texto de los
+  escenarios (ESC-05), lo que sacó a la luz dos ambigüedades reales dentro de la
+  documentación ya existente del equipo: «Usuario» y «Carrito»/«Pedido».
+- **Mapa de contextos** (`docs/ddd-contextos.md`): los cuatro contextos
+  delimitados y el patrón que rige cada relación, a partir de los módulos ya
+  decididos en ADR-0001, sin proponer módulos adicionales.
+- **Tabla módulo → datos con dueño único**, y detección de la brecha de
+  propiedad de `Establecimiento`.
+- **Auditoría de modularidad** (`docs/violaciones.md`): revisión de qué módulo
+  escribe qué dato, qué import cruza la frontera y qué tipos devuelven las
+  funciones públicas, con reproducción de cada hallazgo antes de registrarlo.
+- **Redacción de ADR-0002** y de la sección 8 de arc42.
+- **Código:** módulo `usuarios` como único escritor de `Establecimiento`,
+  derivación de `establecimiento_id` desde el ítem, lenguaje publicado en
+  `contracts.py`, y la prueba de reglas de dependencia `test_modularidad.py`.
+
+### Qué se rechazó y por qué
+
+| Propuesta de la IA | Decisión | Motivo del rechazo |
+|---|---|---|
+| Crear un quinto módulo `establecimientos` | **Rechazada** | El equipo ya decidió en ADR-0001 no fragmentar más allá de lo necesario para el tamaño del proyecto. Un establecimiento se modela mejor como un tipo de cuenta dentro de `usuarios` |
+| Asignar la propiedad de `Establecimiento` al módulo `menu` | **Rechazada** | Fue la primera propuesta, y contradecía lo que el propio equipo ya había escrito: arc42 §5.3 asigna el establecimiento a `usuarios` como tipo de cuenta. Se corrigió tras contrastar la propuesta con la documentación existente |
+| Construir una **anticorruption layer** entre los contextos internos | **Rechazada** | El patrón cuesta mantenimiento y se justifica cuando el modelo ajeno es hostil o inestable. Entre contextos que escribe el mismo equipo, un **lenguaje publicado** da la misma protección a una fracción del coste. La anticorruption layer se reserva para Wompi |
+| Modelar `establecimiento_id` como **shared kernel** entre `menu` y `pedidos` | **Rechazada** | Un shared kernel exige que ambos contextos escriban el mismo modelo y obliga a coordinar cada cambio. Aquí Cuentas es el único escritor y los otros guardan una referencia: customer/supplier es el patrón correcto |
+| Reportar una condición de carrera en `pedidos.repository.siguiente_id()` | **Rechazada tras intentar comprobarla** | Se ejecutó con 8 hilos y 16 000 llamadas: **cero colisiones**, porque el GIL de CPython serializa ese incremento. Registrarla habría sido un hallazgo teórico presentado como real. Se registró lo que sí se reprodujo: el aislamiento del estado entre procesos ([V-09](violaciones.md#v-09)) |
+| Registrar como violación de propiedad de datos que `Pedido` copie `nombre_item` de Catálogo | **Rechazada** | No es escritura compartida: `menu` sigue siendo el único que escribe `ItemMenu.nombre`. El defecto real —que la instantánea era inauditable sin el precio unitario— se registró como [V-06](violaciones.md#v-06) |
+| Introducir `Carrito` como entidad separada porque ESC-05 lo menciona | **Rechazada** | «Carrito» es un sinónimo de «pedido en estado `pendiente_pago`». Crear la entidad sería inventar una frontera que el dominio todavía no pide; se resuelve documentando el sinónimo en el glosario |
+| Corregir las nueve violaciones en esta misma entrega | **Rechazada parcialmente** | Se corrigieron las seis que el propio análisis de contextos hacía posibles y baratas. Las tres restantes dependen de trabajo que aún no existe, y adelantarlas sería escribir código sin el escenario que lo justifica |
+
+Cada hallazgo se reprodujo ejecutando el código antes de incorporarlo, y la
+prueba de modularidad se verificó de forma adversaria: se introdujeron a
+propósito tres formas de violación de import y las tres fallan la construcción.

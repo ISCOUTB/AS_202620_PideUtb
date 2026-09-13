@@ -6,6 +6,8 @@ donde se ve la estructura que lo soporta, el ADR que justifica esa estructura,
 el código que la implementa y la prueba automatizada que la verifica.
 
 - Escenarios completos (seis partes): [`arc42.md` §10](arc42/arc42.md#arbol-utilidad)
+- Contextos delimitados y propiedad de datos: [`docs/ddd-contextos.md`](ddd-contextos.md)
+- Violaciones detectadas y plan de corrección: [`docs/violaciones.md`](violaciones.md)
 - Tácticas por escenario: [`arc42.md` §4.5](arc42/arc42.md#tacticas-por-escenario)
 - Decisiones: [`docs/adr/`](adr/)
 - Diagramas: [`docs/c4/`](c4/)
@@ -14,18 +16,22 @@ el código que la implementa y la prueba automatizada que la verifica.
 
 | ID | Aspecto de calidad | Escenario | Medida de respuesta (umbral) | C4 | ADR | Código | Pruebas |
 |---|---|---|---|---|---|---|---|
-| **ESC-01** | Usabilidad *(prioritario)* | [Primer pedido de un usuario nuevo](arc42/arc42.md#esc-01) | Flujo completo en **< 3 min**, sin errores de navegación | [N3 — módulos](c4/nivel3-modulos.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md) | `backend/app/pedidos/router.py:9` (`POST /pedidos`), `backend/app/pedidos/service.py`, `backend/app/menu/service.py` | `backend/tests/test_pedidos.py::test_crear_pedido_exitoso`, `::test_crear_pedido_item_no_encontrado`, `::test_crear_pedido_item_no_disponible` ✅ |
-| **ESC-02** | Disponibilidad · Rendimiento | [Pedido de un usuario recurrente en hora pico](arc42/arc42.md#esc-02) | **< 2 min** en al menos el **90 %** de los intentos | [N2 — contenedores](c4/nivel2-contenedores.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md) | `backend/app/pedidos/` (flujo base implementado; falta reúso de datos del usuario) | ⏳ Pendiente — requiere prueba de carga (S6) |
-| **ESC-03** | Usabilidad · Rendimiento | [Gestión del estado de pedidos por el establecimiento](arc42/arc42.md#esc-03) | **≤ 10 s** y **≤ 3 interacciones**, sin recargar la página | [N3 — módulos](c4/nivel3-modulos.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md) | ⏳ Pendiente — panel del establecimiento (S6) | ⏳ Pendiente |
-| **ESC-04** | Confiabilidad · Seguridad | [Verificación del código de recogida](arc42/arc42.md#esc-04) | Validación en **< 2 s**; rechazo del **100 %** de reutilizaciones | [N3 — módulos](c4/nivel3-modulos.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md) | ⏳ Pendiente — módulo `backend/app/pagos/` (vacío) | ⏳ Pendiente |
-| **ESC-05** | Usabilidad (manejo de errores) | [Error en el proceso de pago](arc42/arc42.md#esc-05) | Mensaje en **< 3 s**; pedido conservado en el **100 %** de los casos | [N2 — contenedores](c4/nivel2-contenedores.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md) | ⏳ Pendiente — integración Wompi Sandbox (S6) | ⏳ Pendiente |
+| **ESC-01** | Usabilidad *(prioritario)* | [Primer pedido de un usuario nuevo](arc42/arc42.md#esc-01) | Flujo completo en **< 3 min**, sin errores de navegación | [N3 — módulos](c4/nivel3-modulos.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md), [ADR-0002](adr/0002-propiedad-datos-establecimiento.md) | `backend/app/pedidos/router.py` (`POST /pedidos`), `pedidos/service.py`, `menu/service.py` | `tests/test_pedidos.py::test_crear_pedido_exitoso`, `::test_crear_pedido_item_no_encontrado`, `::test_crear_pedido_item_no_disponible` ✅ |
+| **ESC-02** | Disponibilidad · Rendimiento | [Pedido de un usuario recurrente en hora pico](arc42/arc42.md#esc-02) | **< 2 min** en al menos el **90 %** de los intentos | [N2 — contenedores](c4/nivel2-contenedores.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md) | `backend/app/pedidos/` (flujo base; falta reúso de datos del usuario) | `tests/test_linea_base.py::test_p95_de_crear_pedido_bajo_umbral` ✅ *(línea base, no prueba de carga)* |
+| **ESC-03** | Usabilidad · Rendimiento | [Gestión del estado de pedidos por el establecimiento](arc42/arc42.md#esc-03) | **≤ 10 s** y **≤ 3 interacciones**, sin recargar la página | [N3 — módulos](c4/nivel3-modulos.md) | [ADR-0002](adr/0002-propiedad-datos-establecimiento.md) | `backend/app/usuarios/service.py`, `pedidos/service.py` — el pedido ya se asigna al establecimiento correcto y solo si opera | `tests/test_propiedad_datos.py::test_establecimiento_se_deriva_del_item_y_no_del_cliente`, `::test_pedido_en_establecimiento_inactivo_se_rechaza` ✅ · panel ⏳ |
+| **ESC-04** | Confiabilidad · Seguridad | [Verificación del código de canje](arc42/arc42.md#esc-04) | Validación en **< 2 s**; rechazo del **100 %** de reutilizaciones | [N3 — módulos](c4/nivel3-modulos.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md) | ⏳ Pendiente — contexto Pagos (`backend/app/pagos/`, vacío) | ⏳ Pendiente — ver [V-07](violaciones.md#v-07) |
+| **ESC-05** | Usabilidad (manejo de errores) | [Error en el proceso de pago](arc42/arc42.md#esc-05) | Mensaje en **< 3 s**; pedido conservado en el **100 %** de los casos | [N2 — contenedores](c4/nivel2-contenedores.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md) | ⏳ Pendiente — integración Wompi Sandbox | ⏳ Pendiente |
 
 **Leyenda:** ✅ verificado en CI · ⏳ pendiente en la entrega actual.
 
-Estado a la fecha: la cadena de trazabilidad está **completa de punta a punta
-para ESC-01** (escenario → C4 → ADR → código → prueba en verde en CI). Las
-demás filas tienen escenario, C4 y ADR, y quedan a la espera de los módulos
-`pagos` y `usuarios`.
+Estado a la fecha: la cadena está **completa de punta a punta para ESC-01 y
+ESC-03** (escenario → C4 → ADR → código → prueba en verde en CI); de ESC-03
+queda pendiente el panel del establecimiento. ESC-02 tiene línea base medida y
+protegida por una prueba de regresión, pero no prueba de carga. ESC-04 y ESC-05
+esperan al contexto Pagos.
+
+Las violaciones de propiedad de datos detectadas en la auditoría de modularidad
+y su plan de corrección están en [`docs/violaciones.md`](violaciones.md).
 
 ## Por qué estos atributos
 

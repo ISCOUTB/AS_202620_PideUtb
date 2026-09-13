@@ -57,20 +57,28 @@ Método: 10 peticiones de calentamiento descartadas, luego 300 peticiones
 $ cd backend && python scripts/medir_linea_base.py 300
 
 Línea base POST /pedidos  (n=300 peticiones)
-  min  : 2.26 ms
-  p50  : 2.85 ms
-  p95  : 3.32 ms
-  max  : 7.84 ms
+  min  : 2.36 ms
+  p50  : 2.66 ms
+  p95  : 3.02 ms
+  max  : 21.18 ms
 ```
+
+> **Remedición tras el reajuste de límites de contexto (ADR-0002).** La primera
+> medición, antes de derivar el establecimiento del ítem y de consultar al
+> contexto Cuentas, dio p50 2,85 ms y p95 3,32 ms. Con **dos** llamadas entre
+> contextos en lugar de una, el p95 **bajó** a 3,02 ms: el salto sigue siendo en
+> proceso y su coste es indistinguible del ruido de medición. El dato importa
+> porque muestra lo que costaría extraer un contexto como servicio — ese mismo
+> salto pasaría a ser una llamada de red.
 
 | Métrica | Valor |
 |---|---|
 | Muestras | 300 peticiones |
-| Mínimo | 2,26 ms |
-| **p50** | **2,85 ms** |
-| **p95** | **3,32 ms** |
-| Máximo | 7,84 ms |
-| Fecha de la medición | 2026-09-07 |
+| Mínimo | 2,36 ms |
+| **p50** | **2,66 ms** |
+| **p95** | **3,02 ms** |
+| Máximo | 21,18 ms |
+| Fecha de la medición | 2026-09-13 |
 | Entorno | Contenedor Linux, Python 3.11, FastAPI `TestClient` en proceso, sin base de datos externa (repositorio en memoria) |
 
 El repositorio todavía es en memoria: cuando se conecte Supabase esta línea
@@ -102,7 +110,7 @@ volverse inestable.
 
 | Métrica | Línea base (S5) | Después del cambio | Umbral de la restricción | ¿Cumple? |
 |---|---|---|---|---|
-| p95 de `POST /pedidos` | 3,32 ms | — | — | — |
+| p95 de `POST /pedidos` | 3,02 ms | — | — | — |
 
 ## Trazabilidad
 
@@ -110,5 +118,5 @@ volverse inestable.
 |---|---|
 | Escenarios relacionados | [ESC-01](arc42/arc42.md#esc-01), [ESC-02](arc42/arc42.md#esc-02) |
 | Decisión vigente | [ADR-0001](adr/0001-estilo-arquitectonico.md) |
-| ADR del reto | Pendiente — será `docs/adr/0002-*.md` |
+| ADR del reto | Pendiente — será `docs/adr/0003-*.md` (el 0002 quedó asignado a la propiedad de los datos de Establecimiento) |
 | Índice de aspectos | [`docs/aspectos.md`](aspectos.md) |
