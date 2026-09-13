@@ -432,11 +432,97 @@ completa su primer pedido con un único request de tres campos.
 *(Pendiente — se documentará cuando se configure el despliegue real en
 Vercel, en una próxima entrega.)*
 
+<a id="seccion-8"></a>
+<a id="lenguaje-ubicuo"></a>
+
 ## 8. Conceptos transversales
 
-*(Pendiente — se documentará a medida que surjan conceptos que
-atraviesen varios módulos, por ejemplo el manejo uniforme de errores o
-la validación de entrada.)*
+### 8.1 Lenguaje ubicuo
+
+El vocabulario del dominio se audita periódicamente contra el código y contra
+esta misma documentación, para detectar términos que significan cosas distintas
+según quién los use. El detalle de la auditoría, con la tabla completa de
+términos ambiguos y su resolución, está en
+[`docs/ddd-contextos.md` §1](../ddd-contextos.md).
+
+Dos aclaraciones vigentes desde la semana 6, ambas surgidas de contradicciones
+reales encontradas dentro de la documentación del equipo:
+
+- **«Usuario»** se reserva para estudiante o profesor, como ya decía el
+  [glosario](#glosario). El concepto más amplio —cualquier cuenta autenticada,
+  incluidos el establecimiento y el administrador— se llama **«Cuenta»**, y es
+  la responsabilidad del módulo `usuarios` descrita en
+  [§5.3](#responsabilidad-modulos).
+- **«Carrito»** es sinónimo de «pedido en estado `pendiente_pago`», no una
+  entidad separada. No existe ni existirá un modelo `Carrito` mientras el pedido
+  se cree con un único ítem confirmado.
+
+Los términos del dominio, con el lugar del código donde vive cada uno:
+
+| Término | Significado | Dónde vive en el código |
+|---|---|---|
+| **Cuenta** | Cualquier actor autenticado: usuario, establecimiento o admin | `usuarios` |
+| **Usuario** | Estudiante o profesor que compra | `usuarios` (pendiente) |
+| **Establecimiento** | Punto de venta del campus; es un tipo de Cuenta | `usuarios.models.Establecimiento` |
+| **Ítem de menú** | Producto que un establecimiento ofrece, con precio y disponibilidad del día | `menu.models.ItemMenu` |
+| **Pedido** | Solicitud de compra de un ítem, con el importe congelado | `pedidos.models.Pedido` |
+| **Carrito** | Sinónimo de pedido en estado `pendiente_pago` | — (no es una entidad) |
+| **Instantánea** | Copia de un dato del catálogo congelada al comprar, que no se revalúa | `Pedido.nombre_item`, `precio_unitario`, `total` |
+| **Código de canje** | Credencial de un solo uso que acredita un pedido pagado | `pagos` (pendiente) |
+
+### 8.2 Contextos delimitados y propiedad de datos
+
+El sistema se organiza en cuatro **contextos delimitados** —Catálogo, Pedidos,
+Pagos y Cuentas— que coinciden uno a uno con los módulos de dominio de
+`backend/app/`. La auditoría no encontró ningún límite que exigiera un módulo
+adicional. El mapa completo, con el patrón de cada relación
+(customer/supplier y anticorruption layer) y la justificación de cada frontera,
+está en [`docs/ddd-contextos.md` §2](../ddd-contextos.md).
+
+La regla transversal que los sostiene: **cada dato tiene exactamente un módulo
+que lo escribe; los demás lo leen o lo solicitan**. La tabla de propiedad de
+datos está en el mismo documento §3.
+
+La única brecha detectada —los datos de `Establecimiento`, sin dueño hasta esta
+entrega— se resolvió en
+[ADR-0002](../adr/0002-propiedad-datos-establecimiento.md): el módulo `usuarios`
+es su único escritor, modelándolo como un tercer tipo de cuenta.
+
+Ningún módulo importa el `repository` ni los `models` de otro: solo su `service`
+y su `contracts`. Esto no es una convención confiada a la disciplina del
+equipo —`backend/tests/test_modularidad.py` la verifica en cada push y falla la
+construcción si alguien la rompe.
+
+### 8.3 Lenguaje publicado en las fronteras
+
+Las funciones públicas de un contexto responden con tipos de su módulo
+`contracts`, nunca con sus entidades internas. Así el modelo interno puede
+evolucionar sin arrastrar a los consumidores, y ningún tipo de un contexto
+aparece dentro de otro.
+
+Para los sistemas externos la protección es más fuerte: la integración con Wompi
+se traducirá mediante una **anticorruption layer**, porque su modelo es ajeno y
+puede cambiar sin previo aviso. Entre contextos internos no se usa, porque su
+coste de mantenimiento no se justifica cuando ambos lados los escribe el mismo
+equipo.
+
+### 8.4 Manejo de errores
+
+Cada contexto expresa sus fallos con excepciones propias de dominio
+(`ItemNoEncontradoError`, `ItemNoDisponibleError`,
+`EstablecimientoInactivoError`). El `router` es el único que las traduce a
+códigos HTTP, de modo que la lógica de negocio no conoce el protocolo:
+
+| Situación | Excepción de dominio | HTTP |
+|---|---|---|
+| El ítem no existe | `ItemNoEncontradoError` | `404` |
+| El ítem no está disponible | `ItemNoDisponibleError` | `409` |
+| El establecimiento no opera | `EstablecimientoInactivoError` | `409` |
+| Datos de entrada inválidos | *(validación de Pydantic)* | `422` |
+
+Un error específico en lugar de un `500` genérico es lo que permite que un
+usuario nuevo entienda qué pasó y corrija sin ayuda, que es la medida de
+[ESC-01](#esc-01).
 
 ------------------------------------------------------------------------
 
@@ -452,6 +538,11 @@ decisión, alternativas consideradas, consecuencias).
   [ADR-0001](../adr/0001-estilo-arquitectonico.md)     Estilo               Aceptada
                                                           arquitectónico:
                                                           monolito modular
+
+  [ADR-0002](../adr/0002-propiedad-datos-establecimiento.md) Propiedad de   Aceptada
+                                                          los datos de
+                                                          Establecimiento y
+                                                          lenguaje publicado
   ---------------------------------------------------------------------------------
 
 *(Este índice se ampliará en cada entrega a medida que surjan nuevas
@@ -674,7 +765,9 @@ concretos durante la implementación de `pagos` y `usuarios`.)*
 
 ------------------------------------------------------------------------
 
-## 12. Glosario (versión inicial)
+<a id="glosario"></a>
+
+## 12. Glosario
 
   -----------------------------------------------------------------------------------------------------------
   Término                              Definición
@@ -683,7 +776,16 @@ concretos durante la implementación de `pagos` y `usuarios`.)*
                                          para comprar comida; ambos tienen el mismo comportamiento dentro del
                                          sistema (consultar, pedir, pagar, recoger con código).
 
+  **Cuenta**                            Cualquier actor autenticado del sistema: usuario, establecimiento o
+                                         administrador. Es el superconjunto que gestiona el módulo `usuarios`;
+                                         no confundir con **Usuario** (ver ddd-contextos.md §1).
+
   **Establecimiento**                   Negocio de comida dentro del campus que publica su menú en PideUTB.
+                                         Es un tipo de **Cuenta**, y el módulo `usuarios` es su único
+                                         escritor (ADR-0002).
+
+  **Carrito**                           Sinónimo de «pedido en estado `pendiente_pago`». No es una entidad
+                                         separada del sistema (ver ESC-05 y ddd-contextos.md §1).
 
   **Ítem de menú**                      Producto individual ofrecido por un establecimiento (nombre, precio,
                                          disponibilidad).
