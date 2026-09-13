@@ -6,11 +6,13 @@ Pide UTB es una plataforma web para realizar pedidos de comida dentro del campus
 
 ## Arquitectura
 
-El backend sigue un estilo de **monolito modular**, organizado por módulos de dominio (`pedidos`, `menu`, `pagos`, `usuarios`). La decisión, sus alternativas y consecuencias están documentadas en:
+El backend sigue un estilo de **monolito modular**, organizado en cuatro **contextos delimitados**, uno por módulo de dominio: Catálogo (`menu`), Pedidos (`pedidos`), Cuentas (`usuarios`) y Pagos (`pagos`). Cada dato tiene exactamente un módulo que lo escribe; los demás lo leen o lo solicitan. La decisión, sus alternativas y consecuencias están documentadas en:
 
 - [`docs/arc42/arc42.md`](docs/arc42/arc42.md#seccion-4) — sección 4, estrategia de solución.
 - [`docs/comparativa-arquitectura.md`](docs/comparativa-arquitectura.md) — matriz comparativa de estilos evaluados.
 - [`docs/adr/0001-estilo-arquitectonico.md`](docs/adr/0001-estilo-arquitectonico.md) — ADR con la decisión formal.
+- [`docs/adr/0002-propiedad-datos-establecimiento.md`](docs/adr/0002-propiedad-datos-establecimiento.md) — ADR de la propiedad de `Establecimiento` y el lenguaje publicado.
+- [`docs/ddd-contextos.md`](docs/ddd-contextos.md) — mapa de contextos y propiedad de datos.
 - [`docs/c4/`](docs/c4/) — diagramas C4 (contexto, contenedores y módulos) como código Mermaid.
 
 ### Índice de documentación
@@ -24,7 +26,9 @@ El backend sigue un estilo de **monolito modular**, organizado por módulos de d
 | [`docs/c4/`](docs/c4/) | Diagramas C4 niveles 1, 2 y 3 en Mermaid |
 | [`docs/comparativa-arquitectura.md`](docs/comparativa-arquitectura.md) | Matrices comparativas por criterio y por escenario |
 | [`docs/restriccion-s5.md`](docs/restriccion-s5.md) | Restricción del reto, diagnóstico y línea base medida |
-| [`docs/correcciones.md`](docs/correcciones.md) | Respuesta punto por punto a la retroalimentación docente |
+| [`docs/ddd-contextos.md`](docs/ddd-contextos.md) | Contextos delimitados, lenguaje ubicuo y tabla módulo → datos con dueño único |
+| [`docs/violaciones.md`](docs/violaciones.md) | Violaciones detectadas en el código y plan de corrección |
+| [`correcciones.md`](correcciones.md) | Respuesta a la retroalimentación docente y estado de cada entrega |
 | [`docs/ia.md`](docs/ia.md) | Uso de IA por entrega, incluido qué se rechazó y por qué |
 
 ## Cómo arrancar el backend
@@ -88,16 +92,18 @@ su interpretación están en [`docs/restriccion-s5.md`](docs/restriccion-s5.md).
 backend/
 ├── app/
 │   ├── main.py        # Punto de entrada de la aplicación FastAPI
-│   ├── pedidos/        # Módulo de dominio: pedidos (implementado — corte vertical)
-│   ├── menu/            # Módulo de dominio: menú (implementado — lectura)
-│   ├── pagos/           # Módulo de dominio: pagos (vacío, próxima entrega)
-│   └── usuarios/        # Módulo de dominio: usuarios/autenticación (vacío, próxima entrega)
+│   ├── menu/            # Contexto Catálogo — dueño de ÍtemMenu
+│   ├── pedidos/        # Contexto Pedidos — dueño de Pedido
+│   ├── usuarios/       # Contexto Cuentas — dueño de Establecimiento
+│   └── pagos/           # Contexto Pagos (vacío, próxima entrega)
 ├── scripts/
 │   └── medir_linea_base.py # Medición de latencia de POST /pedidos
 ├── tests/
-│   ├── test_health.py      # Prueba automatizada base
-│   ├── test_pedidos.py     # Prueba del corte vertical (crear pedido)
-│   └── test_linea_base.py  # Regresión sobre la línea base de latencia
+│   ├── test_health.py          # Prueba automatizada base
+│   ├── test_pedidos.py         # Corte vertical (crear pedido)
+│   ├── test_propiedad_datos.py # Dueño único entre contextos
+│   ├── test_modularidad.py     # Auditoría de las reglas de dependencia
+│   └── test_linea_base.py      # Regresión sobre la línea base de latencia
 ├── requirements.in         # Dependencias directas (rangos legibles)
 ├── requirements-ci.txt     # Lock con versiones exactas y hashes, usado por CI
 ├── requirements.txt        # Instalación local
@@ -109,9 +115,12 @@ docs/
 ├── c4/                         # Diagramas C4 (contexto, contenedores, módulos) en Mermaid
 ├── aspectos.md                 # Trazabilidad: escenario → C4 → ADR → código → pruebas
 ├── comparativa-arquitectura.md
-├── correcciones.md             # Respuesta a la retroalimentación docente
+├── ddd-contextos.md            # Contextos delimitados y propiedad de datos
+├── violaciones.md              # Violaciones del código y plan de corrección
 ├── restriccion-s5.md           # Restricción del reto y línea base
 └── ia.md
+
+correcciones.md                 # Respuesta a la retroalimentación docente
 
 .github/workflows/
 └── ci.yml                      # Pipeline de pruebas
