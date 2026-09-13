@@ -3,7 +3,7 @@
 **Equipo:** `Santiago-C0` · `daniarriet` · `ruddy2000utb-droid`
 **Repositorio:** https://github.com/ISCOUTB/AS_202620_PideUtb
 **Rama evaluable:** `master`
-**Estado de CI:** ✅ verde — [run #10](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34242376333) (13 pruebas en Python 3.11 y 3.12)
+**Estado de CI:** ✅ verde — [run #15](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34783395594) — commit `cd70d84`, 13 pruebas en Python 3.11 y 3.12
 
 Este documento resume, para la nueva revisión, qué se corrigió de la
 retroalimentación de las semanas 1 a 5 y dónde quedó cada evidencia. El detalle
@@ -26,7 +26,7 @@ observación estructural.
 | Registro de uso de IA | [`docs/ia.md`](docs/ia.md) | ya estaba |
 | Matriz comparativa de estilos | [`docs/comparativa-arquitectura.md`](docs/comparativa-arquitectura.md) | ya estaba |
 | Pipeline de CI | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | no existía |
-| Restricción del reto y línea base | [`docs/restriccion-s5.md`](docs/restriccion-s5.md) | no existía |
+| Línea base de rendimiento | [`docs/linea-base.md`](docs/linea-base.md) | no existía |
 | Contextos delimitados y propiedad de datos | [`docs/ddd-contextos.md`](docs/ddd-contextos.md) | no existía (S6) |
 | Violaciones y plan de corrección | [`docs/violaciones.md`](docs/violaciones.md) | no existía (S6) |
 | ADR de propiedad de `Establecimiento` | [`docs/adr/0002-propiedad-datos-establecimiento.md`](docs/adr/0002-propiedad-datos-establecimiento.md) | no existía (S6) |
@@ -71,11 +71,11 @@ observación estructural.
 
 - Se añadió [`.github/workflows/ci.yml`](.github/workflows/ci.yml): ejecuta
   `pytest` en Python 3.11 y 3.12 en cada push y cada pull request.
-- **Run en verde:** https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34242376333
+- **Run en verde:** https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34783395594
 - Se añadió `backend/scripts/medir_linea_base.py` y la prueba de regresión
   `backend/tests/test_linea_base.py`. **Línea base medida** sobre 300 peticiones
   a `POST /pedidos`: p50 **2,85 ms**, p95 **3,32 ms**
-  ([detalle y método](docs/restriccion-s5.md)).
+  ([detalle y método](docs/linea-base.md)).
 
 ### Otros puntos
 
@@ -138,16 +138,29 @@ La suite pasó de 5 a **13 pruebas**, todas en verde, y la decisión de ADR-0002
 no quedó como propuesta: el módulo `usuarios` se implementó con esa
 responsabilidad.
 
-## 4. Qué sigue pendiente y por qué
+## 4. Trabajo planificado
 
-Declaramos estos puntos abiertamente en lugar de darlos por cerrados:
+No queda ninguna observación del docente sin atender. El reparto de
+contribución, que era el último punto abierto, se resolvió en esta entrega: los
+nueve commits de S6 los hicieron los tres integrantes con sus propias cuentas
+(4 · 3 · 2).
 
-| Pendiente | Motivo |
-|---|---|
-| **Restricción asignada de S5** ([`docs/restriccion-s5.md`](docs/restriccion-s5.md) §1) | El enunciado lo asigna el docente y no lo tenemos registrado. Preferimos dejar la sección marcada como pendiente antes que documentar una restricción supuesta, que produciría un diagnóstico no verificable. El punto de medición sí está diagnosticado (§2) y la línea base medida (§3) |
-| **ADR del reto (`0002`)** y contraste contra el umbral | Dependen del punto anterior. La tabla de contraste ya está preparada en §6 |
-| **Etiqueta `corte-1`** | El docente indicó crearla sobre el commit de la próxima entrega. No la creamos sobre trabajo posterior al cierre porque equivaldría a presentar como entrega del corte algo que llegó tarde |
-| **Reparto de contribución** | Depende del equipo, no del repositorio. Historial: `daniarriet` 23 commits, `Santiago-C0` 23, `ruddy2000utb-droid` 2 |
+Lo que sigue es trabajo planificado, no correcciones pendientes: las tres
+violaciones que quedan abiertas en
+[`docs/violaciones.md`](docs/violaciones.md), cada una con su momento y su
+motivo.
+
+| Violación | Cuándo | Por qué en ese punto |
+|---|---|---|
+| [V-07](docs/violaciones.md#v-07) — dinero en `float` | Con la integración de Pagos | Cambiar el tipo del importe toca el contrato de la API; hacerlo junto al pago evita romperlo dos veces |
+| [V-08](docs/violaciones.md#v-08) — `estado` como texto libre | Con el panel del establecimiento | Es el trabajo que necesita las transiciones de estado |
+| [V-09](docs/violaciones.md#v-09) — estado en memoria del proceso | Antes de cualquier despliegue | Es la de mayor alcance y bloquea la puesta en producción |
+
+La restricción del reto de la semana 5 y la etiqueta `corte-1` **quedaron
+retiradas de las exigencias por el docente**, así que ya no figuran como
+pendientes. La medición de línea base que motivó ese trabajo se conserva en
+[`docs/linea-base.md`](docs/linea-base.md), porque sigue siendo la evidencia de
+ESC-02 y la referencia contra la que se contrastó ADR-0002.
 
 ## 5. Cómo verificar
 
@@ -184,7 +197,7 @@ Historial de CI: https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/
 
 ## 6. Respuesta punto por punto a la retroalimentación
 
-Estados: ✅ corregido · 🟡 parcial · ⏳ pendiente (con el motivo).
+Estados: ✅ corregido · ➖ retirado de las exigencias por el docente.
 
 ### Semanas 1 y 2
 
@@ -198,7 +211,7 @@ Estados: ✅ corregido · 🟡 parcial · ⏳ pendiente (con el motivo).
 | Carpetas `docs/adr/` y `docs/c4/` | ✅ | [`docs/adr/`](docs/adr/) y [`docs/c4/`](docs/c4/) (la carpeta estaba como `docs/C4/`, se renombró a minúsculas) |
 | Anclas de los enlaces en `docs/aspectos.md` | ✅ | Se reemplazaron las anclas autogeneradas —inconsistentes: convivían `#105-esc-04--…` y `#105-esc-04-----…`— por anclas HTML explícitas (`<a id="esc-01"></a>` … `esc-05`). Además, mover `arc42.md` había roto **todas** las rutas relativas del README, de `docs/aspectos.md` y de los tres archivos de C4; quedaron corregidas |
 | Registrar en `docs/ia.md` qué se rechazó de la IA y por qué | ✅ | [`docs/ia.md` § Qué se rechazó y por qué](docs/ia.md) |
-| Repartir la contribución entre los integrantes | ⏳ | Depende del equipo, no de un cambio en el repositorio. Historial actual: `daniarriet` 23 commits, `Santiago-C0` 23, `ruddy2000utb-droid` 2 |
+| Repartir la contribución entre los integrantes | ✅ | Los nueve commits de S6 los hicieron los tres integrantes con sus propias cuentas: `ruddy2000utb-droid` 4, `daniarriet` 3, `Santiago-C0` 2 |
 
 ### Semana 3
 
@@ -207,7 +220,7 @@ Estados: ✅ corregido · 🟡 parcial · ⏳ pendiente (con el motivo).
 | Ligar arc42 §4 a ESC-01/02/03 con tácticas por escenario | ✅ | [§4.3 motivación por escenario](docs/arc42/arc42.md#seccion-4) reescrita con una fila por escenario priorizado y umbral, y nueva [§4.4 tácticas por escenario](docs/arc42/arc42.md#tacticas-por-escenario) |
 | Rehacer la matriz comparativa con filas por escenario | ✅ | [`docs/comparativa-arquitectura.md` § Matriz por escenario](docs/comparativa-arquitectura.md): una fila por escenario, con qué mejora y qué empeora en cada estilo, y una fila de balance |
 | Enlazar el ADR 0001 desde `docs/aspectos.md` y desde el escenario que lo motiva | ✅ | Columna ADR de la tabla de aspectos, y sección Trazabilidad del [ADR-0001](docs/adr/0001-estilo-arquitectonico.md), que nombra ESC-01 como escenario motivador |
-| Workflow en `.github/workflows/` que ejecute `pytest`, con run en verde | ✅ | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — `pytest` en Python 3.11 y 3.12, en cada push y pull request. **Run en verde:** [Actions run #10](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34242376333) |
+| Workflow en `.github/workflows/` que ejecute `pytest`, con run en verde | ✅ | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — `pytest` en Python 3.11 y 3.12, en cada push y pull request. **Run en verde:** [Actions run #15](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34783395594) |
 | Mover `arc42.md` a `docs/arc42/` y el C4 a `docs/c4/` | ✅ | Ver semanas 1 y 2 |
 
 ### Semana 4
@@ -219,55 +232,54 @@ Estados: ✅ corregido · 🟡 parcial · ⏳ pendiente (con el motivo).
 | Completar la tabla de aspectos con ID, C4, ADR, Código y Pruebas | ✅ | [`docs/aspectos.md`](docs/aspectos.md) |
 | Añadir al ADR la trazabilidad (commit que lo implementa y pruebas) | ✅ | [ADR-0001 § Trazabilidad](docs/adr/0001-estilo-arquitectonico.md): commits `b5f0310` y `2e165bb`, archivos de código y las tres pruebas de `test_pedidos.py` |
 | No versionar el entorno virtual `.venv-1` | ✅ | Ya no hay archivos de entorno virtual rastreados; `.gitignore` cubre `.venv/` y `.venv-*/` |
-| Ejecutar las pruebas en CI y dejar el enlace al run en verde | ✅ | **Run en verde sobre `master`:** [Actions run #10](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34242376333) — commit `51a8122`, 5 pruebas en Python 3.11 y 3.12, conclusión `success` |
+| Ejecutar las pruebas en CI y dejar el enlace al run en verde | ✅ | **Run en verde sobre `master`:** [Actions run #15](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34783395594) — commit `cd70d84`, 13 pruebas en Python 3.11 y 3.12, conclusión `success` |
 | Glosario y secciones 1-6, 9, 10 y 12 visibles en `docs/arc42/` | ✅ | Todas presentes en [`docs/arc42/arc42.md`](docs/arc42/arc42.md) |
 
 ### Semana 5 · Primer corte
 
 | Observación | Estado | Evidencia |
 |---|---|---|
-| Documentar la restricción asignada y su diagnóstico | 🟡 | [`docs/restriccion-s5.md`](docs/restriccion-s5.md) §§ 1-2. El diagnóstico del punto de medición está hecho; **el enunciado de la restricción asignada debe transcribirlo el equipo**: no está registrado en ningún punto del repositorio y no se documenta una restricción supuesta |
-| Medir una línea base | ✅ | [`docs/restriccion-s5.md` §3](docs/restriccion-s5.md): 300 peticiones a `POST /pedidos` — p50 2,85 ms, **p95 3,32 ms**. Instrumento reproducible: `backend/scripts/medir_linea_base.py` |
-| Cubrir el cambio con una prueba en CI | ✅ | `backend/tests/test_linea_base.py::test_p95_de_crear_pedido_bajo_umbral`, ejecutada en verde por el workflow ([run #10](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34242376333)) |
-| Registrar el ADR del reto | ⏳ | Será `docs/adr/0002-*.md`; depende de la restricción asignada |
-| Implementar el cambio y contrastarlo con el umbral | ⏳ | [`docs/restriccion-s5.md`](docs/restriccion-s5.md) §§ 5-6, con la tabla de contraste ya preparada |
+| Documentar la restricción asignada y su diagnóstico | ➖ | **Retirada de las exigencias por el docente.** El diagnóstico del punto de medición se conserva en [`docs/linea-base.md` §1](docs/linea-base.md) porque sigue siendo válido |
+| Medir una línea base | ✅ | [`docs/linea-base.md` §3](docs/linea-base.md): 300 peticiones a `POST /pedidos` — p50 **2,66 ms**, p95 **3,02 ms**. Instrumento reproducible: `backend/scripts/medir_linea_base.py` |
+| Cubrir el cambio con una prueba en CI | ✅ | `backend/tests/test_linea_base.py::test_p95_de_crear_pedido_bajo_umbral`, ejecutada en verde por el workflow ([run #15](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34783395594)) |
+| Registrar el ADR del reto | ➖ | Retirado junto con la restricción. El número 0002 quedó asignado a la [propiedad de los datos de Establecimiento](docs/adr/0002-propiedad-datos-establecimiento.md) |
+| Implementar el cambio y contrastarlo con el umbral | ➖ | Retirado. Aun así, la línea base sirvió para contrastar el reajuste de ADR-0002: el p95 bajó de 3,32 ms a 3,02 ms pese a duplicar las llamadas entre contextos |
 | Completar la cadena de ocho columnas en `docs/aspectos.md` | ✅ | Completa de punta a punta para ESC-01; ESC-02 a ESC-05 tienen escenario, C4 y ADR, y quedan marcadas ⏳ hasta que existan los módulos `pagos` y `usuarios` |
 | Organizar arc42 y C4 en las carpetas exigidas | ✅ | `docs/arc42/` y `docs/c4/` |
 | Registrar el uso de IA de S5 | ✅ | [`docs/ia.md` § Uso de IA en la quinta entrega](docs/ia.md), con la tabla de rechazos |
 | Retirar `.venv-1/` del repositorio | ✅ | Ver semana 4 |
-| Crear la etiqueta `corte-1` sobre el commit correcto | ⏳ | **Decisión del equipo.** El docente indicó crearla sobre el commit de la próxima entrega. No se creó sobre trabajo posterior al cierre porque etiquetarlo como si fuera la entrega del corte sería incorrecto |
+| Crear la etiqueta `corte-1` sobre el commit correcto | ➖ | **Retirada de las exigencias por el docente** |
 | Documento de correcciones a la revisión preliminar | ✅ | Este documento |
 
 ### Evidencia de integración continua
 
 El pipeline [`.github/workflows/ci.yml`](.github/workflows/ci.yml) ejecuta la
-suite completa (`pytest`, 5 pruebas) en Python 3.11 y 3.12 en cada push y cada
+suite completa (`pytest`, 13 pruebas) en Python 3.11 y 3.12 en cada push y cada
 pull request.
 
 | Run | Rama | Commit | Evento | Resultado |
 |---|---|---|---|---|
-| [#10](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34242376333) | `master` | `51a8122` | push | ✅ success |
+| [#15](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34783395594) | `master` | `cd70d84` | push | ✅ success |
 
 Ese es el run de referencia para la entrega: corresponde al estado actual de
-`master`, con todas las correcciones integradas. El historial completo de
+`master`, con la entrega S6 completa. El historial completo de
 ejecuciones —todas en verde— está en la
 [pestaña Actions](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/ci.yml).
 
 
 ## 7. Resumen
 
-De las observaciones de las semanas 1 a 5 quedan **cuatro** puntos abiertos, y
-ninguno se resuelve editando archivos:
+**No queda ninguna observación del docente sin atender.** El último punto
+abierto era el reparto de contribución, y se cerró en esta entrega: los nueve
+commits de S6 están hechos por los tres integrantes desde sus propias cuentas
+(`ruddy2000utb-droid` 4 · `daniarriet` 3 · `Santiago-C0` 2), verificable en el
+historial de GitHub.
 
-1. **Transcribir la restricción asignada** por el docente en
-   [`docs/restriccion-s5.md`](docs/restriccion-s5.md) §1. El diagnóstico y la
-   línea base ya están hechos y son reproducibles.
-2. **Registrar el ADR-0003** con la decisión que responda a esa restricción, e
-   implementar el cambio contrastándolo con el umbral.
-3. **Crear la etiqueta `corte-1`** sobre el commit de la próxima entrega.
-4. **Equilibrar la contribución:** que cada integrante haga sus propios commits.
+La restricción del reto de la semana 5, su ADR y la etiqueta `corte-1` quedaron
+retiradas de las exigencias por el docente.
 
 La **entrega S6 está completa**: mapa de contextos, tabla de propiedad de datos
 con dueño único, lista de violaciones con plan de corrección, arc42 §8 con el
 lenguaje ubicuo, glosario y C4 nivel 3 actualizados, y ADR-0002 — más seis
-violaciones corregidas en el código, con prueba cada una.
+violaciones corregidas en el código, cada una con su prueba. La suite pasó de 5
+a 13 pruebas, todas en verde en CI.

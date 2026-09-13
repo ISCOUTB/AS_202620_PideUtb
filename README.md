@@ -25,7 +25,7 @@ El backend sigue un estilo de **monolito modular**, organizado en cuatro **conte
 | [`docs/adr/`](docs/adr/) | Decisiones de arquitectura (ADR) con su trazabilidad |
 | [`docs/c4/`](docs/c4/) | Diagramas C4 niveles 1, 2 y 3 en Mermaid |
 | [`docs/comparativa-arquitectura.md`](docs/comparativa-arquitectura.md) | Matrices comparativas por criterio y por escenario |
-| [`docs/restriccion-s5.md`](docs/restriccion-s5.md) | Restricción del reto, diagnóstico y línea base medida |
+| [`docs/linea-base.md`](docs/linea-base.md) | Línea base de rendimiento de `POST /pedidos` y su protección en CI |
 | [`docs/ddd-contextos.md`](docs/ddd-contextos.md) | Contextos delimitados, lenguaje ubicuo y tabla módulo → datos con dueño único |
 | [`docs/violaciones.md`](docs/violaciones.md) | Violaciones detectadas en el código y plan de corrección |
 | [`correcciones.md`](correcciones.md) | Respuesta a la retroalimentación docente y estado de cada entrega |
@@ -57,7 +57,7 @@ Con el entorno virtual ya activado (ver paso anterior):
 pytest
 ```
 
-El repositorio incluye la prueba base (`tests/test_health.py`) que verifica que la aplicación arranca y que el endpoint de salud responde correctamente, `tests/test_pedidos.py`, que cubre el corte vertical ejecutable descrito más abajo, y `tests/test_linea_base.py`, que protege la línea base de latencia documentada en [`docs/restriccion-s5.md`](docs/restriccion-s5.md).
+El repositorio incluye la prueba base (`tests/test_health.py`) que verifica que la aplicación arranca y que el endpoint de salud responde correctamente, `tests/test_pedidos.py`, que cubre el corte vertical ejecutable descrito más abajo, y `tests/test_linea_base.py`, que protege la línea base de latencia documentada en [`docs/linea-base.md`](docs/linea-base.md).
 
 ### Integración continua
 
@@ -84,7 +84,7 @@ python scripts/medir_linea_base.py 300
 ```
 
 Reporta min, p50, p95 y máximo de `POST /pedidos`. La medición de referencia y
-su interpretación están en [`docs/restriccion-s5.md`](docs/restriccion-s5.md).
+su interpretación están en [`docs/linea-base.md`](docs/linea-base.md).
 
 ## Estructura del proyecto
 
@@ -117,7 +117,7 @@ docs/
 ├── comparativa-arquitectura.md
 ├── ddd-contextos.md            # Contextos delimitados y propiedad de datos
 ├── violaciones.md              # Violaciones del código y plan de corrección
-├── restriccion-s5.md           # Restricción del reto y línea base
+├── linea-base.md               # Línea base de rendimiento y su umbral en CI
 └── ia.md
 
 correcciones.md                 # Respuesta a la retroalimentación docente
