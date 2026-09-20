@@ -1,0 +1,67 @@
+# Reglas de validación de los contratos de API.
+#
+# Spectral responde a una pregunta que las pruebas de Python no pueden
+# responder: **¿este archivo es un OpenAPI 3.1 / AsyncAPI 3.0 válido y bien
+# formado?** Nuestras pruebas asumen que lo es y comparan su contenido; si el
+# archivo estuviera mal construido, lo compararían mal sin enterarse.
+#
+# Se ejecuta en el pipeline sobre los dos contratos. Un solo conjunto de reglas
+# sirve para ambos porque cada regla declara a qué formato aplica.
+#
+# Uso local:
+#   npx --yes @stoplight/spectral-cli lint docs/api/openapi.yaml docs/api/asyncapi.yaml
+
+extends:
+  - [spectral:oas, recommended]
+  - [spectral:asyncapi, recommended]
+
+rules:
+  # ----------------------------------------------------------------------
+  # Endurecidas respecto de la recomendación por defecto.
+  # ----------------------------------------------------------------------
+
+  # Sin `operationId` no se puede generar un cliente ni referirse a una
+  # operación desde las expectativas del consumidor
+  # (`contracts/consumidor-web.yaml` indexa por este campo).
+  operation-operationId: error
+  operation-operationId-unique: error
+
+  # Una operación sin etiqueta queda fuera de toda agrupación en la
+  # documentación generada, y el contrato deja de ser navegable justo cuando
+  # crece lo suficiente para necesitarlo.
+  operation-tags: error
+
+  # Un ejemplo que no valida contra su propio esquema es peor que no tener
+  # ejemplo: es documentación que miente.
+  oas3-valid-media-example: error
+  oas3-valid-schema-example: error
+
+  # ----------------------------------------------------------------------
+  # Relajadas, con motivo.
+  # ----------------------------------------------------------------------
+
+  # Spectral pide una descripción por operación. Aquí se exige igualmente,
+  # pero como aviso: una descripción ausente es un defecto de documentación,
+  # no un contrato inválido, y no debe bloquear la construcción por sí sola.
+  operation-description: warn
+
+  # `info.contact` e `info.license` están declarados; la regla se mantiene en
+  # aviso porque su ausencia no rompe a ningún consumidor.
+  info-contact: warn
+  info-license: warn
+
+  # ----------------------------------------------------------------------
+  # Desactivadas, con motivo. Una regla apagada sin explicación es una regla
+  # que alguien apagó para que dejara de molestar.
+  # ----------------------------------------------------------------------
+
+  # Exige `name`, `url` y **email** en el contacto. No se publica una dirección
+  # de correo en un repositorio público, y `name` + `url` ya dan un canal de
+  # contacto real a través del repositorio.
+  asyncapi-info-contact-properties: off
+
+  # Avisa de que existe AsyncAPI 3.1.0. El contrato se fija en 3.0.0 a
+  # propósito: es la versión contra la que se validó el documento, y subirla
+  # sin revisar qué cambia sería adoptar una especificación a ciegas. El día
+  # que se migre, se hace como cambio propio y no por inercia de un aviso.
+  asyncapi-latest-version: off

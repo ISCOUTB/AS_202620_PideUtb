@@ -1,0 +1,102 @@
+# Expectativas del consumidor sobre la API de PideUTB.
+#
+# Esto NO es el contrato. El contrato es docs/api/openapi.yaml y lo escribe el
+# proveedor. Este archivo es lo contrario: lo escribe **quien consume**, y dice
+# qué parte del contrato usa de verdad.
+#
+# Sirve para dos cosas que el contrato solo no puede hacer:
+#
+# 1. Que el pipeline del proveedor falle si deja de emitir un campo del que
+#    alguien depende, aunque el cambio parezca inocuo desde el lado del
+#    proveedor.
+# 2. Que el proveedor sepa qué puede retirar sin romper a nadie. Un campo que
+#    ningún consumidor declara aquí se puede quitar; uno declarado, no.
+#
+# Cuando el frontend deje de usar un campo, se borra de aquí. Ese borrado es lo
+# que le da permiso al proveedor para retirarlo.
+#
+# Lo verifica: backend/tests/test_expectativas_consumidor.py
+
+consumidor: frontend-web
+descripcion: >
+  Interfaz web que consumen los tres roles del sistema (usuario, personal del
+  establecimiento y administrador). Es el contenedor "Frontend Web" del
+  diagrama C4 de nivel 2.
+
+# Rango de versiones del contrato con el que este consumidor sabe hablar.
+# Que sea `1.x` y no `1.0.0` es la consecuencia práctica de la política de
+# versionado: los cambios MENOR son compatibles por definición, así que el
+# consumidor no necesita tocarse. Un salto a `2.x` sí exige trabajo aquí.
+version_contrato_requerida: "1.x"
+
+operaciones:
+  consultarSalud:
+    proposito: Comprobar que la API responde antes de mostrar la pantalla inicial.
+    campos_leidos: [status]
+    codigos_manejados: ["200"]
+
+  listarItemsDeEstablecimiento:
+    proposito: Pintar la carta de un establecimiento.
+    campos_leidos:
+      - establecimiento_id
+      - items[].item_id
+      - items[].nombre
+      - items[].precio_centavos
+      - items[].disponible
+    codigos_manejados: ["200", "404"]
+
+  obtenerItemMenu:
+    proposito: Mostrar el detalle de un ítem antes de pedirlo.
+    campos_leidos: [item_id, nombre, precio_centavos, disponible]
+    codigos_manejados: ["200", "404"]
+
+  crearPedido:
+    proposito: Enviar el pedido y mostrar el resumen de confirmación.
+    campos_enviados: [item_id, cantidad]
+    campos_leidos:
+      - pedido_id
+      - nombre_item
+      - cantidad
+      - precio_unitario_centavos
+      - total_centavos
+      - estado
+    codigos_manejados: ["201", "404", "409", "422"]
+
+  iniciarIntentoDePago:
+    proposito: Redirigir al usuario a la pasarela.
+    campos_enviados: [pedido_id, metodo]
+    campos_leidos: [referencia_pago, monto_centavos, estado_pago, url_checkout]
+    codigos_manejados: ["201", "404", "409", "422"]
+
+  obtenerPedido:
+    proposito: >
+      Averiguar en qué quedó el pago al volver de la pasarela. Es la operación
+      que existe porque la confirmación llega por un canal asíncrono: sin ella
+      el usuario se quedaría mirando una pantalla que nunca cambia.
+    campos_leidos: [pedido_id, estado, codigo_canje, total_centavos]
+    codigos_manejados: ["200", "404"]
+
+# Valores de `EstadoPedido` que este consumidor sabe interpretar, con lo que
+# hace ante cada uno. La lista debe ser EXHAUSTIVA respecto del enum del
+# contrato: si el proveedor añade un estado y no aparece aquí, la prueba falla.
+#
+# Esa es la regla I-8 de la política de versionado hecha comprobable. Sin este
+# bloque, «añadir un valor a un enum de respuesta es incompatible» sería una
+# afirmación de un documento; con él, es una construcción en rojo.
+estados_pedido_interpretados:
+  pendiente_pago: Ofrece el botón de pagar.
+  pagado: Muestra el código de canje.
+  en_preparacion: Muestra "lo están preparando".
+  listo_para_recoger: Avisa de que puede pasar a recogerlo.
+  entregado: Mueve el pedido al historial.
+  cancelado: Muestra el motivo y ofrece repetir el pedido.
+
+# Lo mismo para el estado del intento de pago.
+estados_pago_interpretados:
+  pendiente: Mantiene la pantalla de espera y vuelve a consultar el pedido.
+  aprobado: Muestra el código de canje.
+  rechazado: Ofrece reintentar con otro método.
+
+# Métodos que el frontend ofrece. Es un subconjunto legítimo: el consumidor no
+# está obligado a usar todo lo que el contrato admite en una petición.
+metodos_de_pago_ofrecidos: [tarjeta, nequi, pse]
