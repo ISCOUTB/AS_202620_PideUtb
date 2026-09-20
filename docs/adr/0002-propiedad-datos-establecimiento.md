@@ -1,4 +1,4 @@
-# ADR 0002: Propiedad de los datos de Establecimiento y lenguaje publicado entre contextos
+# ADR 0002: Hacer del contexto Cuentas el único escritor de Establecimiento y comunicar los contextos por lenguaje publicado
 
 ## Estado
 

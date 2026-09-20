@@ -1,4 +1,4 @@
-# ADR 0001: Estilo arquitectónico del backend de PideUTB
+# ADR 0001: Adoptar un monolito modular en el que un módulo solo invoca la interfaz pública de otro
 
 ## Estado
 
