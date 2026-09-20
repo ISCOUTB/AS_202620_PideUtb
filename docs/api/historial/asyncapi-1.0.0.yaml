@@ -1,0 +1,227 @@
+# Contrato de los canales ASÍNCRONOS de PideUTB.
+#
+# OpenAPI describe lo que un cliente pide y espera respuesta.
+# Este archivo describe lo que ocurre cuando NO hay nadie esperando: quién
+# publica un hecho, quién lo recibe, qué garantías de entrega hay y qué pasa
+# cuando el mismo mensaje llega dos veces.
+#
+# Decisión y alternativa descartada: docs/adr/0003-estrategia-integracion.md
+# Flujo en tiempo de ejecución:       docs/arc42/arc42.md §6.3
+
+asyncapi: 3.0.0
+
+info:
+  title: PideUTB — Canales de eventos
+  version: 1.0.0
+  description: |
+    Dos canales, con roles opuestos y por motivos distintos.
+
+    **`eventos-de-pago`** — PideUTB *recibe*. No es una elección del equipo: la
+    pasarela decide cuándo confirma un cobro y avisa por su cuenta. Aquí la
+    asincronía es una restricción del entorno y el contrato existe para fijar
+    cómo se tolera.
+
+    **`pedidos-pagados`** — PideUTB *publica*. Aquí sí es una elección, y es la
+    que justifica [ADR-0003](../adr/0003-estrategia-integracion.md): el panel
+    del establecimiento se entera de que hay un pedido que preparar sin que el
+    cobro dependa de que el panel esté abierto.
+
+    ### Sobre el transporte del canal interno
+
+    Hoy `pedidos-pagados` se entrega **en proceso**, porque el sistema es un
+    monolito modular y no hay un broker desplegado. Eso no lo convierte en una
+    llamada síncrona disfrazada: el publicador no conoce a sus suscriptores, no
+    espera resultado y un suscriptor que falle no tumba el cobro. Lo que cambia
+    el día que el panel sea un desplegable aparte es el transporte, no el
+    contrato — que es justamente la razón de escribirlo ahora y no después.
+
+  contact:
+    name: Equipo PideUTB
+    url: https://github.com/ISCOUTB/AS_202620_PideUtb
+  license:
+    name: MIT
+    url: https://opensource.org/license/mit
+  tags:
+    - name: pagos
+      description: Canales relacionados con el cobro de un pedido.
+    - name: interno
+      description: |
+        Canales que solo circulan dentro del sistema. Se contratan igual que
+        los externos: el día que el suscriptor sea un desplegable aparte, el
+        contrato ya existe y no hay que inventarlo con prisa.
+
+defaultContentType: application/json
+
+servers:
+  pasarela:
+    host: sandbox.wompi.co
+    protocol: https
+    description: |
+      Pasarela de pagos en ambiente Sandbox. Entrega los eventos por HTTP POST
+      contra el endpoint declarado en `openapi.yaml`.
+
+  interno:
+    host: in-process
+    protocol: local
+    description: |
+      Bus en memoria del propio proceso de la API. Sustituible por un broker
+      real sin tocar los mensajes de este contrato.
+
+channels:
+  eventos-de-pago:
+    address: /v1/pagos/eventos
+    title: Confirmaciones de la pasarela
+    servers:
+      - $ref: "#/servers/pasarela"
+    description: |
+      Canal de entrada. La pasarela entrega **al menos una vez**: si no recibe
+      un `2xx` dentro de su plazo, reintenta. En consecuencia el mismo mensaje
+      puede llegar varias veces, y también **fuera de orden**.
+
+      El consumidor no puede asumir exactamente-una-vez ni orden temporal: debe
+      ser idempotente y decidir por el estado que trae el mensaje, no por el
+      orden de llegada.
+    messages:
+      transaccionActualizada:
+        $ref: "#/components/messages/TransaccionActualizada"
+
+  pedidos-pagados:
+    address: pideutb.pedidos.pagados
+    title: Pedidos confirmados listos para preparar
+    servers:
+      - $ref: "#/servers/interno"
+    description: |
+      Canal de salida. Se publica **después** de que el pedido haya quedado
+      persistido como pagado, nunca antes: publicar un hecho que todavía podría
+      no ocurrir obliga a compensarlo después.
+    messages:
+      pedidoPagado:
+        $ref: "#/components/messages/PedidoPagado"
+
+operations:
+  recibirTransaccionActualizada:
+    action: receive
+    title: Procesar la confirmación de la pasarela.
+    channel:
+      $ref: "#/channels/eventos-de-pago"
+    messages:
+      - $ref: "#/channels/eventos-de-pago/messages/transaccionActualizada"
+    description: |
+      **Idempotencia.** La clave es `referencia_pago`. Un evento cuya referencia
+      ya se procesó no vuelve a aplicarse: se acusa recibo con `duplicado: true`
+      y se termina. Sin esto, un reintento de la pasarela generaría un segundo
+      código de canje para un pedido ya confirmado.
+
+      **Modo de fallo tolerado.** Si el evento nunca llega, el pedido se queda
+      en `pendiente_pago`. El usuario no queda bloqueado ni sin información: el
+      frontend consulta `GET /v1/pedidos/{pedido_id}` y ve ese estado. Es la
+      degradación elegida frente a la alternativa de bloquear la interfaz
+      esperando una confirmación que no controlamos.
+
+      **Lo que NO se hace aquí.** No se cobra, no se contacta a la pasarela y no
+      se notifica al usuario dentro del manejador. El webhook solo registra el
+      hecho y publica el evento interno; cualquier trabajo largo dentro del
+      manejador aumentaría la probabilidad de superar el plazo de la pasarela y
+      provocar un reintento innecesario.
+
+  publicarPedidoPagado:
+    action: send
+    title: Anunciar que un pedido puede prepararse.
+    channel:
+      $ref: "#/channels/pedidos-pagados"
+    messages:
+      - $ref: "#/channels/pedidos-pagados/messages/pedidoPagado"
+    description: |
+      Se publica una sola vez por pedido, en la transición
+      `pendiente_pago → pagado`. Como esa transición es idempotente, la
+      publicación también lo es: un evento duplicado de la pasarela no produce
+      un segundo `pedido.pagado`.
+
+      El publicador **ignora deliberadamente** si hay suscriptores y si tuvieron
+      éxito. Un suscriptor que falle no revierte el pago: el cobro ya ocurrió, y
+      hacerlo depender de que el panel funcione recrearía el acoplamiento
+      temporal que esta decisión evita.
+
+components:
+  messages:
+    TransaccionActualizada:
+      name: transaccion.actualizada
+      title: La pasarela cambió el estado de una transacción.
+      contentType: application/json
+      headers:
+        type: object
+        required: [X-Firma-Evento]
+        properties:
+          X-Firma-Evento:
+            type: string
+            description: |
+              Firma del cuerpo. Sin verificarla, este canal sería un punto
+              público capaz de marcar pedidos como pagados.
+      payload:
+        $ref: "#/components/schemas/EventoPago"
+      examples:
+        - name: aprobado
+          payload:
+            evento: transaccion.actualizada
+            referencia_pago: pago-1-a3f2c1
+            estado_pago: aprobado
+            ocurrido_en: "2026-09-20T14:31:07Z"
+
+    PedidoPagado:
+      name: pedido.pagado
+      title: Un pedido quedó confirmado y puede prepararse.
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/PedidoPagado"
+      examples:
+        - name: confirmado
+          payload:
+            pedido_id: 1
+            establecimiento_id: 1
+            codigo_canje: 7KQ2ZP
+
+  schemas:
+    EstadoPago:
+      type: string
+      enum: [pendiente, aprobado, rechazado]
+
+    EventoPago:
+      type: object
+      description: |
+        Mismo esquema que el cuerpo del webhook en `openapi.yaml`. Se repite
+        aquí en lugar de referenciarlo entre archivos para que cada contrato se
+        valide por separado en el pipeline; que ambos coincidan lo comprueba
+        `backend/tests/test_contrato_api.py`.
+      required: [evento, referencia_pago, estado_pago]
+      properties:
+        evento:
+          type: string
+          enum: [transaccion.actualizada]
+        referencia_pago:
+          type: string
+          minLength: 1
+          maxLength: 64
+        estado_pago:
+          $ref: "#/components/schemas/EstadoPago"
+        ocurrido_en:
+          type: [string, "null"]
+          format: date-time
+
+    PedidoPagado:
+      type: object
+      required: [pedido_id, establecimiento_id, codigo_canje]
+      properties:
+        pedido_id:
+          type: integer
+          minimum: 1
+        establecimiento_id:
+          type: integer
+          minimum: 1
+          description: |
+            Va en el mensaje aunque el suscriptor podría consultarlo. Un evento
+            que obliga a volver a preguntar por los datos que describe reintroduce
+            la dependencia temporal que el canal pretendía eliminar.
+          examples: [1]
+        codigo_canje:
+          type: string
+          pattern: "^[A-Z0-9]{6}$"
