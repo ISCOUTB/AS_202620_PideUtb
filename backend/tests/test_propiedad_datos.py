@@ -20,7 +20,7 @@ def test_establecimiento_se_deriva_del_item_y_no_del_cliente():
     otro `establecimiento_id`, el campo se ignora.
     """
     respuesta = client.post(
-        "/pedidos",
+        "/v1/pedidos",
         json={"item_id": 1, "cantidad": 1, "establecimiento_id": 99},
     )
 
@@ -33,7 +33,7 @@ def test_pedido_en_establecimiento_inactivo_se_rechaza():
 
     El ítem 4 pertenece al establecimiento 3, inactivo en el seed.
     """
-    respuesta = client.post("/pedidos", json={"item_id": 4, "cantidad": 1})
+    respuesta = client.post("/v1/pedidos", json={"item_id": 4, "cantidad": 1})
 
     assert respuesta.status_code == 409
     assert "no está recibiendo pedidos" in respuesta.json()["detail"]
@@ -42,7 +42,7 @@ def test_pedido_en_establecimiento_inactivo_se_rechaza():
 def test_cantidad_fuera_de_rango_se_rechaza():
     """V-03: cantidad cero o negativa producía totales absurdos."""
     for cantidad in (0, -5, 51):
-        respuesta = client.post("/pedidos", json={"item_id": 1, "cantidad": cantidad})
+        respuesta = client.post("/v1/pedidos", json={"item_id": 1, "cantidad": cantidad})
         assert respuesta.status_code == 422, f"cantidad={cantidad} debería rechazarse"
 
 
@@ -50,17 +50,17 @@ def test_el_pedido_conserva_el_precio_aunque_cambie_el_catalogo():
     """V-06 / H-1: la instantánea es deliberada y el pedido no se revalúa."""
     from app.menu import repository as catalogo
 
-    respuesta = client.post("/pedidos", json={"item_id": 2, "cantidad": 3})
+    respuesta = client.post("/v1/pedidos", json={"item_id": 2, "cantidad": 3})
     assert respuesta.status_code == 201
     pedido = respuesta.json()
-    assert pedido["precio_unitario"] == 3000
-    assert pedido["total"] == 9000
+    assert pedido["precio_unitario_centavos"] == 300000
+    assert pedido["total_centavos"] == 900000
 
     original = catalogo._ITEMS_SEED[2]
-    catalogo._ITEMS_SEED[2] = original.model_copy(update={"precio": 9999})
+    catalogo._ITEMS_SEED[2] = original.model_copy(update={"precio_centavos": 999900})
     try:
-        assert pedido["precio_unitario"] == 3000
-        assert pedido["total"] == 9000
+        assert pedido["precio_unitario_centavos"] == 300000
+        assert pedido["total_centavos"] == 900000
     finally:
         catalogo._ITEMS_SEED[2] = original
 

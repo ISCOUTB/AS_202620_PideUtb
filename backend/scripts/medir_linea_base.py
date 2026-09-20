@@ -6,7 +6,7 @@ Uso (desde backend/):
 Ejecuta N veces el flujo POST /pedidos contra la aplicación en proceso y
 reporta latencia mínima, p50, p95 y máxima en milisegundos. El resultado es la
 medición de referencia contra la cual se compara cualquier optimización
-posterior; se registra en docs/restriccion-s5.md.
+posterior; se registra en docs/linea-base.md.
 """
 
 import statistics
@@ -34,12 +34,12 @@ def medir(n: int) -> dict[str, float]:
 
     # Calentamiento: descarta el costo del primer arranque de la app.
     for _ in range(10):
-        client.post("/pedidos", json=PEDIDO)
+        client.post("/v1/pedidos", json=PEDIDO)
 
     muestras = []
     for _ in range(n):
         inicio = time.perf_counter()
-        respuesta = client.post("/pedidos", json=PEDIDO)
+        respuesta = client.post("/v1/pedidos", json=PEDIDO)
         muestras.append((time.perf_counter() - inicio) * 1000)
         assert respuesta.status_code == 201, respuesta.text
 

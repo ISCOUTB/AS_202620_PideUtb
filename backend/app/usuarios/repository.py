@@ -19,6 +19,14 @@ _ESTABLECIMIENTOS_SEED = {
         id=3, nombre="Punto Café", ubicacion="Biblioteca, piso 2",
         horario="cerrado temporalmente", activo=False,
     ),
+    # Existe y opera, pero todavía no ha cargado su carta. Es el caso que
+    # obliga a distinguir «no existe» (404) de «existe y no tiene nada»
+    # (200 con lista vacía): sin él, el frontend no puede saber si mostrar un
+    # error o un mensaje de «aún sin productos».
+    4: Establecimiento(
+        id=4, nombre="Carrito de frutas", ubicacion="Plazoleta central",
+        horario="L-V 10:00-15:00", activo=True,
+    ),
 }
 
 
