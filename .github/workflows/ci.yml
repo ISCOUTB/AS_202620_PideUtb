@@ -54,3 +54,130 @@ jobs:
           name: reporte-pruebas-py${{ matrix.python-version }}
           path: backend/reporte-pruebas.xml
           if-no-files-found: ignore
+
+  # --------------------------------------------------------------------------
+  # Validación del contrato de API.
+  #
+  # Tres capas, porque cada una detecta lo que las otras no pueden:
+  #
+  #   1. Spectral  — ¿es un OpenAPI 3.1 / AsyncAPI 3.0 válido y bien formado?
+  #   2. oasdiff   — ¿rompe a alguien respecto de la versión publicada?
+  #   3. pytest    — ¿lo cumple el código, y sigue emitiendo lo que el
+  #                  consumidor declaró que lee? (corre en el job `pruebas`)
+  #
+  # Las dos primeras no tocan `requirements-ci.txt`: Spectral entra por npx y
+  # oasdiff por su imagen oficial, así que el lock con hashes del backend
+  # sigue siendo el único origen de dependencias de Python.
+  # --------------------------------------------------------------------------
+  contrato:
+    name: Contrato de API
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # `--fail-severity=warn` y no `error`: con el umbral en `error` la
+      # validación solo se activaría ante un archivo roto, que es el caso que
+      # nunca ocurre. Los avisos son los que detectan la degradación real.
+      - name: Validar la forma de los contratos (Spectral)
+        run: |
+          npx --yes @stoplight/spectral-cli@6.15.0 lint \
+            docs/api/openapi.yaml \
+            docs/api/asyncapi.yaml \
+            --ruleset .spectral.yaml \
+            --fail-severity=warn
+
+      # Compara el contrato vigente con la última versión congelada. Falla si
+      # introduce una rotura sin haber subido la versión mayor.
+      # La misma comprobación, con las reglas explicadas una a una, está en
+      # backend/tests/test_compatibilidad_contrato.py; tener las dos no es
+      # redundancia: una herramienta externa no comparte nuestros puntos
+      # ciegos, y nuestro comparador conoce reglas que ella no puede saber
+      # (la dirección del dato en un enum, política §3.1).
+      - name: Detectar cambios incompatibles (oasdiff)
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/specs" tufin/oasdiff breaking \
+            /specs/docs/api/historial/openapi-1.0.0.yaml \
+            /specs/docs/api/openapi.yaml \
+            --fail-on ERR
+
+  # --------------------------------------------------------------------------
+  # Análisis estático y Quality Gate.
+  #
+  # El escaneo se omite —sin fallar— mientras no exista el secreto
+  # `SONAR_TOKEN`, para que la ausencia de configuración no tumbe el pipeline.
+  # En cuanto el secreto está, el Quality Gate pasa a ser bloqueante.
+  # Instrucciones de alta: docs/calidad-sonarcloud.md
+  # --------------------------------------------------------------------------
+  calidad:
+    name: SonarCloud
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
+        with:
+          # SonarCloud necesita el historial completo para atribuir cada línea
+          # a su commit; con un clon superficial, el análisis de código nuevo
+          # queda vacío.
+          fetch-depth: 0
+
+      - name: Comprobar si el análisis está configurado
+        id: config
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then
+            echo "configurado=si" >> "$GITHUB_OUTPUT"
+          else
+            echo "configurado=no" >> "$GITHUB_OUTPUT"
+            echo "::notice::Falta el secreto SONAR_TOKEN; se omite el análisis. Ver docs/calidad-sonarcloud.md"
+          fi
+
+      - name: Configurar Python
+        if: steps.config.outputs.configurado == 'si'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Las dependencias de la aplicación siguen viniendo del lock con hashes.
+      # `pytest-cov` se instala aparte y a propósito: es instrumental de este
+      # job, no una dependencia del producto, y mezclarlo en el lock obligaría
+      # al job `pruebas` a instalarlo sin necesitarlo.
+      - name: Instalar dependencias
+        if: steps.config.outputs.configurado == 'si'
+        working-directory: backend
+        run: |
+          pip install --require-hashes --only-binary=:all: -r requirements-ci.txt
+          pip install "pytest-cov>=5,<7"
+
+      - name: Medir cobertura
+        if: steps.config.outputs.configurado == 'si'
+        working-directory: backend
+        run: pytest --cov=app --cov-report=xml:coverage.xml
+
+      - name: Analizar con SonarCloud
+        if: steps.config.outputs.configurado == 'si'
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      # Convierte el Quality Gate en una condición de construcción: sin este
+      # paso, SonarCloud publicaría el resultado en su panel y el pipeline
+      # seguiría en verde aunque la puerta estuviera en rojo.
+      - name: Esperar el veredicto del Quality Gate
+        if: steps.config.outputs.configurado == 'si'
+        uses: SonarSource/sonarqube-quality-gate-action@v1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
