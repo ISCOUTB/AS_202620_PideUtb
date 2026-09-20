@@ -99,16 +99,33 @@ lo solicitan**. Cualquier dato con dos escritores es una violación.
 
 | Dato | Módulo dueño (único escritor) | Módulos lectores | Cómo lo consultan | Estado |
 |---|---|---|---|---|
-| **Ítem de menú** (`nombre`, `precio`, `disponible`) | `menu` | `pedidos` | `menu.service.obtener_item()` → `ItemDisponible` | ✅ Implementado y auditado |
-| **Pedido** (`estado`, `cantidad`, `total`, instantáneas) | `pedidos` | `pagos` (previsto) | `pedidos.service` | ✅ Implementado |
+| **Ítem de menú** (`nombre`, `precio_centavos`, `disponible`) | `menu` | `pedidos` | `menu.service.obtener_item()` → `ItemDisponible` | ✅ Implementado y auditado |
+| **Pedido** (`estado`, `cantidad`, `total_centavos`, instantáneas) | `pedidos` | `pagos` | `pedidos.service` → `PedidoPublicado` | ✅ Implementado |
+| **Código de canje** | `pedidos` | `pagos`, panel del establecimiento | `pedidos.service.confirmar_pago()` y el evento `pedido.pagado` | ✅ Implementado en S7 |
 | **Establecimiento** (`nombre`, `ubicación`, `horario`, `activo`) | `usuarios` | `menu`, `pedidos` (solo la referencia `establecimiento_id`) | `usuarios.service.obtener_establecimiento()` · `establecimiento_esta_activo()` | ✅ Implementado en esta entrega — ver [ADR-0002](adr/0002-propiedad-datos-establecimiento.md) |
 | **Cuenta** (`usuario`, `admin`: credenciales y rol) | `usuarios` | `menu`, `pedidos`, `pagos` (para validar identidad) | `usuarios.service.*` | ⏳ Pendiente |
-| **Transacción / código de canje** | `pagos` | `pedidos` | `pagos.service.*` | ⏳ Pendiente, módulo vacío |
+| **Intento de pago** (`referencia_pago`, `monto_centavos`, `estado_pago`) | `pagos` | — | `pagos.service.*` | ✅ Implementado en S7 |
 
 **Regla verificada: ningún dato tiene hoy dos escritores.** `Establecimiento`
 tenía **cero** —lo cual es igual de peligroso, porque cualquier módulo futuro
-podía adoptarlo por conveniencia y acabar duplicándolo—, y esta entrega le
-asigna dueño.
+podía adoptarlo por conveniencia y acabar duplicándolo—, y S6 le asignó dueño.
+
+### Reajuste de S7: el código de canje es de Pedidos, no de Pagos
+
+La tabla de S6 asignaba «Transacción / código de canje» a `pagos`. Al
+implementar el contexto se vio que **son dos datos distintos con dueños
+distintos**:
+
+- El **intento de pago** es un hecho del contexto Pagos: qué se mandó a cobrar,
+  por qué método y cómo acabó.
+- El **código de canje** es un atributo del `Pedido`. Lo acredita, lo presenta
+  el usuario al recogerlo y su ciclo de vida es el del pedido, no el del cobro.
+
+Si `pagos` escribiera el código de canje habría dos escritores de `Pedido`, que
+es exactamente la violación que ADR-0002 cerró. Por eso `pagos.service`
+**solicita** la transición a `pedidos.service.confirmar_pago()` en lugar de
+ejecutarla, y es Pedidos quien genera el código y garantiza que hacerlo dos
+veces no produzca dos códigos distintos.
 
 ### Datos que Pedidos copia de Catálogo
 
@@ -121,8 +138,8 @@ establecimiento sube el precio mañana.
 | Campo del pedido | Origen | ¿Se desincroniza? |
 |---|---|---|
 | `nombre_item` | `ItemMenu.nombre` | Sí, y es correcto: el comprobante dice qué se compró |
-| `precio_unitario` | `ItemMenu.precio` | Sí, y es correcto: congela el precio pactado |
-| `total` | `precio × cantidad` | Sí, y es correcto: congela el importe cobrado |
+| `precio_unitario_centavos` | `ItemMenu.precio_centavos` | Sí, y es correcto: congela el precio pactado |
+| `total_centavos` | `precio_unitario_centavos × cantidad` | Sí, y es correcto: congela el importe cobrado |
 | `establecimiento_id` | `ItemMenu.establecimiento_id` | **No debe**: se deriva del ítem en cada creación |
 
 Lo comprueba

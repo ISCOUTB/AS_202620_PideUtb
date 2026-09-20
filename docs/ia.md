@@ -142,3 +142,43 @@ cambios.
 Cada hallazgo se reprodujo ejecutando el código antes de incorporarlo, y la
 prueba de modularidad se verificó de forma adversaria: se introdujeron a
 propósito tres formas de violación de import y las tres fallan la construcción.
+
+---
+
+## Uso de IA en la séptima entrega (S7 — Interfaces y contratos)
+
+**Herramienta utilizada:** Claude (Anthropic).
+
+### Qué se usó
+
+- **Redacción del contrato** `docs/api/openapi.yaml` (OpenAPI 3.1) y
+  `docs/api/asyncapi.yaml` (AsyncAPI 3.0), a partir de la superficie ya decidida
+  en entregas anteriores y de los escenarios de arc42 §10.
+- **Política de versionado** (`docs/api/politica-versionado.md`): las once
+  reglas de cambio incompatible y la asimetría de los `enum` según la dirección
+  del dato.
+- **Comparador de contratos** (`backend/scripts/comparar_contratos.py`) y las
+  tres pruebas de contrato, incluidos sus veinte casos negativos.
+- **Redacción de ADR-0003** y reescritura de arc42 §6 con los cinco flujos, sus
+  protocolos y sus modos de fallo.
+- **Código:** módulo `pagos` completo, bus de eventos `app/eventos.py`,
+  endpoints de listado y consulta, y la migración de los importes a centavos.
+- **Configuración de Spectral, oasdiff y SonarCloud** en el pipeline.
+
+### Qué se rechazó y por qué
+
+| Propuesta de la IA | Decisión | Motivo del rechazo |
+|---|---|---|
+| Generar el contrato **a partir del código** con `app.openapi()` y versionar la salida | **Rechazada** | Es lo contrario de API-first. Un contrato derivado del código no puede contradecirlo nunca, así que no detecta ni un solo error: la prueba de conformidad sería tautológica. El contrato se escribió a mano y el código se ajustó a él, que es el orden que obligó a cerrar V-07 y V-08 |
+| Usar **schemathesis** por ser la herramienta nombrada en la retroalimentación | **Rechazada** | Prueba la conformidad por fuzzing contra una aplicación levantada, no la compatibilidad entre versiones, que es lo que la entrega pide demostrar. Además es una dependencia de Python y habría obligado a regenerar el lock con hashes que protege el job `pruebas`. Se usaron Spectral y oasdiff, que entran por `npx` y por imagen de contenedor sin tocar el lock |
+| Confiar solo en **oasdiff** y no escribir comparador propio | **Rechazada** | oasdiff no sabe la dirección del dato: trata igual añadir un valor a un `enum` de petición que a uno de respuesta, y solo el segundo rompe al consumidor. Esa regla es específica de nuestro contrato y solo la puede aplicar código nuestro |
+| Declarar `codigo_canje` como campo **opcional** de la respuesta | **Rechazada** | Obliga al cliente a distinguir «ausente» de «vacío», que es una fuente clásica de fallos. Se declaró requerido y anulable: la clave está siempre y solo hay que mirar si vale `null` |
+| Devolver el listado de menú como **array en la raíz** (`[...]`) | **Rechazada** | Condena cualquier metadato futuro —paginación, total— a ser un cambio incompatible. Con un sobre, añadirlos es un campo nuevo en una respuesta, que la política clasifica como compatible |
+| Mantener el nombre `precio` al cambiar la unidad a centavos | **Rechazada** | Es el único cambio incompatible que **ninguna herramienta detecta**: mismo nombre, mismo tipo, significado distinto, factura multiplicada por cien. La unidad va en el nombre (`precio_centavos`) para que cambiarla sea visible |
+| Procesar el cobro **dentro** del manejador del webhook y responder `200` | **Rechazada** | Responder `200` promete que el efecto de negocio concluyó, lo que obliga a hacer todo el trabajo antes de contestar y aumenta la probabilidad de superar el plazo de la pasarela, provocando reintentos evitables. Se responde `202`: acuse de recibo, no confirmación |
+| Declarar que la prueba de contrato «demuestra» que nada se romperá | **Rechazada** | Solo demuestra lo que el consumidor declaró en `contracts/consumidor-web.yaml`. Un consumidor que no declare lo que usa puede romperse igual, y eso se dice explícitamente en la documentación en lugar de venderlo como garantía total |
+| Afirmar en la documentación que el cambio incompatible produce **tres** fallos | **Rechazada tras comprobarlo** | Se ejecutó el procedimiento y produce **tres fallos y tres omisiones**. Además, las omisiones eran originalmente `KeyError` ilegibles; se añadió `tests/conftest.py` para que se omitan con el motivo escrito. La cifra de la documentación es la medida, no la esperada |
+
+Como en S6, ningún hallazgo se incorporó sin ejecutarlo antes. El procedimiento
+del run en rojo se reprodujo en local y la salida documentada en
+`docs/api/README.md` §3 es la que produce de verdad.

@@ -24,12 +24,18 @@ la auditoría.
 | [V-04](#v-04) | La regla de dependencia no se verificaba | Auditoría | 🟠 Media | ✅ Corregida |
 | [V-05](#v-05) | El modelo de Catálogo se filtraba en Pedidos | Frontera de contexto | 🟠 Media | ✅ Corregida |
 | [V-06](#v-06) | La instantánea del pedido era inauditable | Trazabilidad | 🟠 Media | ✅ Corregida |
-| [V-07](#v-07) | El dinero se representa con `float` | Modelado | 🟠 Media | ⏳ Planificada |
-| [V-08](#v-08) | `estado` del pedido es texto libre | Modelado | 🟠 Media | ⏳ Planificada |
+| [V-07](#v-07) | El dinero se representa con `float` | Modelado | 🟠 Media | ✅ Corregida (S7) |
+| [V-08](#v-08) | `estado` del pedido es texto libre | Modelado | 🟠 Media | ✅ Corregida (S7) |
 | [V-09](#v-09) | El estado vive en memoria del proceso | Arquitectura | 🟡 Conocida | ⏳ Con plazo |
 
-Seis corregidas en esta entrega, con prueba automatizada cada una. Tres quedan
-planificadas con orden y motivo.
+Seis se corrigieron en S6 y **dos más en S7** —V-07 y V-08—, cada una con su
+prueba. Queda una, V-09, con plazo y motivo.
+
+Las dos de S7 no se cerraron por iniciativa propia sino porque **el contrato de
+API obligó a decidir**: escribir `openapi.yaml` antes que el código forzaba a
+fijar el tipo del dinero y el conjunto de estados, y ninguna de las dos
+decisiones se podía posponer sin publicar un contrato que habría que romper
+después. Es el efecto práctico de trabajar API-first.
 
 ---
 
@@ -189,7 +195,7 @@ instantánea en el docstring del modelo y en
 
 ## V-07 · El dinero se representa con `float`
 
-**Estado:** ⏳ planificada. **Archivos:** `app/menu/models.py`, `app/pedidos/models.py`
+**Estado:** ✅ corregida en S7. **Archivos:** `app/menu/models.py`, `app/menu/contracts.py`, `app/pedidos/models.py`, `app/pedidos/contracts.py`, `app/pagos/models.py`
 
 `precio: float` y `total: float`. El tipo `float` no representa exactamente los
 decimales (`0.1 + 0.2` da `0.30000000000000004`). Hoy no se nota porque los
@@ -198,11 +204,25 @@ totales se desviarán por céntimos. Afecta a [ESC-04](arc42/arc42.md#esc-04): e
 código de canje acredita un pago, y un importe que no cuadra con el de la
 pasarela es una disputa.
 
-**Plan.** Representar los importes en **centavos como entero**
-(`precio_centavos`, `total_centavos`). Es lo que espera la API de Wompi, evita
-serializar `Decimal` en JSON y hace imposible el error de redondeo. Conviene
-hacerlo junto con la integración de Pagos, para no cambiar dos veces el contrato
-de la API.
+**Corrección.** Todos los importes son **enteros en centavos**, y la unidad va
+en el nombre del campo: `precio_centavos`, `precio_unitario_centavos`,
+`total_centavos`, `monto_centavos`. Es la unidad que espera la pasarela, así que
+el número que guarda el pedido y el que se manda a cobrar son el mismo, sin
+conversión intermedia donde perder precisión.
+
+**Por qué la unidad va en el nombre.** Un campo `precio` que pasa de pesos a
+centavos es el único cambio incompatible que **ninguna herramienta puede
+detectar**: mismo nombre, mismo tipo, significado distinto, y la factura se
+multiplica por cien. Obligar a que cambiar la unidad implique cambiar el nombre
+convierte un cambio invisible en uno que `oasdiff` y las pruebas de contrato sí
+ven ([política de versionado §4](api/politica-versionado.md)).
+
+**Se hizo ahora y no después** porque el contrato se publica en esta entrega:
+cambiarlo una vez que existiera un consumidor habría exigido `/v2`.
+
+**Pruebas:** `tests/test_menu.py::test_consultar_un_item_devuelve_el_precio_en_centavos`,
+`tests/test_pedidos.py::test_crear_pedido_exitoso`,
+`tests/test_contrato_api.py::test_la_aplicacion_cumple_el_contrato_publicado`
 
 ---
 
@@ -210,17 +230,35 @@ de la API.
 
 ## V-08 · El estado del pedido es texto libre
 
-**Estado:** ⏳ planificada. **Archivo:** `app/pedidos/models.py`
+**Estado:** ✅ corregida en S7. **Archivos:** `app/pedidos/contracts.py`, `app/pedidos/models.py`
 
 `estado: str = "pendiente_pago"` acepta cualquier cadena, y no existe la lista
 de estados válidos ni las transiciones permitidas. Nada impide pasar de
 `entregado` a `pendiente_pago`. [ESC-03](arc42/arc42.md#esc-03) mide justamente
 el cambio de estado.
 
-**Plan.** `EstadoPedido` como `StrEnum` (`pendiente_pago`, `pagado`,
-`en_preparacion`, `listo`, `entregado`, `cancelado`) y una única función en
-`pedidos.service` autorizada a cambiarlo, coherente con que Pedidos sea el único
-escritor del dato. Entra con el panel del establecimiento.
+**Corrección.** `EstadoPedido` es un `Enum` de seis valores declarado en
+`pedidos.contracts` —no en `models.py`— porque **el conjunto de estados es parte
+del lenguaje publicado**: mientras fue texto libre, ningún consumidor podía
+saber qué valores debía estar preparado para recibir, que es tanto como no tener
+contrato.
+
+La transición la hace una única función, `pedidos.service.confirmar_pago`,
+coherente con que Pedidos sea el único escritor del dato. Pagos la *solicita*;
+no la ejecuta.
+
+**Desviación respecto del plan original:** el valor previsto `listo` quedó como
+`listo_para_recoger`. «Listo» es ambiguo —¿listo para preparar o listo para
+recoger?— y es exactamente el tipo de ambigüedad que la auditoría de lenguaje
+ubicuo de S6 encontró con «Usuario» y «Carrito».
+
+**Lo que aún no está:** la máquina de transiciones permitidas. Hoy nada impide
+pasar de `entregado` a `pendiente_pago` salvo que solo haya una función que
+escriba el estado. Entra con el panel del establecimiento, que es el trabajo
+que necesita esas transiciones.
+
+**Pruebas:** `tests/test_contrato_api.py::test_los_enum_del_contrato_coinciden_con_los_del_codigo`,
+`tests/test_expectativas_consumidor.py::test_el_consumidor_interpreta_todos_los_estados_posibles`
 
 ---
 

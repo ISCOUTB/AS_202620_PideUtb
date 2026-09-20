@@ -3,11 +3,12 @@
 **Equipo:** `Santiago-C0` · `daniarriet` · `ruddy2000utb-droid`
 **Repositorio:** https://github.com/ISCOUTB/AS_202620_PideUtb
 **Rama evaluable:** `master`
-**Estado de CI:** ✅ verde — [run #15](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34783395594) — commit `cd70d84`, 13 pruebas en Python 3.11 y 3.12
+**Estado de CI:** ⚠️ `PENDIENTE` — completar con el run del **commit exacto que se entrega**, tal como pidió la retroalimentación de S6 («el run de CI del hash revisado»). Formato a usar: `[run #N](<url del run>) — commit <hash>, 77 pruebas en Python 3.11 y 3.12`
+**Quality Gate:** ⚠️ `PENDIENTE` — requiere el alta descrita en [`docs/calidad-sonarcloud.md`](docs/calidad-sonarcloud.md) §1
 
 Este documento resume, para la nueva revisión, qué se corrigió de la
 retroalimentación de las semanas 1 a 5 y dónde quedó cada evidencia. El detalle
-punto por punto está en la [sección 6](#6-respuesta-punto-por-punto-a-la-retroalimentación).
+punto por punto está en la [sección 7](#7-respuesta-punto-por-punto-a-la-retroalimentación).
 
 ---
 
@@ -30,6 +31,13 @@ observación estructural.
 | Contextos delimitados y propiedad de datos | [`docs/ddd-contextos.md`](docs/ddd-contextos.md) | no existía (S6) |
 | Violaciones y plan de corrección | [`docs/violaciones.md`](docs/violaciones.md) | no existía (S6) |
 | ADR de propiedad de `Establecimiento` | [`docs/adr/0002-propiedad-datos-establecimiento.md`](docs/adr/0002-propiedad-datos-establecimiento.md) | no existía (S6) |
+| Contrato de API versionado (OpenAPI 3.1) | [`docs/api/openapi.yaml`](docs/api/openapi.yaml) | no existía (S7) |
+| Contrato de eventos (AsyncAPI 3.0) | [`docs/api/asyncapi.yaml`](docs/api/asyncapi.yaml) | no existía (S7) |
+| Política de versionado del contrato | [`docs/api/politica-versionado.md`](docs/api/politica-versionado.md) | no existía (S7) |
+| Expectativas del consumidor | [`contracts/consumidor-web.yaml`](contracts/consumidor-web.yaml) | no existía (S7) |
+| ADR de la estrategia de integración | [`docs/adr/0003-estrategia-integracion.md`](docs/adr/0003-estrategia-integracion.md) | no existía (S7) |
+| Configuración de análisis estático | [`sonar-project.properties`](sonar-project.properties) | no existía (S7) |
+| Reglas de validación de contratos | [`.spectral.yaml`](.spectral.yaml) | no existía (S7) |
 
 ## 2. Qué se corrigió
 
@@ -89,7 +97,86 @@ observación estructural.
 - El entorno virtual ya no está versionado y `.gitignore` cubre `.venv/` y
   `.venv-*/`.
 
-## 3. Evidencia S6 — Contextos delimitados y propiedad de datos
+## 3. Evidencia S7 — Contrato de API, pruebas de contrato y ADR de integración
+
+| Artefacto pedido | Dónde está |
+|---|---|
+| **Archivo de contrato versionado** | [`docs/api/openapi.yaml`](docs/api/openapi.yaml) (OpenAPI 3.1, `info.version: 1.0.0`) y [`docs/api/asyncapi.yaml`](docs/api/asyncapi.yaml) (AsyncAPI 3.0). Enlazados desde el [README](README.md#contrato-de-api) |
+| **Prueba de contrato en el pipeline** | Job `contrato` de [`ci.yml`](.github/workflows/ci.yml) — Spectral y oasdiff — más tres módulos de `pytest` en el job `pruebas` |
+| **ADR que justifica la estrategia de integración** | [ADR-0003](docs/adr/0003-estrategia-integracion.md), anclado a [ESC-05](docs/arc42/arc42.md#esc-05) y con las dos alternativas descartadas |
+| **arc42 §6 con los flujos de interacción** | [`arc42.md` §6](docs/arc42/arc42.md#runtime-flujos) — reescrita: resumen de flujos, crear pedido, pagar, consultar estado y modos de fallo |
+| **C4 nivel 2 con protocolo y formato por flecha** | [`nivel2-contenedores.md`](docs/c4/nivel2-contenedores.md) — cinco relaciones etiquetadas con protocolo, formato y modo |
+
+### El contrato se escribió antes que el código
+
+No es una reconstrucción de lo que ya existía. El contrato fijó tres decisiones
+que **obligaron a cambiar el código** para cumplirlas:
+
+| Decisión del contrato | Qué cambió en el código | Violación que cierra |
+|---|---|---|
+| Los importes son enteros en centavos, con la unidad en el nombre del campo | `precio` → `precio_centavos`, `total` → `total_centavos` en modelos, seeds y pruebas | [V-07](docs/violaciones.md#v-07) |
+| `EstadoPedido` es un conjunto cerrado de seis valores | `estado: str` → `estado: EstadoPedido` (`Enum`) en `pedidos.contracts` | [V-08](docs/violaciones.md#v-08) |
+| La superficie de negocio vive bajo `/v1`; la sonda de salud queda fuera | Todas las rutas se movieron a `/v1`; `/health` no | — |
+
+### Las tres capas de validación, y por qué hacen falta las tres
+
+La retroalimentación pedía «schemathesis, spectral o equivalente». Se usan
+**dos herramientas reconocidas más pruebas propias**, porque ninguna de las tres
+capas detecta lo que detectan las otras:
+
+| Capa | Herramienta | Pregunta que responde |
+|---|---|---|
+| Forma | **Spectral** (`npx`, sin tocar el lock de Python) | ¿Es un OpenAPI 3.1 / AsyncAPI 3.0 válido y bien formado? |
+| Compatibilidad | **oasdiff** (imagen oficial) + [`comparar_contratos.py`](backend/scripts/comparar_contratos.py) | ¿Rompe a un cliente escrito contra la versión anterior? |
+| Conformidad | `pytest` | ¿Lo cumple el código? ¿Sigue emitiendo lo que el consumidor declaró que lee? |
+
+Una herramienta externa no puede responder la tercera: no sabe qué campos usa de
+verdad nuestro frontend. Eso lo declara
+[`contracts/consumidor-web.yaml`](contracts/consumidor-web.yaml), que es la
+forma exacta que describe el material de la semana — *el consumidor declara qué
+campos necesita; el pipeline del proveedor falla si deja de emitirlos*.
+
+El comparador propio, además, conoce una regla que ninguna herramienta genérica
+puede aplicar: la **asimetría de los `enum`**. Añadir un valor es compatible si
+el cliente lo *envía* e incompatible si lo *recibe*, y eso depende de si el
+esquema cuelga de `requestBody` o de `responses`
+([política §3.1](docs/api/politica-versionado.md)).
+
+### La prueba de contrato puede fallar, y está demostrado
+
+> *«sin una prueba que pueda fallar, la validación no demuestra nada»*
+
+Las tres pruebas de contrato incluyen **20 casos negativos**: roturas
+introducidas a propósito que la prueba exige detectar. Si alguna dejara de
+detectarse, las propias pruebas lo delatarían.
+
+| Módulo | Casos negativos |
+|---|---|
+| `test_compatibilidad_contrato.py` | 10 roturas, una por regla de la política (I-1 … I-10), más 5 evoluciones compatibles que **no** deben bloquearse |
+| `test_contrato_api.py` | 7 derivas entre contrato y código |
+| `test_expectativas_consumidor.py` | 3 retiradas de algo que el consumidor declara usar |
+
+El procedimiento reproducible para dejar **un run en rojo registrado en
+Actions** —en una rama desechable, para no ensuciar `master`— está en
+[`docs/api/README.md` §3](docs/api/README.md#run-en-rojo), con la salida exacta
+que produce: 3 fallos, uno por capa, y 3 omisiones explicadas.
+
+⚠️ **PENDIENTE de completar:** la URL del run en rojo, una vez ejecutado el
+procedimiento.
+
+### El código avanzó con el contrato
+
+| Antes de S7 | Después |
+|---|---|
+| `pagos` era un paquete vacío | Implementado: cobro síncrono, webhook firmado, idempotencia y publicación de evento |
+| No había forma de listar la carta | `GET /v1/menu/establecimientos/{id}/items`, que distingue «no existe» de «existe y está vacío» |
+| No había forma de consultar un pedido | `GET /v1/pedidos/{id}`, que es como el usuario se entera del resultado del pago |
+| El estado vivía solo en el pedido | Canal de eventos `pedidos-pagados` con aislamiento de fallos del suscriptor |
+| 13 pruebas | **77 pruebas**, 99 % de cobertura |
+
+---
+
+## 4. Evidencia S6 — Contextos delimitados y propiedad de datos
 
 Los tres artefactos que pide la semana, más lo que el recordatorio de
 arc42 · C4 · ADR exige cuando los límites cambian:
@@ -138,7 +225,7 @@ La suite pasó de 5 a **13 pruebas**, todas en verde, y la decisión de ADR-0002
 no quedó como propuesta: el módulo `usuarios` se implementó con esa
 responsabilidad.
 
-## 4. Trabajo planificado
+## 5. Trabajo planificado
 
 No queda ninguna observación del docente sin atender. El reparto de
 contribución, que era el último punto abierto, se resolvió en esta entrega: los
@@ -150,11 +237,11 @@ violaciones que quedan abiertas en
 [`docs/violaciones.md`](docs/violaciones.md), cada una con su momento y su
 motivo.
 
-| Violación | Cuándo | Por qué en ese punto |
+| Violación | Cuándo | Estado |
 |---|---|---|
-| [V-07](docs/violaciones.md#v-07) — dinero en `float` | Con la integración de Pagos | Cambiar el tipo del importe toca el contrato de la API; hacerlo junto al pago evita romperlo dos veces |
-| [V-08](docs/violaciones.md#v-08) — `estado` como texto libre | Con el panel del establecimiento | Es el trabajo que necesita las transiciones de estado |
-| [V-09](docs/violaciones.md#v-09) — estado en memoria del proceso | Antes de cualquier despliegue | Es la de mayor alcance y bloquea la puesta en producción |
+| [V-07](docs/violaciones.md#v-07) — dinero en `float` | Se planificó «con la integración de Pagos» | ✅ **Cerrada en S7**: publicar el contrato obligaba a fijar el tipo del importe, y hacerlo después habría exigido `/v2` |
+| [V-08](docs/violaciones.md#v-08) — `estado` como texto libre | Se planificó «con el panel del establecimiento» | ✅ **Cerrada en S7**: el conjunto de estados es parte del contrato. Queda pendiente la máquina de transiciones, que sí entra con el panel |
+| [V-09](docs/violaciones.md#v-09) — estado en memoria del proceso | Antes de cualquier despliegue | ⏳ Abierta. Es la de mayor alcance y bloquea la puesta en producción |
 
 La restricción del reto de la semana 5 y la etiqueta `corte-1` **quedaron
 retiradas de las exigencias por el docente**, así que ya no figuran como
@@ -162,7 +249,7 @@ pendientes. La medición de línea base que motivó ese trabajo se conserva en
 [`docs/linea-base.md`](docs/linea-base.md), porque sigue siendo la evidencia de
 ESC-02 y la referencia contra la que se contrastó ADR-0002.
 
-## 5. Cómo verificar
+## 6. Cómo verificar
 
 ```bash
 git clone https://github.com/ISCOUTB/AS_202620_PideUtb
@@ -172,11 +259,20 @@ cd AS_202620_PideUtb
 ls docs/arc42/ docs/c4/ docs/adr/
 ls docs/ddd-contextos.md docs/violaciones.md
 
-# Pruebas (5 en verde)
+# Documentación en las rutas exigidas (S7)
+ls docs/api/openapi.yaml docs/api/asyncapi.yaml docs/api/politica-versionado.md
+ls docs/adr/0003-estrategia-integracion.md contracts/consumidor-web.yaml
+
+# Pruebas (77 en verde)
 cd backend
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 pytest -v
+
+# Validar la forma de los contratos (no necesita Python)
+cd .. && npx --yes @stoplight/spectral-cli@6.15.0 lint \
+  docs/api/openapi.yaml docs/api/asyncapi.yaml \
+  --ruleset .spectral.yaml --fail-severity=warn
 
 # Línea base de rendimiento
 python scripts/medir_linea_base.py 300
@@ -191,11 +287,16 @@ propósito y comprobando que el CI la rechaza:
 cd backend && pytest tests/test_modularidad.py     # debe fallar
 ```
 
+Y la prueba de contrato, igual: quitando `total_centavos` del esquema `Pedido`
+en `docs/api/openapi.yaml` fallan **tres** pruebas, una por cada capa de
+validación. El procedimiento completo, con la salida exacta que produce, está en
+[`docs/api/README.md` §3](docs/api/README.md#run-en-rojo).
+
 Historial de CI: https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/ci.yml
 
 ---
 
-## 6. Respuesta punto por punto a la retroalimentación
+## 7. Respuesta punto por punto a la retroalimentación
 
 Estados: ✅ corregido · ➖ retirado de las exigencias por el docente.
 
@@ -251,6 +352,29 @@ Estados: ✅ corregido · ➖ retirado de las exigencias por el docente.
 | Crear la etiqueta `corte-1` sobre el commit correcto | ➖ | **Retirada de las exigencias por el docente** |
 | Documento de correcciones a la revisión preliminar | ✅ | Este documento |
 
+### Semana 6
+
+| Observación | Estado | Evidencia |
+|---|---|---|
+| Enlace al análisis público de SonarCloud con su Quality Gate | ⚠️ En curso | [`sonar-project.properties`](sonar-project.properties) y el job `calidad` de [`ci.yml`](.github/workflows/ci.yml) ya están en el repositorio. Falta el alta en SonarCloud y el secreto `SONAR_TOKEN`; el procedimiento está en [`docs/calidad-sonarcloud.md`](docs/calidad-sonarcloud.md). Hasta entonces el job se omite sin poner el pipeline en rojo |
+| Run de CI del hash revisado | ⚠️ Pendiente | Se completa en el encabezado de este documento con el run del commit que se entrega. La observación era correcta: el run citado (`cd70d84`) ya no era el estado de `master` |
+| Títulos de los ADR que enuncien la decisión, no el tema | ✅ | Los tres reescritos. ADR-0001: «Adoptar un monolito modular en el que un módulo solo invoca la interfaz pública de otro». ADR-0002: «Hacer del contexto Cuentas el único escritor de `Establecimiento`…». ADR-0003: «Confirmar el pago de forma asíncrona por webhook y mantener síncrono el resto de la API». El índice de [arc42 §9](docs/arc42/arc42.md) se rehízo como tabla con una columna *Decisión* y otra *Escenario que la motiva* |
+| arc42 §8 con lenguaje ubicuo y mapa de contextos | ✅ | [§8.1](docs/arc42/arc42.md#lenguaje-ubicuo) lenguaje ubicuo, [§8.2](docs/arc42/arc42.md#seccion-8) contextos y propiedad de datos. Ya estaba desde S6; se confirma |
+| Mantener la trazabilidad de aspectos y el registro de IA | ✅ | [`docs/aspectos.md`](docs/aspectos.md) amplía la cadena a ESC-04 y ESC-05, que dejan de estar pendientes; [`docs/ia.md`](docs/ia.md) registra el uso de S7 con lo rechazado |
+
+### Semana 7
+
+| Observación | Estado | Evidencia |
+|---|---|---|
+| No hay especificación OpenAPI o AsyncAPI versionada | ✅ | [`docs/api/openapi.yaml`](docs/api/openapi.yaml) `1.0.0` y [`docs/api/asyncapi.yaml`](docs/api/asyncapi.yaml) `1.0.0` |
+| Publicar el contrato como archivo y **declarar su versión** | ✅ | `info.version: 1.0.0` en ambos, más [`docs/api/historial/`](docs/api/historial/) con la versión congelada y [`politica-versionado.md`](docs/api/politica-versionado.md) que distingue la versión del contrato de la de la ruta (`/v1`) |
+| **Enlazarlo desde el README** | ✅ | [README § Contrato de API](README.md#contrato-de-api), primera sección del documento |
+| Contrastar contrato contra código | ✅ | `backend/tests/test_contrato_api.py` compara el contrato con `app.openapi()` en **ambas direcciones**: lo prometido y no implementado, y lo expuesto sin declarar |
+| Validación de contrato en el pipeline (schemathesis, spectral o equivalente) | ✅ | Job `contrato`: **Spectral** con [`.spectral.yaml`](.spectral.yaml) y `--fail-severity=warn`, y **oasdiff** contra la versión congelada |
+| Evidencia de un run en rojo por un cambio incompatible | ⚠️ Procedimiento listo | [`docs/api/README.md` §3](docs/api/README.md#run-en-rojo), reproducible y verificado en local. Falta ejecutarlo y registrar la URL |
+| ADR que justifique la integración síncrona o asíncrona **contra un escenario de calidad**, con **la alternativa descartada** | ✅ | [ADR-0003](docs/adr/0003-estrategia-integracion.md): anclado a [ESC-05](docs/arc42/arc42.md#esc-05) (mensaje < 3 s, pedido conservado en el 100 %), con **dos** alternativas descartadas y el motivo de cada una |
+| Evidencia auditable de SonarCloud: configuración, run del hash y URL del Quality Gate | ⚠️ En curso | Ver la fila equivalente de la semana 6 |
+
 ### Evidencia de integración continua
 
 El pipeline [`.github/workflows/ci.yml`](.github/workflows/ci.yml) ejecuta la
@@ -267,19 +391,32 @@ ejecuciones —todas en verde— está en la
 [pestaña Actions](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/ci.yml).
 
 
-## 7. Resumen
+## 8. Resumen
 
-**No queda ninguna observación del docente sin atender.** El último punto
-abierto era el reparto de contribución, y se cerró en esta entrega: los nueve
-commits de S6 están hechos por los tres integrantes desde sus propias cuentas
-(`ruddy2000utb-droid` 4 · `daniarriet` 3 · `Santiago-C0` 2), verificable en el
-historial de GitHub.
+La **entrega S7 está completa** en lo que depende del repositorio:
 
-La restricción del reto de la semana 5, su ADR y la etiqueta `corte-1` quedaron
-retiradas de las exigencias por el docente.
+| Evidencia pedida | Estado |
+|---|---|
+| Archivo de contrato versionado | ✅ [`openapi.yaml`](docs/api/openapi.yaml) `1.0.0` y [`asyncapi.yaml`](docs/api/asyncapi.yaml) `1.0.0`, enlazados desde el [README](README.md#contrato-de-api) |
+| Prueba de contrato en el pipeline | ✅ Job `contrato` (Spectral + oasdiff) y tres módulos de `pytest` con **20 casos negativos** |
+| ADR que justifica la estrategia de integración | ✅ [ADR-0003](docs/adr/0003-estrategia-integracion.md), anclado a ESC-05 y con dos alternativas descartadas |
+| arc42 §6 con los flujos de interacción | ✅ [Reescrita](docs/arc42/arc42.md#runtime-flujos): cinco flujos, sus protocolos y nueve modos de fallo, cada uno con su prueba |
+| C4 nivel 2 etiquetado con protocolo y formato | ✅ [Cinco relaciones etiquetadas](docs/c4/nivel2-contenedores.md), incluida la del webhook entrante |
 
-La **entrega S6 está completa**: mapa de contextos, tabla de propiedad de datos
-con dueño único, lista de violaciones con plan de corrección, arc42 §8 con el
-lenguaje ubicuo, glosario y C4 nivel 3 actualizados, y ADR-0002 — más seis
-violaciones corregidas en el código, cada una con su prueba. La suite pasó de 5
-a 13 pruebas, todas en verde en CI.
+Además se cerraron **dos violaciones planificadas** —[V-07](docs/violaciones.md#v-07)
+(dinero en `float`) y [V-08](docs/violaciones.md#v-08) (estado como texto
+libre)— porque publicar el contrato obligaba a decidir ambas cosas, y la suite
+pasó de **13 a 77 pruebas** con un 99 % de cobertura.
+
+**Quedan dos puntos abiertos, ambos fuera del repositorio:**
+
+1. ⚠️ **El alta en SonarCloud.** La configuración está
+   ([`sonar-project.properties`](sonar-project.properties), job `calidad`), pero
+   el secreto `SONAR_TOKEN` y la URL pública del Quality Gate requieren crear el
+   proyecto en SonarCloud: [`docs/calidad-sonarcloud.md`](docs/calidad-sonarcloud.md) §1.
+2. ⚠️ **Los dos enlaces de evidencia de CI**: el run en verde del commit que se
+   entrega, y el run en rojo que demuestra que la validación de contrato puede
+   fallar. Ambos se registran en el encabezado de este documento.
+
+Se declaran como abiertos en lugar de omitirlos: la retroalimentación pedía
+evidencia **auditable**, y una configuración sin su ejecución todavía no lo es.

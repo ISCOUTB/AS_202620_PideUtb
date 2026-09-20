@@ -4,6 +4,28 @@
 
 Pide UTB es una plataforma web para realizar pedidos de comida dentro del campus universitario. Permite consultar menús y precios, realizar pedidos, gestionar pagos mediante una pasarela en ambiente Sandbox y recibir un código para verificar y recoger las compras de forma rápida y organizada.
 
+## Contrato de API
+
+La API se define **antes que el código** (API-first). El contrato versionado es
+la fuente única de verdad de la superficie del sistema, y el pipeline falla si
+el código deja de cumplirlo.
+
+| Contrato | Describe | Versión |
+|---|---|---|
+| [`docs/api/openapi.yaml`](docs/api/openapi.yaml) | Superficie **síncrona**: menú, pedidos e inicio del cobro (OpenAPI 3.1) | **1.0.0** |
+| [`docs/api/asyncapi.yaml`](docs/api/asyncapi.yaml) | Canales **asíncronos**: confirmación de pago y evento interno (AsyncAPI 3.0) | **1.0.0** |
+| [`docs/api/politica-versionado.md`](docs/api/politica-versionado.md) | Qué cambios son compatibles, cuáles no, y cómo se avisa a los consumidores | — |
+| [`docs/api/historial/`](docs/api/historial/) | Versiones congeladas: la referencia contra la que se mide la compatibilidad | — |
+| [`contracts/consumidor-web.yaml`](contracts/consumidor-web.yaml) | Qué campos y códigos usa de verdad el frontend | — |
+
+Guía completa —las tres capas de validación, cómo generar un cliente y cómo
+reproducir un run en rojo— en [`docs/api/README.md`](docs/api/README.md).
+
+Por qué hay dos archivos y no uno:
+[ADR-0003](docs/adr/0003-estrategia-integracion.md) — el sistema tiene dos tipos
+de integración con modos de fallo distintos, y describirlos con el mismo formato
+ocultaría la diferencia que importa.
+
 ## Arquitectura
 
 El backend sigue un estilo de **monolito modular**, organizado en cuatro **contextos delimitados**, uno por módulo de dominio: Catálogo (`menu`), Pedidos (`pedidos`), Cuentas (`usuarios`) y Pagos (`pagos`). Cada dato tiene exactamente un módulo que lo escribe; los demás lo leen o lo solicitan. La decisión, sus alternativas y consecuencias están documentadas en:
@@ -12,6 +34,7 @@ El backend sigue un estilo de **monolito modular**, organizado en cuatro **conte
 - [`docs/comparativa-arquitectura.md`](docs/comparativa-arquitectura.md) — matriz comparativa de estilos evaluados.
 - [`docs/adr/0001-estilo-arquitectonico.md`](docs/adr/0001-estilo-arquitectonico.md) — ADR con la decisión formal.
 - [`docs/adr/0002-propiedad-datos-establecimiento.md`](docs/adr/0002-propiedad-datos-establecimiento.md) — ADR de la propiedad de `Establecimiento` y el lenguaje publicado.
+- [`docs/adr/0003-estrategia-integracion.md`](docs/adr/0003-estrategia-integracion.md) — ADR de la estrategia de integración: síncrona frente a asíncrona, con el análisis de acoplamiento temporal y modos de fallo.
 - [`docs/ddd-contextos.md`](docs/ddd-contextos.md) — mapa de contextos y propiedad de datos.
 - [`docs/c4/`](docs/c4/) — diagramas C4 (contexto, contenedores y módulos) como código Mermaid.
 
@@ -22,7 +45,10 @@ El backend sigue un estilo de **monolito modular**, organizado en cuatro **conte
 | [`ficha_problema.md`](ficha_problema.md) | Problema, usuarios, alcance y las dos tensiones de calidad |
 | [`docs/arc42/arc42.md`](docs/arc42/arc42.md) | Documentación arc42 completa (secciones 1-12, escenarios y glosario) |
 | [`docs/aspectos.md`](docs/aspectos.md) | Tabla de trazabilidad de 8 columnas: escenario → C4 → ADR → código → pruebas |
+| [`docs/api/`](docs/api/) | **Contratos versionados** (OpenAPI y AsyncAPI), política de versionado e historial |
+| [`contracts/consumidor-web.yaml`](contracts/consumidor-web.yaml) | Expectativas del consumidor: qué campos lee y qué códigos maneja |
 | [`docs/adr/`](docs/adr/) | Decisiones de arquitectura (ADR) con su trazabilidad |
+| [`docs/calidad-sonarcloud.md`](docs/calidad-sonarcloud.md) | Análisis estático, cobertura y Quality Gate |
 | [`docs/c4/`](docs/c4/) | Diagramas C4 niveles 1, 2 y 3 en Mermaid |
 | [`docs/comparativa-arquitectura.md`](docs/comparativa-arquitectura.md) | Matrices comparativas por criterio y por escenario |
 | [`docs/linea-base.md`](docs/linea-base.md) | Línea base de rendimiento de `POST /pedidos` y su protección en CI |
@@ -57,14 +83,47 @@ Con el entorno virtual ya activado (ver paso anterior):
 pytest
 ```
 
-El repositorio incluye la prueba base (`tests/test_health.py`) que verifica que la aplicación arranca y que el endpoint de salud responde correctamente, `tests/test_pedidos.py`, que cubre el corte vertical ejecutable descrito más abajo, y `tests/test_linea_base.py`, que protege la línea base de latencia documentada en [`docs/linea-base.md`](docs/linea-base.md).
+**77 pruebas**, agrupadas por lo que protegen:
+
+| Archivo | Qué protege |
+|---|---|
+| `tests/test_health.py` | Que la aplicación arranca y la sonda responde |
+| `tests/test_menu.py` | Consulta y listado del catálogo |
+| `tests/test_pedidos.py` | El corte vertical ejecutable descrito más abajo |
+| `tests/test_pagos.py` | Idempotencia, firma del webhook y tolerancia a que el evento no llegue |
+| `tests/test_propiedad_datos.py` | Que cada dato tenga un único escritor (ADR-0002) |
+| `tests/test_modularidad.py` | Que ningún módulo cruce la frontera de otro contexto (ADR-0001) |
+| `tests/test_linea_base.py` | La línea base de latencia de [`docs/linea-base.md`](docs/linea-base.md) |
+| **`tests/test_contrato_api.py`** | Que el código implemente **exactamente** el contrato publicado |
+| **`tests/test_compatibilidad_contrato.py`** | Que el contrato no rompa a un cliente escrito contra la versión anterior |
+| **`tests/test_expectativas_consumidor.py`** | Que se siga emitiendo lo que el consumidor declaró que lee |
+
+Las tres últimas son las **pruebas de contrato**, y llevan **20 casos negativos**
+—roturas introducidas a propósito— porque una prueba de contrato que no puede
+ponerse en rojo no demuestra nada. Cómo reproducir un fallo:
+[`docs/api/README.md` §3](docs/api/README.md#run-en-rojo).
 
 ### Integración continua
 
-Cada push y cada pull request ejecutan la suite completa en GitHub Actions
-([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) sobre Python 3.11 y
-3.12. El estado del último run está en la insignia del encabezado; el historial
+Cada push y cada pull request ejecutan tres jobs en GitHub Actions
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
+
+| Job | Qué hace |
+|---|---|
+| `pruebas` | La suite completa (`pytest`) sobre Python 3.11 y 3.12 |
+| `contrato` | **Spectral** valida la forma de los contratos y **oasdiff** detecta cambios incompatibles frente a la versión congelada |
+| `calidad` | Cobertura y análisis de **SonarCloud** con Quality Gate bloqueante (ver [`docs/calidad-sonarcloud.md`](docs/calidad-sonarcloud.md)) |
+
+El estado del último run está en la insignia del encabezado; el historial
 completo en la [pestaña Actions](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/ci.yml).
+
+Validar los contratos en local, sin esperar a CI:
+
+```bash
+npx --yes @stoplight/spectral-cli@6.15.0 lint \
+  docs/api/openapi.yaml docs/api/asyncapi.yaml \
+  --ruleset .spectral.yaml --fail-severity=warn
+```
 
 CI no instala desde `requirements.txt` sino desde `requirements-ci.txt`, un lock
 con versiones exactas y hashes generado con `pip-compile --generate-hashes` a
@@ -91,39 +150,59 @@ su interpretación están en [`docs/linea-base.md`](docs/linea-base.md).
 ```
 backend/
 ├── app/
-│   ├── main.py        # Punto de entrada de la aplicación FastAPI
-│   ├── menu/            # Contexto Catálogo — dueño de ÍtemMenu
-│   ├── pedidos/        # Contexto Pedidos — dueño de Pedido
-│   ├── usuarios/       # Contexto Cuentas — dueño de Establecimiento
-│   └── pagos/           # Contexto Pagos (vacío, próxima entrega)
+│   ├── main.py             # Punto de entrada de la aplicación FastAPI
+│   ├── eventos.py          # Bus de eventos en proceso (canal pedidos-pagados)
+│   ├── esquemas_comunes.py # Formas de error HTTP, sin contexto de dominio
+│   ├── menu/               # Contexto Catálogo — dueño de ÍtemMenu
+│   ├── pedidos/            # Contexto Pedidos — dueño de Pedido y Código de canje
+│   ├── usuarios/           # Contexto Cuentas — dueño de Establecimiento
+│   └── pagos/              # Contexto Pagos — dueño de IntentoPago
 ├── scripts/
-│   └── medir_linea_base.py # Medición de latencia de POST /pedidos
+│   ├── medir_linea_base.py   # Medición de latencia de POST /v1/pedidos
+│   └── comparar_contratos.py # Clasifica cambios del contrato: compatible o no
 ├── tests/
-│   ├── test_health.py          # Prueba automatizada base
-│   ├── test_pedidos.py         # Corte vertical (crear pedido)
-│   ├── test_propiedad_datos.py # Dueño único entre contextos
-│   ├── test_modularidad.py     # Auditoría de las reglas de dependencia
-│   └── test_linea_base.py      # Regresión sobre la línea base de latencia
+│   ├── conftest.py                     # Utilidades de las pruebas de contrato
+│   ├── test_health.py                  # Prueba automatizada base
+│   ├── test_menu.py                    # Catálogo por HTTP
+│   ├── test_pedidos.py                 # Corte vertical (crear pedido)
+│   ├── test_pagos.py                   # Flujo asíncrono: idempotencia y firma
+│   ├── test_propiedad_datos.py         # Dueño único entre contextos
+│   ├── test_modularidad.py             # Auditoría de las reglas de dependencia
+│   ├── test_linea_base.py              # Regresión sobre la línea base de latencia
+│   ├── test_contrato_api.py            # El código cumple el contrato publicado
+│   ├── test_compatibilidad_contrato.py # El contrato no rompe a la versión anterior
+│   └── test_expectativas_consumidor.py # Sigue emitiéndose lo que el consumidor lee
 ├── requirements.in         # Dependencias directas (rangos legibles)
 ├── requirements-ci.txt     # Lock con versiones exactas y hashes, usado por CI
 ├── requirements.txt        # Instalación local
 └── pytest.ini
 
 docs/
+├── api/                        # CONTRATOS versionados (OpenAPI y AsyncAPI)
+│   ├── openapi.yaml            #   superficie síncrona
+│   ├── asyncapi.yaml           #   canales asíncronos
+│   ├── politica-versionado.md  #   qué rompe y qué no
+│   └── historial/              #   versiones congeladas
 ├── adr/                        # Architecture Decision Records
 ├── arc42/                      # Documentación arc42
 ├── c4/                         # Diagramas C4 (contexto, contenedores, módulos) en Mermaid
 ├── aspectos.md                 # Trazabilidad: escenario → C4 → ADR → código → pruebas
+├── calidad-sonarcloud.md       # Análisis estático, cobertura y Quality Gate
 ├── comparativa-arquitectura.md
 ├── ddd-contextos.md            # Contextos delimitados y propiedad de datos
 ├── violaciones.md              # Violaciones del código y plan de corrección
 ├── linea-base.md               # Línea base de rendimiento y su umbral en CI
 └── ia.md
 
+contracts/
+└── consumidor-web.yaml         # Qué campos y códigos usa el frontend
+
 correcciones.md                 # Respuesta a la retroalimentación docente
+sonar-project.properties        # Configuración del análisis estático
+.spectral.yaml                  # Reglas de validación de los contratos
 
 .github/workflows/
-└── ci.yml                      # Pipeline de pruebas
+└── ci.yml                      # Pipeline: pruebas, contrato y calidad
 ```
 
 ## Corte vertical ejecutable
@@ -134,38 +213,68 @@ arquitectura de monolito modular funciona en la práctica y no solo en
 el papel. El diagrama de secuencia está en
 [`arc42.md` §6](docs/arc42/arc42.md#runtime-crear-pedido).
 
-**Flujo:** un usuario (estudiante o profesor) crea un pedido indicando el establecimiento y
-el ítem de menú que quiere. `pedidos.service` valida el ítem llamando
-únicamente a la función pública `menu.service.obtener_item()` — nunca
-accede al repositorio de `menu` directamente — calcula el total y
-guarda el pedido.
+**Flujo:** un usuario (estudiante o profesor) crea un pedido indicando el ítem
+de menú que quiere y la cantidad. `pedidos.service` valida el ítem llamando
+únicamente a la función pública `menu.service.obtener_item()` — nunca accede al
+repositorio de `menu` directamente —, comprueba con `usuarios.service` que el
+establecimiento esté operando, **deriva el establecimiento del ítem** en lugar
+de aceptarlo del cliente, calcula el total y guarda el pedido.
+
+El flujo completo, incluido el pago asíncrono, está en
+[`arc42.md` §6](docs/arc42/arc42.md#runtime-flujos).
 
 ### Probarlo manualmente
 
 Con el servidor corriendo (ver "Cómo arrancar el backend"):
 
 ```bash
-curl -X POST http://127.0.0.1:8000/pedidos \
+curl -X POST http://127.0.0.1:8000/v1/pedidos \
   -H "Content-Type: application/json" \
-  -d '{"establecimiento_id": 1, "item_id": 1, "cantidad": 2}'
+  -d '{"item_id": 1, "cantidad": 2}'
 ```
 
 Respuesta esperada (`201 Created`):
 
 ```json
 {
-  "id": 1,
+  "pedido_id": 1,
   "establecimiento_id": 1,
   "item_id": 1,
   "nombre_item": "Arepa de huevo",
+  "precio_unitario_centavos": 400000,
   "cantidad": 2,
-  "total": 8000,
-  "estado": "pendiente_pago"
+  "total_centavos": 800000,
+  "estado": "pendiente_pago",
+  "codigo_canje": null
 }
 ```
 
+Los importes son **enteros en centavos de COP**: `400000` son 4 000 pesos. La
+unidad va en el nombre del campo para que cambiarla obligue a cambiar el nombre
+([política de versionado §4](docs/api/politica-versionado.md)).
+
 Con un ítem que no existe (`item_id: 999`) responde `404`. Con un
 ítem no disponible (`item_id: 3`, seed de ejemplo) responde `409`.
+`establecimiento_id` **no se acepta del cliente**: se deriva del ítem, y un
+campo extra en la petición se ignora
+([V-01](docs/violaciones.md#v-01)).
+
+### Continuar hasta el pago
+
+```bash
+# 1. Abrir el cobro (síncrono: devuelve a dónde ir, no el resultado)
+curl -X POST http://127.0.0.1:8000/v1/pagos/intentos \
+  -H "Content-Type: application/json" \
+  -d '{"pedido_id": 1, "metodo": "tarjeta"}'
+
+# 2. Consultar el estado (el frontend hace esto al volver de la pasarela)
+curl http://127.0.0.1:8000/v1/pedidos/1
+```
+
+La confirmación del pago **no llega por aquí**: la envía la pasarela a
+`POST /v1/pagos/eventos`, firmada, y puede llegar repetida o no llegar nunca.
+Los tres casos están cubiertos por pruebas y explicados en
+[ADR-0003](docs/adr/0003-estrategia-integracion.md).
 
 ### Probarlo con la suite automatizada
 
