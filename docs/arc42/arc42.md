@@ -372,58 +372,273 @@ El contenedor "API PideUTB" se descompone en los cuatro módulos de dominio defi
   **pedidos**                 Crear y gestionar pedidos, orquestando llamadas a          Implementado — corte
                                `menu` (y luego a `pagos`).                               vertical de esta entrega.
 
-  **pagos**                   Procesar pagos vía Wompi Sandbox y generar el código       Pendiente — corte vertical
-                               de canje.                                                 de la próxima entrega.
+  **pagos**                   Abrir el cobro en la pasarela y recibir su confirmación   Implementado — corte
+                               asíncrona. Dueño de `IntentoPago`.                        vertical de S7.
 
-  **usuarios**                Autenticación y roles (usuario: estudiante o profesor /     Pendiente.
-                               establecimiento / admin).
+  **usuarios**                Cuentas y establecimientos. Dueño de                      Implementado (lectura de
+                               `Establecimiento`. Autenticación y roles.                  establecimientos);
+                                                                                          autenticación pendiente.
   -----------------------------------------------------------------------------------------------------------------
+
+> **El código de canje pertenece a `pedidos`, no a `pagos`.** Es un atributo del
+> `Pedido` y su ciclo de vida es el del pedido, no el del cobro. Si `pagos` lo
+> escribiera habría dos escritores de `Pedido`, que es la violación que ADR-0002
+> cerró. `pagos` **solicita** la transición; `pedidos` la ejecuta. Ver
+> [`ddd-contextos.md` §3](../ddd-contextos.md).
 
 ------------------------------------------------------------------------
 
 ## 6. Vista de tiempo de ejecución (runtime)
 
+La vista de bloques (sección 5) muestra qué piezas existen. Esta muestra **qué
+pasa entre ellas cuando el sistema está funcionando**: quién llama a quién, con
+qué protocolo y formato, si hay alguien esperando el resultado, y qué ocurre
+cuando el otro lado no responde.
+
+Esta entrega la amplía porque aparece el primer interlocutor que el equipo no
+controla —la pasarela de pagos— y con él la primera interacción **asíncrona**
+del sistema. La decisión, sus alternativas descartadas y su análisis de
+acoplamiento temporal están en
+[ADR-0003](../adr/0003-estrategia-integracion.md).
+
+<a id="runtime-flujos"></a>
+
+### 6.1 Resumen de los flujos y sus fronteras
+
+Cada fila es una frontera del sistema. La última columna es la pregunta que
+decide si una integración debe ser síncrona o asíncrona: *si apago el otro lado,
+¿qué le pasa al usuario?*
+
+| # | Flujo | Protocolo | Formato | Modo | Contrato | Si el otro lado no responde |
+|---|---|---|---|---|---|---|
+| 1 | Frontend Web → API | HTTPS | JSON (REST) | Síncrono | [`openapi.yaml`](../api/openapi.yaml) | El usuario no puede operar. Aceptable: sin API no hay producto |
+| 2 | Entre contextos, dentro de la API | Llamada en proceso | Tipos de `contracts` | Síncrono | `menu.contracts`, `pedidos.contracts`, `pagos.contracts` | No puede ocurrir: mismo proceso |
+| 3 | API → Supabase | HTTPS | JSON | Síncrono | *(pendiente — hoy repositorios en memoria)* | La operación falla y se responde error |
+| 4 | API → Wompi (**iniciar** cobro) | HTTPS | JSON | Síncrono | API externa de la pasarela | Error inmediato; el pedido se conserva y se puede reintentar |
+| 5 | Wompi → API (**confirmar** cobro) | HTTPS | JSON firmado (webhook) | **Asíncrono** | [`asyncapi.yaml`](../api/asyncapi.yaml) · `eventos-de-pago` | El pedido queda en `pendiente_pago`, consultable |
+| 6 | API → Panel del establecimiento | Bus en proceso | JSON | **Asíncrono** | [`asyncapi.yaml`](../api/asyncapi.yaml) · `pedidos-pagados` | El cobro se completa igual; el panel se entera al reconectar |
+
+Las mismas etiquetas aparecen sobre cada flecha del
+[diagrama C4 de nivel 2](../c4/nivel2-contenedores.md), de modo que la
+estructura y la ejecución cuentan la misma historia.
+
 <a id="runtime-crear-pedido"></a>
 
-### 6.1 Escenario: crear un pedido (corte vertical ejecutable de esta entrega)
+### 6.2 Crear un pedido — síncrono, y enteramente dentro del proceso
 
-Este es el flujo implementado y ejecutable en esta entrega (ver
+Corte vertical ejecutable del sistema (ver
 [README — Corte vertical ejecutable](../../README.md#corte-vertical-ejecutable)).
+Cubre el escenario [ESC-01](#esc-01): un usuario nuevo completa su primer pedido
+con un único request de dos campos.
 
 ``` mermaid
 sequenceDiagram
     actor U as Usuario
+    participant F as Frontend Web
     participant R as pedidos.router
     participant SP as pedidos.service
     participant SM as menu.service
-    participant RM as menu.repository
+    participant SU as usuarios.service
     participant RP as pedidos.repository
 
-    U->>R: POST /pedidos {establecimiento_id, item_id, cantidad}
-    R->>SP: crear_pedido(datos)
+    U->>F: elige un ítem y una cantidad
+    F->>R: POST /v1/pedidos {item_id, cantidad} · HTTPS/JSON
+    R->>SP: crear_pedido(item_id, cantidad)
+
     SP->>SM: obtener_item(item_id)
-    SM->>RM: buscar_por_id(item_id)
-    RM-->>SM: item (nombre, precio, disponible)
-    SM-->>SP: item
-    alt item no existe o no disponible
-        SP-->>R: error 404 / 409
-        R-->>U: respuesta de error
-    else item válido
-        SP->>SP: calcular total = precio * cantidad
-        SP->>RP: guardar(pedido)
-        RP-->>SP: pedido creado (id, estado=pendiente_pago)
-        SP-->>R: pedido creado
-        R-->>U: 201 Created + datos del pedido
+    SM-->>SP: ItemDisponible {nombre, precio_centavos, establecimiento_id}
+
+    alt el ítem no existe
+        SP-->>R: ItemNoEncontradoError
+        R-->>F: 404 {detail}
+    else el ítem no está disponible
+        SP-->>R: ItemNoDisponibleError
+        R-->>F: 409 {detail}
+    else ítem válido
+        SP->>SU: establecimiento_esta_activo(item.establecimiento_id)
+        SU-->>SP: true / false
+        alt el establecimiento no está operando
+            SP-->>R: EstablecimientoInactivoError
+            R-->>F: 409 {detail}
+        else el establecimiento opera
+            SP->>SP: total_centavos = precio_unitario_centavos x cantidad
+            SP->>RP: guardar(pedido, estado = pendiente_pago)
+            RP-->>SP: Pedido
+            SP-->>R: PedidoPublicado
+            R-->>F: 201 Created · PedidoResponse
+        end
     end
 ```
 
-**Por qué este diagrama importa para la arquitectura:** muestra en
-tiempo de ejecución la regla estática impuesta por el ADR-0001 —
-`pedidos` nunca toca `menu.repository` directamente, solo pasa por
-`menu.service`. Si en el futuro `menu` cambia su forma de almacenar
-datos, `pedidos` no se entera. Este flujo cubre además el escenario
-**ESC-01** (sección 10.2): un usuario nuevo (estudiante o profesor)
-completa su primer pedido con un único request de tres campos.
+**Qué muestra este diagrama que no se ve en el código.** Tres decisiones de
+arquitectura ocurriendo a la vez:
+
+1. **`pedidos` nunca toca `menu.repository`.** Pasa por `menu.service`, que es
+   la regla estática de [ADR-0001](../adr/0001-estilo-arquitectonico.md). Si
+   Catálogo cambia su forma de almacenar datos, Pedidos no se entera.
+2. **El cliente no dice a qué establecimiento va el pedido.** Se deriva del
+   ítem, porque aceptarlo del cliente permitía asignar un pedido a un punto que
+   no vende ese producto ([V-01](../violaciones.md#v-01)).
+3. **Quién decide si el establecimiento opera es `usuarios`**, su único escritor
+   ([ADR-0002](../adr/0002-propiedad-datos-establecimiento.md)). Pedidos
+   pregunta en lugar de guardar una copia que envejecería.
+
+Todo ocurre dentro del mismo proceso, así que el acoplamiento temporal entre
+estos módulos es total — y **gratuito**: si el proceso está vivo, los tres lo
+están. Es lo que deja de ser cierto en el flujo siguiente.
+
+<a id="runtime-pagar-pedido"></a>
+
+### 6.3 Pagar un pedido — el flujo que cruza la frontera asíncrona
+
+Es el flujo que motiva [ADR-0003](../adr/0003-estrategia-integracion.md) y cubre
+[ESC-05](#esc-05). Tiene **dos fases separadas por un hueco temporal que puede
+durar minutos**, y esa separación es el punto entero del diseño.
+
+``` mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant F as Frontend Web
+    participant PR as pagos.router
+    participant PS as pagos.service
+    participant DS as pedidos.service
+    participant BUS as bus de eventos
+    participant PANEL as Panel del establecimiento
+    participant W as Wompi Sandbox
+
+    rect rgb(235, 245, 255)
+    Note over U,W: Fase 1 — SÍNCRONA · el usuario está esperando
+    U->>F: pulsa «Pagar»
+    F->>PR: POST /v1/pagos/intentos {pedido_id, metodo} · HTTPS/JSON
+    PR->>PS: iniciar_intento(pedido_id, metodo)
+    PS->>DS: obtener_pedido(pedido_id)
+    DS-->>PS: PedidoPublicado (pendiente_pago)
+    PS-->>PR: IntentoPago {referencia_pago, url_checkout, pendiente}
+    PR-->>F: 201 Created
+    F->>U: redirige a url_checkout
+    end
+
+    Note over U,W: El usuario sale de PideUTB. Del lado del servidor NO queda nadie esperando.
+    U->>W: completa el pago (puede durar minutos)
+
+    rect rgb(255, 245, 235)
+    Note over W,PANEL: Fase 2 — ASÍNCRONA · la pasarela avisa cuando puede
+    W->>PR: POST /v1/pagos/eventos + X-Firma-Evento · HTTPS/JSON firmado
+    PR->>PS: firma_valida(cuerpo_en_crudo, firma)
+
+    alt firma ausente o inválida
+        PR-->>W: 401 {detail}
+    else firma válida
+        PR->>PS: procesar_evento(referencia_pago, estado_pago)
+        PS->>DS: confirmar_pago(pedido_id)
+
+        alt el pedido ya estaba pagado (reintento de la pasarela)
+            DS-->>PS: (pedido, duplicado = true)
+        else primera confirmación
+            DS->>DS: estado = pagado · genera codigo_canje
+            DS->>BUS: publicar «pedido.pagado»
+            BUS-)PANEL: pedido.pagado {pedido_id, establecimiento_id, codigo_canje}
+            DS-->>PS: (pedido, duplicado = false)
+        end
+
+        PS-->>PR: (pedido, duplicado)
+        PR-->>W: 202 Accepted {recibido, pedido_id, estado, duplicado}
+    end
+    end
+```
+
+**Por qué el diagrama tiene esta forma y no otra:**
+
+- **`201` en la fase 1, no el resultado del cobro.** Cuando la API responde, el
+  pago todavía no ha ocurrido. Prometer el resultado obligaría a esperar a la
+  pasarela dentro de la petición, que es la alternativa que ADR-0003 descarta.
+- **`202 Accepted` y no `200` en la fase 2.** PideUTB acusa recibo del evento;
+  no afirma que todo el efecto de negocio haya concluido. Es la diferencia entre
+  «me llegó» y «ya está todo hecho», y sostenerla permite que el manejador
+  termine rápido y no provoque reintentos innecesarios.
+- **La rama `duplicado = true` no es un caso de error.** Es el camino normal
+  cuando la pasarela reintenta, y reintenta siempre que no recibe un `2xx` a
+  tiempo. Sin esa rama, un reintento generaría un segundo código de canje y el
+  usuario tendría en pantalla uno que ya no sirve — rompiendo
+  [ESC-04](#esc-04).
+- **La flecha hacia el panel es punteada y sin retorno.** El publicador no sabe
+  si hay suscriptores ni si tuvieron éxito. Si el panel está caído, el cobro ya
+  ocurrió y sigue siendo válido: esperar su confirmación recrearía el
+  acoplamiento temporal que la decisión evita, y encima escondido.
+- **La firma se verifica sobre el cuerpo en crudo.** Un webhook es un endpoint
+  público capaz de marcar pedidos como pagados; en la fase 1 el interlocutor era
+  nuestro propio frontend, en la fase 2 es Internet.
+
+<a id="runtime-consultar-estado"></a>
+
+### 6.4 Consultar el estado — cómo se entera el usuario
+
+Esta consulta **existe por culpa de la asincronía**. En una integración síncrona
+no haría falta: el resultado vendría en la misma respuesta. Es el precio
+concreto que se paga por desacoplar, y ADR-0003 lo declara como tal.
+
+``` mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant F as Frontend Web
+    participant R as pedidos.router
+
+    U->>F: vuelve de la pasarela
+    F->>R: GET /v1/pedidos/{pedido_id} · HTTPS/JSON
+
+    alt el evento ya llegó
+        R-->>F: 200 {estado: pagado, codigo_canje: "7KQ2ZP"}
+        F->>U: muestra el código de canje
+    else el evento todavía no llegó
+        R-->>F: 200 {estado: pendiente_pago, codigo_canje: null}
+        F->>U: «esperando confirmación»
+        F->>R: reintenta la consulta
+    end
+```
+
+`codigo_canje` se declara **siempre presente y anulable** en lugar de opcional:
+el consumidor encuentra siempre la clave y solo comprueba si vale `null`, en vez
+de distinguir entre «ausente» y «vacío». La decisión está en
+[`openapi.yaml`](../api/openapi.yaml) y la razón en
+[la política de versionado](../api/politica-versionado.md).
+
+<a id="runtime-modos-de-fallo"></a>
+
+### 6.5 Modos de fallo
+
+Un diagrama de secuencia enseña el camino feliz. Esta tabla enseña los otros,
+que son los que deciden si la arquitectura sirve. Cada fila tiene una prueba
+automatizada detrás.
+
+| Fallo | Qué hace el sistema | Qué ve el usuario | Prueba |
+|---|---|---|---|
+| El ítem no existe o no está disponible | Rechaza antes de crear nada | `404` / `409` con mensaje concreto | `test_pedidos.py` |
+| El establecimiento no está operando | Rechaza el pedido | `409` con el motivo | `test_propiedad_datos.py::test_pedido_en_establecimiento_inactivo_se_rechaza` |
+| La pasarela rechaza el cobro | Registra el rechazo, no toca el pedido | Error claro; **el pedido se conserva** y puede reintentar con otro método | `test_pagos.py::test_un_pago_rechazado_conserva_el_pedido` |
+| **El evento de confirmación nunca llega** | Nada. El pedido se queda en `pendiente_pago` | Estado real y consultable, no una pantalla colgada | `test_pagos.py::test_si_el_evento_no_llega_nunca_el_pedido_queda_consultable` |
+| El evento llega **repetido** | Lo detecta y no lo reaplica; responde `202` con `duplicado: true` | Nada: el código de canje no cambia | `test_pagos.py::test_el_codigo_de_canje_no_cambia_entre_reintentos` |
+| Los eventos llegan **desordenados** | Decide por el estado que traen, no por la marca de tiempo | Nada | `test_pagos.py::test_el_mismo_evento_repetido_no_genera_un_segundo_codigo` |
+| Llega un evento **sin firma válida** | Lo rechaza sin tocar el pedido | Nada: no es un usuario | `test_pagos.py::test_un_evento_sin_firma_valida_se_rechaza` |
+| Llega un evento con **referencia desconocida** | `404`: la referencia la generamos nosotros, una que no conocemos es falsa | Nada | `test_pagos.py::test_un_evento_con_referencia_desconocida_responde_404` |
+| **El panel del establecimiento está caído** | El cobro se completa igual; el evento se pierde para ese suscriptor | Su código de canje, con normalidad | `test_pagos.py::test_un_suscriptor_que_falla_no_tumba_el_cobro` |
+
+El cuarto es el que define la arquitectura: **un evento que no llega deja el
+pedido en `pendiente_pago`, que es un estado honesto.** No se afirma que esté
+pagado ni que haya fallado. Es la degradación aceptada a cambio del
+desacoplamiento, y es preferible a un estado desconocido porque se puede
+consultar y se puede reintentar.
+
+### 6.6 Deuda conocida de esta vista
+
+- El canal `pedidos-pagados` se entrega **en proceso** y no sobrevive a un
+  reinicio: un suscriptor caído pierde los eventos de ese intervalo. Con un
+  broker real esto se resuelve con persistencia del canal; el contrato ya está
+  escrito para que ese cambio sea sustituir el transporte y no renegociar la
+  integración.
+- El registro de idempotencia vive en memoria, igual que el resto del estado
+  ([V-09](../violaciones.md#v-09)). Con más de una instancia desplegada, dos
+  réplicas podrían procesar el mismo evento. Es la misma deuda que bloquea el
+  despliegue real y se cierra con el mismo trabajo.
 
 ------------------------------------------------------------------------
 
@@ -532,22 +747,20 @@ Las decisiones arquitectónicas relevantes se documentan como ADRs en
 [`docs/adr/`](../adr/), siguiendo el formato estándar (contexto,
 decisión, alternativas consideradas, consecuencias).
 
-  ---------------------------------------------------------------------------------
-  ID                                                    Título              Estado
-  ------------------------------------------------------ ------------------- -------
-  [ADR-0001](../adr/0001-estilo-arquitectonico.md)     Estilo               Aceptada
-                                                          arquitectónico:
-                                                          monolito modular
+El título de cada ADR **enuncia la decisión tomada, no el tema tratado**. Un
+título como «Estrategia de integración» obliga a abrir el documento para saber
+qué se decidió; uno que dice qué se decidió permite leer el índice y entender la
+arquitectura sin abrir nada.
 
-  [ADR-0002](../adr/0002-propiedad-datos-establecimiento.md) Propiedad de   Aceptada
-                                                          los datos de
-                                                          Establecimiento y
-                                                          lenguaje publicado
-  ---------------------------------------------------------------------------------
+| ID | Decisión | Escenario que la motiva | Estado |
+|---|---|---|---|
+| [ADR-0001](../adr/0001-estilo-arquitectonico.md) | Adoptar un monolito modular en el que un módulo solo invoca la interfaz pública de otro | [ESC-01](#esc-01) | Aceptada |
+| [ADR-0002](../adr/0002-propiedad-datos-establecimiento.md) | Hacer del contexto Cuentas el único escritor de `Establecimiento` y comunicar los contextos por lenguaje publicado | [ESC-03](#esc-03) | Aceptada |
+| [ADR-0003](../adr/0003-estrategia-integracion.md) | Confirmar el pago de forma asíncrona por webhook y mantener síncrono el resto de la API | [ESC-05](#esc-05) | Aceptada |
 
-*(Este índice se ampliará en cada entrega a medida que surjan nuevas
-decisiones — por ejemplo, la forma de generar y validar el código de
-canje, prevista para la siguiente entrega.)*
+*(Este índice se amplía en cada entrega a medida que surgen nuevas
+decisiones — por ejemplo, la forma de validar el código de canje en el punto de
+entrega, prevista para la siguiente.)*
 
 ------------------------------------------------------------------------
 
