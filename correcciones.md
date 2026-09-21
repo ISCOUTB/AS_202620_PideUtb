@@ -3,8 +3,8 @@
 **Equipo:** `Santiago-C0` · `daniarriet` · `ruddy2000utb-droid`
 **Repositorio:** https://github.com/ISCOUTB/AS_202620_PideUtb
 **Rama evaluable:** `master`
-**Estado de CI:** ✅ verde — [run #18](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35550051257) — commit `356369d` sobre `master`, conclusión `success`. Es el run del **hash exacto que se entrega**, como pidió la retroalimentación de S6.
-**Quality Gate:** ⚠️ `PENDIENTE` — el job `calidad` ya corre y se omite sin fallar mientras no exista el secreto `SONAR_TOKEN`, tal como se diseñó. Alta en [`docs/calidad-sonarcloud.md`](docs/calidad-sonarcloud.md) §1
+**Estado de CI:** ✅ verde — [run #20](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35556118369) — commit `130c653` sobre `master`, conclusión `success`. Es el run del **hash exacto que se entrega**, como pidió la retroalimentación de S6.
+**Quality Gate:** ✅ `OK` — [panel público](https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb) · `projectKey` `ISCOUTB_AS_202620_PideUtb`, organización `isco-utb`, visibilidad `public`. Las cinco condiciones en verde, incluidas fiabilidad y seguridad sobre código nuevo, que fallaban antes.
 
 Este documento resume, para la nueva revisión, qué se corrigió de la
 retroalimentación de las semanas 1 a 5 y dónde quedó cada evidencia. El detalle
@@ -356,7 +356,7 @@ Estados: ✅ corregido · ➖ retirado de las exigencias por el docente.
 
 | Observación | Estado | Evidencia |
 |---|---|---|
-| Enlace al análisis público de SonarCloud con su Quality Gate | ⚠️ En curso | [`sonar-project.properties`](sonar-project.properties) y el job `calidad` de [`ci.yml`](.github/workflows/ci.yml) ya están en el repositorio. Falta el alta en SonarCloud y el secreto `SONAR_TOKEN`; el procedimiento está en [`docs/calidad-sonarcloud.md`](docs/calidad-sonarcloud.md). Hasta entonces el job se omite sin poner el pipeline en rojo |
+| Enlace al análisis público de SonarCloud con su Quality Gate | ✅ | [Panel público](https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb) con el Quality Gate en **OK**, insignia en vivo en el [README](README.md) y [`sonar-project.properties`](sonar-project.properties) en el repositorio. El gate fallaba por fiabilidad y seguridad sobre código nuevo; las siete incidencias se corrigieron en el commit `130c653` |
 | Run de CI del hash revisado | ✅ | [Run #18](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35550051257) — commit `356369d`, el mismo que se entrega. La observación era correcta: el run citado antes (`cd70d84`) ya no era el estado de `master` |
 | Títulos de los ADR que enuncien la decisión, no el tema | ✅ | Los tres reescritos. ADR-0001: «Adoptar un monolito modular en el que un módulo solo invoca la interfaz pública de otro». ADR-0002: «Hacer del contexto Cuentas el único escritor de `Establecimiento`…». ADR-0003: «Confirmar el pago de forma asíncrona por webhook y mantener síncrono el resto de la API». El índice de [arc42 §9](docs/arc42/arc42.md) se rehízo como tabla con una columna *Decisión* y otra *Escenario que la motiva* |
 | arc42 §8 con lenguaje ubicuo y mapa de contextos | ✅ | [§8.1](docs/arc42/arc42.md#lenguaje-ubicuo) lenguaje ubicuo, [§8.2](docs/arc42/arc42.md#seccion-8) contextos y propiedad de datos. Ya estaba desde S6; se confirma |
@@ -373,7 +373,7 @@ Estados: ✅ corregido · ➖ retirado de las exigencias por el docente.
 | Validación de contrato en el pipeline (schemathesis, spectral o equivalente) | ✅ | Job `contrato`: **Spectral** con [`.spectral.yaml`](.spectral.yaml) y `--fail-severity=warn`, y **oasdiff** contra la versión congelada |
 | Evidencia de un run en rojo por un cambio incompatible | ⚠️ Procedimiento listo | [`docs/api/README.md` §3](docs/api/README.md#run-en-rojo), reproducible y verificado en local. Falta ejecutarlo y registrar la URL |
 | ADR que justifique la integración síncrona o asíncrona **contra un escenario de calidad**, con **la alternativa descartada** | ✅ | [ADR-0003](docs/adr/0003-estrategia-integracion.md): anclado a [ESC-05](docs/arc42/arc42.md#esc-05) (mensaje < 3 s, pedido conservado en el 100 %), con **dos** alternativas descartadas y el motivo de cada una |
-| Evidencia auditable de SonarCloud: configuración, run del hash y URL del Quality Gate | ⚠️ En curso | Ver la fila equivalente de la semana 6 |
+| Evidencia auditable de SonarCloud: configuración, run del hash y URL del Quality Gate | ✅ | Los tres: [`sonar-project.properties`](sonar-project.properties), [run #20](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35556118369) del commit `130c653`, y el [panel público](https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb) en **OK** |
 
 ### Evidencia de integración continua
 
@@ -385,7 +385,7 @@ cuatro jobs en cada push y cada pull request:
 | `pytest (Python 3.11)` | 77 pruebas | ✅ |
 | `pytest (Python 3.12)` | 77 pruebas | ✅ |
 | `Contrato de API` | Spectral sobre los dos contratos + oasdiff contra la versión congelada | ✅ en 15 s |
-| `SonarCloud` | Cobertura y Quality Gate | ✅ omitido — *«Falta el secreto SONAR_TOKEN; se omite el análisis»*, que es el comportamiento diseñado |
+| `SonarCloud` | Cobertura y Quality Gate | ✅ omitido — *«Falta el secreto SONAR_TOKEN; se omite el análisis»*. El análisis lo realiza hoy *Automatic Analysis*, que publica el Quality Gate como check propio ([`docs/calidad-sonarcloud.md`](docs/calidad-sonarcloud.md) §1) |
 
 Duración total: 55 s.
 
@@ -394,9 +394,9 @@ Duración total: 55 s.
 | [**#18**](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35550051257) | `master` | `356369d` | push | ✅ **success** — entrega S7 |
 | [#15](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34783395594) | `master` | `cd70d84` | push | ✅ success — entrega S6 |
 
-El run **#18** es el de referencia para esta entrega: corresponde al commit
-`356369d`, que es el estado actual de `master` con la entrega S7 completa. El
-#15 se conserva como referencia de S6. El historial completo de
+El run **#20** es el de referencia para esta entrega: corresponde al commit
+`130c653`, que es el estado actual de `master`. El #15 se conserva como
+referencia de S6. El historial completo de
 ejecuciones —todas en verde— está en la
 [pestaña Actions](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/ci.yml).
 
@@ -418,15 +418,19 @@ Además se cerraron **dos violaciones planificadas** —[V-07](docs/violaciones.
 libre)— porque publicar el contrato obligaba a decidir ambas cosas, y la suite
 pasó de **13 a 77 pruebas** con un 99 % de cobertura.
 
-**Quedan dos puntos abiertos, ambos fuera del repositorio:**
+**Queda un punto abierto:** el **run en rojo** que demuestra que la validación
+de contrato puede fallar. El procedimiento está en
+[`docs/api/README.md` §3](docs/api/README.md#run-en-rojo), verificado en local,
+y falta ejecutarlo y registrar su URL.
 
-1. ⚠️ **El alta en SonarCloud.** La configuración está
-   ([`sonar-project.properties`](sonar-project.properties), job `calidad`), pero
-   el secreto `SONAR_TOKEN` y la URL pública del Quality Gate requieren crear el
-   proyecto en SonarCloud: [`docs/calidad-sonarcloud.md`](docs/calidad-sonarcloud.md) §1.
-2. ⚠️ **Los dos enlaces de evidencia de CI**: el run en verde del commit que se
-   entrega, y el run en rojo que demuestra que la validación de contrato puede
-   fallar. Ambos se registran en el encabezado de este documento.
+Se declara abierto en lugar de omitirlo: la retroalimentación pedía evidencia
+**auditable**, y un procedimiento sin su ejecución todavía no lo es.
 
-Se declaran como abiertos en lugar de omitirlos: la retroalimentación pedía
-evidencia **auditable**, y una configuración sin su ejecución todavía no lo es.
+**Sobre el método de análisis de SonarCloud.** El Quality Gate está en verde y
+es público, que es lo que pedía la retroalimentación. El análisis lo realiza
+*Automatic Analysis* y no el pipeline, de modo que la cobertura medida en local
+—99 %— todavía no se publica en el panel y el gate no bloquea la construcción.
+El cambio está preparado en el job `calidad` y documentado en
+[`docs/calidad-sonarcloud.md`](docs/calidad-sonarcloud.md) §1; se difiere a
+propósito hasta consultarlo, porque cambiar el método de análisis de un
+repositorio de la organización no es una decisión de un solo integrante.

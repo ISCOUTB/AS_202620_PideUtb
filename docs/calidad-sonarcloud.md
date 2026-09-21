@@ -10,7 +10,8 @@ Los tres elementos exigidos y dónde está cada uno:
 |---|---|---|
 | **Archivo de configuración** | [`sonar-project.properties`](../sonar-project.properties) | ✅ En el repositorio |
 | **Ejecución en el pipeline** | Job `calidad` de [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | ✅ Definido |
-| **URL pública del Quality Gate** | [Panel del proyecto](https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb) | ✅ Público y accesible sin cuenta |
+| **URL pública del Quality Gate** | [Panel del proyecto](https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb) | ✅ Público, sin cuenta, y en **OK** |
+| **Run del hash revisado** | [Run #20](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35556118369) — commit `130c653` | ✅ |
 
 Identificadores del proyecto, **verificados contra la API** y no supuestos:
 
@@ -22,14 +23,21 @@ Identificadores del proyecto, **verificados contra la API** y no supuestos:
 
 ---
 
-## 1. El proyecto ya existe: lo que falta es cambiar de método de análisis
+## 1. Método de análisis: por qué sigue siendo el automático
 
-SonarCloud **ya está conectado** al repositorio y analizando, pero mediante
-*Automatic Analysis*: el modo en que la aplicación de GitHub lee el código por
-su cuenta, sin pasar por el pipeline. Funciona sin configurar nada, y por eso
-es el que está activo.
+SonarCloud está conectado al repositorio y analizando mediante *Automatic
+Analysis*: el modo en que la aplicación de GitHub lee el código por su cuenta,
+sin pasar por el pipeline. Con él, los tres elementos que exige la
+retroalimentación —configuración, run del hash y URL pública del Quality
+Gate— **están cubiertos**.
 
-El problema es lo que **no** puede hacer:
+**Decisión: se mantiene el análisis automático por ahora.** Cambiar el método
+de análisis de un repositorio de la organización afecta a los tres integrantes
+y al criterio de evaluación, así que se consulta antes de tocarlo. Lo que sigue
+documenta qué se gana con el cambio y cómo hacerlo, no una tarea pendiente de
+la entrega.
+
+Lo que el análisis automático **no** puede hacer:
 
 | | Automatic Analysis | Análisis desde el pipeline |
 |---|---|---|
@@ -42,7 +50,7 @@ Los dos modos **no pueden convivir**: si se activa el análisis desde CI sin
 apagar el automático, uno de los dos falla con `You are running manual analysis
 while Automatic Analysis is enabled`.
 
-### Pasos
+### Pasos, si se decide hacer el cambio
 
 1. Entrar en el [panel del proyecto](https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb)
    con la cuenta de GitHub.
@@ -86,8 +94,8 @@ construcción sin que nadie lo hubiera decidido.
 
 ## 3. Evidencia para la revisión
 
-Una vez completado el paso 1, la evidencia auditable son estas tres cosas
-juntas —ninguna sirve sola—:
+Las tres cosas que la retroalimentación pedía, todas disponibles hoy —y
+ninguna sirve sola—:
 
 - **URL pública del proyecto:**
   `https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb`
@@ -115,9 +123,12 @@ Reproducible con:
 
 ```bash
 cd backend
-pip install "pytest-cov>=5,<7"
+pip install --require-hashes --only-binary=:all: -r requirements-calidad.txt
 pytest --cov=app --cov-report=term-missing
 ```
+
+Esta cifra **no aparece en el panel de SonarCloud** mientras el análisis sea el
+automático: es la limitación que motiva el cambio descrito en §1.
 
 Las seis sentencias sin cubrir son ramas de traducción de error en los routers
 y en `pagos.service`. Están identificadas y no se cubren con una prueba
