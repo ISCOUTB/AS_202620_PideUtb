@@ -156,6 +156,21 @@ git push -u origin demo/cambio-incompatible
 El workflow corre sobre la rama (`branches: ["**"]`). Cuando termine en rojo, se
 copia la URL del run y se registra en [`../../correcciones.md`](../../correcciones.md).
 
+### Evidencia conservada
+
+[**Run #22**](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35557297196) — commit `adb4077`, conclusión `failure`. Lo que produjo:
+
+| Job | Resultado | Paso que falló |
+|---|---|---|
+| `Contrato de API` | ❌ | `Detectar cambios incompatibles (oasdiff)` |
+| `pytest (Python 3.11)` | ❌ | `Ejecutar pruebas` |
+| `pytest (Python 3.12)` | ❌ | `Ejecutar pruebas` |
+
+**Spectral pasó.** Dentro del mismo job, el paso anterior no se quejó: el
+archivo seguía siendo un OpenAPI 3.1 válido y bien formado. Lo roto no era la
+forma sino la promesa, y esa distinción es exactamente la razón de que haya
+tres capas y no una.
+
 ### Paso 4 — Limpiar
 
 ```bash

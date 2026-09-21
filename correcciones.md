@@ -3,7 +3,8 @@
 **Equipo:** `Santiago-C0` · `daniarriet` · `ruddy2000utb-droid`
 **Repositorio:** https://github.com/ISCOUTB/AS_202620_PideUtb
 **Rama evaluable:** `master`
-**Estado de CI:** ✅ verde — [run #20](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35556118369) — commit `130c653` sobre `master`, conclusión `success`. Es el run del **hash exacto que se entrega**, como pidió la retroalimentación de S6.
+**Estado de CI:** ✅ verde — [run #23](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35557330685) — commit `557e150` sobre `master`, conclusión `success`. Es el run del **hash exacto que se entrega**, como pidió la retroalimentación de S6. La insignia del [README](README.md) refleja el estado en vivo.
+**Evidencia de que la validación puede fallar:** ❌ [run #22](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35557297196) — commit `adb4077`, conclusión `failure`, provocado a propósito. Detalle en la [sección 3](#3-evidencia-s7--contrato-de-api-pruebas-de-contrato-y-adr-de-integración).
 **Quality Gate:** ✅ `OK` — [panel público](https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb) · `projectKey` `ISCOUTB_AS_202620_PideUtb`, organización `isco-utb`, visibilidad `public`. Las cinco condiciones en verde, incluidas fiabilidad y seguridad sobre código nuevo, que fallaban antes.
 
 Este documento resume, para la nueva revisión, qué se corrigió de la
@@ -161,8 +162,31 @@ Actions** —en una rama desechable, para no ensuciar `master`— está en
 [`docs/api/README.md` §3](docs/api/README.md#run-en-rojo), con la salida exacta
 que produce: 3 fallos, uno por capa, y 3 omisiones explicadas.
 
-⚠️ **PENDIENTE de completar:** la URL del run en rojo, una vez ejecutado el
-procedimiento.
+#### El run en rojo, ejecutado
+
+[**Run #22**](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35557297196) — rama `demo/cambio-incompatible`, commit `adb4077`,
+conclusión **`failure`**. Se provocó retirando `total_centavos` del esquema
+`Pedido`, que es la regla I-2 de la política de versionado: quitar un campo
+requerido de una respuesta.
+
+| Job | Resultado | Paso que falló |
+|---|---|---|
+| `Contrato de API` | ❌ | `Detectar cambios incompatibles (oasdiff)` |
+| `pytest (Python 3.11)` | ❌ | `Ejecutar pruebas` |
+| `pytest (Python 3.12)` | ❌ | `Ejecutar pruebas` |
+| `SonarCloud` | ✅ | — |
+
+**Lo que no falló es tan informativo como lo que falló.** Dentro del job de
+contrato, el paso de **Spectral pasó**: el archivo seguía siendo un OpenAPI 3.1
+perfectamente válido y bien formado. Lo que estaba mal no era la *forma* del
+contrato sino la *promesa* que rompía, y eso solo lo ven oasdiff y las pruebas
+de contrato.
+
+Es la demostración de por qué las tres capas no se solapan: una validación de
+esquema sola habría dejado pasar este cambio sin una queja.
+
+La rama se borró después; el run permanece en el historial de Actions y sigue
+siendo consultable por su URL.
 
 ### El código avanzó con el contrato
 
@@ -371,7 +395,7 @@ Estados: ✅ corregido · ➖ retirado de las exigencias por el docente.
 | **Enlazarlo desde el README** | ✅ | [README § Contrato de API](README.md#contrato-de-api), primera sección del documento |
 | Contrastar contrato contra código | ✅ | `backend/tests/test_contrato_api.py` compara el contrato con `app.openapi()` en **ambas direcciones**: lo prometido y no implementado, y lo expuesto sin declarar |
 | Validación de contrato en el pipeline (schemathesis, spectral o equivalente) | ✅ | Job `contrato`: **Spectral** con [`.spectral.yaml`](.spectral.yaml) y `--fail-severity=warn`, y **oasdiff** contra la versión congelada |
-| Evidencia de un run en rojo por un cambio incompatible | ⚠️ Procedimiento listo | [`docs/api/README.md` §3](docs/api/README.md#run-en-rojo), reproducible y verificado en local. Falta ejecutarlo y registrar la URL |
+| Evidencia de un run en rojo por un cambio incompatible | ✅ | [Run #22](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35557297196) — `failure`. Cayeron oasdiff y las pruebas de contrato en las dos versiones de Python; **Spectral pasó**, porque el archivo seguía siendo válido y lo que rompía era la promesa, no la forma. Procedimiento en [`docs/api/README.md` §3](docs/api/README.md#run-en-rojo) |
 | ADR que justifique la integración síncrona o asíncrona **contra un escenario de calidad**, con **la alternativa descartada** | ✅ | [ADR-0003](docs/adr/0003-estrategia-integracion.md): anclado a [ESC-05](docs/arc42/arc42.md#esc-05) (mensaje < 3 s, pedido conservado en el 100 %), con **dos** alternativas descartadas y el motivo de cada una |
 | Evidencia auditable de SonarCloud: configuración, run del hash y URL del Quality Gate | ✅ | Los tres: [`sonar-project.properties`](sonar-project.properties), [run #20](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35556118369) del commit `130c653`, y el [panel público](https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb) en **OK** |
 
@@ -391,12 +415,15 @@ Duración total: 55 s.
 
 | Run | Rama | Commit | Evento | Resultado |
 |---|---|---|---|---|
-| [**#18**](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35550051257) | `master` | `356369d` | push | ✅ **success** — entrega S7 |
+| [**#23**](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35557330685) | `master` | `557e150` | push | ✅ **success** — estado entregado |
+| [**#22**](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35557297196) | `demo/cambio-incompatible` | `adb4077` | push | ❌ **failure** — provocado a propósito |
+| [#18](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35550051257) | `master` | `356369d` | push | ✅ success — entrega S7 |
 | [#15](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34783395594) | `master` | `cd70d84` | push | ✅ success — entrega S6 |
 
-El run **#20** es el de referencia para esta entrega: corresponde al commit
-`130c653`, que es el estado actual de `master`. El #15 se conserva como
-referencia de S6. El historial completo de
+El run **#23** es el de referencia para esta entrega y el **#22** es su
+contrapartida: uno demuestra que el sistema funciona y el otro que la
+validación no es decorativa. Hacen falta los dos, porque un pipeline siempre en
+verde prueba lo mismo que un detector de humo desconectado. El historial completo de
 ejecuciones —todas en verde— está en la
 [pestaña Actions](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/ci.yml).
 
@@ -418,13 +445,9 @@ Además se cerraron **dos violaciones planificadas** —[V-07](docs/violaciones.
 libre)— porque publicar el contrato obligaba a decidir ambas cosas, y la suite
 pasó de **13 a 77 pruebas** con un 99 % de cobertura.
 
-**Queda un punto abierto:** el **run en rojo** que demuestra que la validación
-de contrato puede fallar. El procedimiento está en
-[`docs/api/README.md` §3](docs/api/README.md#run-en-rojo), verificado en local,
-y falta ejecutarlo y registrar su URL.
-
-Se declara abierto en lugar de omitirlo: la retroalimentación pedía evidencia
-**auditable**, y un procedimiento sin su ejecución todavía no lo es.
+**No queda ninguna evidencia pendiente.** El [run #22](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35557297196) cierra el último
+punto abierto: la demostración de que la validación de contrato puede ponerse
+en rojo ante un cambio incompatible.
 
 **Sobre el método de análisis de SonarCloud.** El Quality Gate está en verde y
 es público, que es lo que pedía la retroalimentación. El análisis lo realiza
