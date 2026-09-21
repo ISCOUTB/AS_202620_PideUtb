@@ -52,26 +52,46 @@ class Cambio:
 # Resolución de referencias
 # --------------------------------------------------------------------------
 
+def _seguir_referencia(documento: dict, referencia: str) -> Any | None:
+    """Nodo al que apunta una referencia interna, o `None` si no se puede seguir.
+
+    Devuelve `None` en dos casos distintos que comparten consecuencia: una
+    referencia a otro archivo —que saldría del alcance de este contrato— y una
+    referencia que no resuelve dentro del documento.
+    """
+    if not referencia.startswith("#/"):
+        return None
+
+    destino: Any = documento
+    for parte in referencia[2:].split("/"):
+        parte = parte.replace("~1", "/").replace("~0", "~")
+        if not isinstance(destino, dict) or parte not in destino:
+            return None
+        destino = destino[parte]
+
+    return destino
+
+
 def resolver(documento: dict, nodo: Any) -> Any:
-    """Sigue los `$ref` internos hasta llegar a un nodo concreto."""
+    """Sigue los `$ref` internos hasta llegar a un nodo concreto.
+
+    Si una referencia no se puede seguir, se devuelve el nodo tal como estaba:
+    comparar dos `$ref` sin resolver es preferible a fallar, porque el objetivo
+    es informar de diferencias y no validar el documento — de eso se encarga
+    Spectral en el pipeline.
+    """
     visitados: set[str] = set()
 
     while isinstance(nodo, dict) and "$ref" in nodo:
         referencia = nodo["$ref"]
-        if not referencia.startswith("#/"):
-            # Un `$ref` a otro archivo saldría del alcance del contrato: se
-            # deja tal cual en lugar de resolverlo a medias.
-            return nodo
         if referencia in visitados:
-            return nodo
-        visitados.add(referencia)
+            break  # ciclo de referencias: el esquema se refiere a sí mismo
 
-        destino: Any = documento
-        for parte in referencia[2:].split("/"):
-            parte = parte.replace("~1", "/").replace("~0", "~")
-            if not isinstance(destino, dict) or parte not in destino:
-                return nodo
-            destino = destino[parte]
+        visitados.add(referencia)
+        destino = _seguir_referencia(documento, referencia)
+        if destino is None:
+            break
+
         nodo = destino
 
     return nodo
@@ -211,7 +231,7 @@ def _comparar_enum(
 
     if quitados:
         cambios.append(Cambio(
-            regla="I-7" if direccion == "peticion" else "I-7",
+            regla="I-7",
             compatible=direccion == "respuesta",
             ubicacion=ubicacion,
             descripcion=(
@@ -285,6 +305,96 @@ def _comparar_restricciones(viejo: dict, nuevo: dict, ubicacion: str) -> list[Ca
     return cambios
 
 
+def _propiedades_retiradas(
+    nombres: set[str], requeridos_viejos: set[str],
+    ubicacion: str, direccion: Direccion,
+) -> list[Cambio]:
+    """Campos que el contrato anterior declaraba y el nuevo ya no."""
+    if direccion == "peticion":
+        return [
+            Cambio(
+                regla="I-2", compatible=True, ubicacion=f"{ubicacion}.{nombre}",
+                descripcion="el campo deja de aceptarse en la petición; se ignorará si se envía",
+            )
+            for nombre in sorted(nombres)
+        ]
+
+    return [
+        Cambio(
+            regla="I-2",
+            compatible=nombre not in requeridos_viejos,
+            ubicacion=f"{ubicacion}.{nombre}",
+            descripcion=(
+                "desaparece de la respuesta un campo requerido; el cliente que lo "
+                "lee encontrará la clave ausente"
+                if nombre in requeridos_viejos
+                else "desaparece de la respuesta un campo opcional"
+            ),
+        )
+        for nombre in sorted(nombres)
+    ]
+
+
+def _propiedades_anadidas(
+    nombres: set[str], requeridos_nuevos: set[str],
+    ubicacion: str, direccion: Direccion,
+) -> list[Cambio]:
+    """Campos que aparecen y que el contrato anterior no declaraba."""
+    cambios: list[Cambio] = []
+
+    for nombre in sorted(nombres):
+        obligatorio_nuevo = direccion == "peticion" and nombre in requeridos_nuevos
+        if obligatorio_nuevo:
+            descripcion = "aparece un campo requerido nuevo; el cliente no lo envía y será rechazado"
+        elif direccion == "peticion":
+            descripcion = "aparece un campo opcional nuevo en la petición"
+        else:
+            descripcion = "aparece un campo nuevo en la respuesta; el lector tolerante lo ignora"
+
+        cambios.append(Cambio(
+            regla="I-4",
+            compatible=not obligatorio_nuevo,
+            ubicacion=f"{ubicacion}.{nombre}",
+            descripcion=descripcion,
+        ))
+
+    return cambios
+
+
+def _garantias_cambiadas(
+    propiedades_viejas: dict, propiedades_nuevas: dict,
+    requeridos_viejos: set[str], requeridos_nuevos: set[str],
+    ubicacion: str, direccion: Direccion,
+) -> list[Cambio]:
+    """Campos que siguen existiendo pero cambian de obligatorios a opcionales o al revés.
+
+    Es el caso más fácil de pasar por alto al revisar un contrato a ojo: el
+    campo sigue ahí, con el mismo nombre y el mismo tipo, y solo cambia la
+    promesa sobre él.
+    """
+    if direccion == "peticion":
+        return [
+            Cambio(
+                regla="I-3", compatible=False, ubicacion=f"{ubicacion}.{nombre}",
+                descripcion="un campo que era opcional pasa a ser obligatorio",
+            )
+            for nombre in sorted(requeridos_nuevos - requeridos_viejos)
+            if nombre in propiedades_viejas
+        ]
+
+    return [
+        Cambio(
+            regla="I-2", compatible=False, ubicacion=f"{ubicacion}.{nombre}",
+            descripcion=(
+                "la respuesta deja de garantizar el campo: sigue declarado pero ya "
+                "no es obligatorio, y el cliente lo lee sin comprobar"
+            ),
+        )
+        for nombre in sorted(requeridos_viejos - requeridos_nuevos)
+        if nombre in propiedades_nuevas
+    ]
+
+
 def _comparar_propiedades(
     doc_viejo: dict,
     doc_nuevo: dict,
@@ -303,69 +413,18 @@ def _comparar_propiedades(
     requeridos_nuevos = set(nuevo.get("required") or [])
     cambios: list[Cambio] = []
 
-    for nombre in sorted(set(propiedades_viejas) - set(propiedades_nuevas)):
-        era_requerido = nombre in requeridos_viejos
-        if direccion == "respuesta":
-            cambios.append(Cambio(
-                regla="I-2",
-                compatible=not era_requerido,
-                ubicacion=f"{ubicacion}.{nombre}",
-                descripcion=(
-                    "desaparece de la respuesta un campo requerido; el cliente "
-                    "que lo lee encontrará la clave ausente"
-                    if era_requerido else
-                    "desaparece de la respuesta un campo opcional"
-                ),
-            ))
-        else:
-            cambios.append(Cambio(
-                regla="I-2",
-                compatible=True,
-                ubicacion=f"{ubicacion}.{nombre}",
-                descripcion="el campo deja de aceptarse en la petición; se ignorará si se envía",
-            ))
-
-    for nombre in sorted(set(propiedades_nuevas) - set(propiedades_viejas)):
-        if direccion == "peticion" and nombre in requeridos_nuevos:
-            cambios.append(Cambio(
-                regla="I-4",
-                compatible=False,
-                ubicacion=f"{ubicacion}.{nombre}",
-                descripcion="aparece un campo requerido nuevo; el cliente no lo envía y será rechazado",
-            ))
-        else:
-            cambios.append(Cambio(
-                regla="I-4",
-                compatible=True,
-                ubicacion=f"{ubicacion}.{nombre}",
-                descripcion=(
-                    "aparece un campo opcional nuevo en la petición"
-                    if direccion == "peticion" else
-                    "aparece un campo nuevo en la respuesta; el lector tolerante lo ignora"
-                ),
-            ))
-
-    if direccion == "peticion":
-        for nombre in sorted(requeridos_nuevos - requeridos_viejos):
-            if nombre in propiedades_viejas:
-                cambios.append(Cambio(
-                    regla="I-3",
-                    compatible=False,
-                    ubicacion=f"{ubicacion}.{nombre}",
-                    descripcion="un campo que era opcional pasa a ser obligatorio",
-                ))
-    else:
-        for nombre in sorted(requeridos_viejos - requeridos_nuevos):
-            if nombre in propiedades_nuevas:
-                cambios.append(Cambio(
-                    regla="I-2",
-                    compatible=False,
-                    ubicacion=f"{ubicacion}.{nombre}",
-                    descripcion=(
-                        "la respuesta deja de garantizar el campo: sigue declarado "
-                        "pero ya no es obligatorio, y el cliente lo lee sin comprobar"
-                    ),
-                ))
+    cambios += _propiedades_retiradas(
+        set(propiedades_viejas) - set(propiedades_nuevas),
+        requeridos_viejos, ubicacion, direccion,
+    )
+    cambios += _propiedades_anadidas(
+        set(propiedades_nuevas) - set(propiedades_viejas),
+        requeridos_nuevos, ubicacion, direccion,
+    )
+    cambios += _garantias_cambiadas(
+        propiedades_viejas, propiedades_nuevas,
+        requeridos_viejos, requeridos_nuevos, ubicacion, direccion,
+    )
 
     for nombre in sorted(set(propiedades_viejas) & set(propiedades_nuevas)):
         cambios += _comparar_esquema(
@@ -462,8 +521,40 @@ def incompatibles(cambios: list[Cambio]) -> list[Cambio]:
     return [c for c in cambios if not c.compatible]
 
 
+#: Raíz del repositorio. Los contratos que este comando compara viven dentro.
+RAIZ_DEL_REPOSITORIO = Path(__file__).resolve().parents[2]
+
+#: Un contrato es un documento de datos, nunca un ejecutable.
+EXTENSIONES_DE_CONTRATO = {".yaml", ".yml", ".json"}
+
+
 def cargar(ruta: str | Path) -> dict:
-    return yaml.safe_load(Path(ruta).read_text(encoding="utf-8"))
+    """Lee un contrato, comprobando antes que la ruta sea legítima.
+
+    Este módulo se invoca desde la línea de comandos y desde el pipeline, donde
+    los argumentos pueden venir de una plantilla o de una automatización. Sin
+    esta comprobación, un `../../..` en el argumento convertiría una
+    herramienta de comparación en un lector arbitrario de archivos con los
+    permisos del runner de CI, que tiene acceso al repositorio entero.
+
+    Se valida la ruta **ya resuelta**, no la que llega: comprobar la cadena
+    antes de resolverla es justo lo que esquivan las travesías de directorio.
+    """
+    destino = Path(ruta).resolve()
+
+    if destino.suffix.lower() not in EXTENSIONES_DE_CONTRATO:
+        raise ValueError(
+            f"'{destino.name}' no parece un contrato: se esperaba "
+            f"{sorted(EXTENSIONES_DE_CONTRATO)}."
+        )
+
+    if not destino.is_relative_to(RAIZ_DEL_REPOSITORIO):
+        raise ValueError(
+            f"'{destino}' está fuera del repositorio. Esta herramienta solo "
+            "compara contratos versionados aquí."
+        )
+
+    return yaml.safe_load(destino.read_text(encoding="utf-8"))
 
 
 def _principal(argumentos: list[str]) -> int:

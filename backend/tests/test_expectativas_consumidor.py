@@ -282,20 +282,29 @@ def _retirar_una_operacion_en_uso(doc: dict) -> None:
 
 
 @pytest.mark.parametrize(
-    "rotura",
+    "rotura, comprobacion_que_debe_fallar",
     [
-        _retirar_un_campo_que_el_consumidor_lee,
-        _retirar_un_campo_anidado_en_la_lista,
-        _retirar_una_operacion_en_uso,
+        (_retirar_un_campo_que_el_consumidor_lee,
+         test_todo_campo_que_el_consumidor_lee_sigue_emitiendose),
+        (_retirar_un_campo_anidado_en_la_lista,
+         test_todo_campo_que_el_consumidor_lee_sigue_emitiendose),
+        (_retirar_una_operacion_en_uso,
+         test_toda_operacion_que_el_consumidor_usa_sigue_existiendo),
     ],
-    ids=lambda f: f.__name__.strip("_"),
+    ids=lambda x: x.__name__.strip("_"),
 )
 def test_retirar_algo_que_el_consumidor_usa_rompe_la_construccion(
-    contrato, expectativas, rotura
+    contrato, expectativas, rotura, comprobacion_que_debe_fallar
 ):
-    """La comprobación de arriba solo vale si de verdad falla cuando debe."""
+    """La comprobación de arriba solo vale si de verdad falla cuando debe.
+
+    Cada rotura se empareja con la comprobación concreta que tiene que
+    detectarla, en lugar de encadenar varias dentro del mismo `raises`. Así no
+    basta con que *algo* falle: tiene que fallar **la que corresponde**, que es
+    lo que distingue una prueba negativa útil de una que se conforma con ver
+    humo.
+    """
     mutado = mutar(contrato, rotura)
 
     with pytest.raises(AssertionError):
-        test_toda_operacion_que_el_consumidor_usa_sigue_existiendo(mutado, expectativas)
-        test_todo_campo_que_el_consumidor_lee_sigue_emitiendose(mutado, expectativas)
+        comprobacion_que_debe_fallar(mutado, expectativas)

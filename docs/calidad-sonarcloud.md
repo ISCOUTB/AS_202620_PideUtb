@@ -10,35 +10,53 @@ Los tres elementos exigidos y dónde está cada uno:
 |---|---|---|
 | **Archivo de configuración** | [`sonar-project.properties`](../sonar-project.properties) | ✅ En el repositorio |
 | **Ejecución en el pipeline** | Job `calidad` de [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | ✅ Definido |
-| **URL pública del Quality Gate** | Ver §3 | ⚠️ Requiere el alta descrita en §1 |
+| **URL pública del Quality Gate** | [Panel del proyecto](https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb) | ✅ Público y accesible sin cuenta |
+
+Identificadores del proyecto, **verificados contra la API** y no supuestos:
+
+| Dato | Valor |
+|---|---|
+| `projectKey` | `ISCOUTB_AS_202620_PideUtb` |
+| `organization` | `isco-utb` |
+| Visibilidad | `public` |
 
 ---
 
-## 1. Alta del proyecto (una sola vez)
+## 1. El proyecto ya existe: lo que falta es cambiar de método de análisis
 
-El análisis necesita un token que **no puede vivir en el repositorio**: quien lo
-tenga puede publicar resultados en nombre del proyecto. Por eso viaja como
-secreto de GitHub y no como archivo, y por eso este paso es manual.
+SonarCloud **ya está conectado** al repositorio y analizando, pero mediante
+*Automatic Analysis*: el modo en que la aplicación de GitHub lee el código por
+su cuenta, sin pasar por el pipeline. Funciona sin configurar nada, y por eso
+es el que está activo.
 
-1. Entrar en <https://sonarcloud.io> e iniciar sesión con la cuenta de GitHub.
-2. **+ → Analyze new project** y elegir el repositorio del curso.
-3. En **Set up → With GitHub Actions**, SonarCloud muestra el `SONAR_TOKEN`.
-4. Copiar ese valor en el repositorio de GitHub:
-   **Settings → Secrets and variables → Actions → New repository secret**,
-   con el nombre exacto `SONAR_TOKEN`.
-5. **Comprobar `projectKey` y `organization`.** SonarCloud los muestra en
-   *Project Information*. Si no coinciden con los de
-   [`sonar-project.properties`](../sonar-project.properties), hay que copiarlos
-   ahí tal cual: es el error más frecuente y se manifiesta como
-   `project not found`.
-6. En **Administration → Analysis Method**, desactivar *Automatic Analysis*.
-   Si queda activo, entra en conflicto con el análisis del pipeline y uno de
-   los dos falla.
+El problema es lo que **no** puede hacer:
 
-Hasta que exista el secreto, el job `calidad` **se omite sin poner el pipeline
-en rojo**: registra un aviso y termina. Es deliberado — una configuración que
-todavía no existe no es un defecto del código y no debe impedir que el resto de
-la construcción sea evaluable.
+| | Automatic Analysis | Análisis desde el pipeline |
+|---|---|---|
+| Necesita configuración | No | Sí, un `SONAR_TOKEN` |
+| Lee `sonar-project.properties` | Parcialmente | Sí |
+| Puede ingerir la **cobertura** | **No** | Sí |
+| Bloquea la construcción si el gate falla | No — es un check aparte | Sí, con el paso de Quality Gate |
+
+Los dos modos **no pueden convivir**: si se activa el análisis desde CI sin
+apagar el automático, uno de los dos falla con `You are running manual analysis
+while Automatic Analysis is enabled`.
+
+### Pasos
+
+1. Entrar en el [panel del proyecto](https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb)
+   con la cuenta de GitHub.
+2. **Administration → Analysis Method** y **desactivar** *Automatic Analysis*.
+3. En **Administration → Analysis Method → With GitHub Actions**, SonarCloud
+   muestra el `SONAR_TOKEN`.
+4. Copiar ese valor en GitHub: **Settings → Secrets and variables → Actions →
+   New repository secret**, con el nombre exacto `SONAR_TOKEN`.
+5. Volver a lanzar el workflow (`Actions → CI → Re-run all jobs`).
+
+Mientras no exista el secreto, el job `calidad` **se omite sin poner el
+pipeline en rojo**: registra un aviso y termina. Es deliberado — una
+configuración que todavía no existe no es un defecto del código y no debe
+impedir que el resto de la construcción sea evaluable.
 
 ## 2. Qué se analiza y por qué así
 
@@ -52,10 +70,19 @@ la construcción sea evaluable.
 ### Sobre `pytest-cov` y el lock
 
 El job `pruebas` instala con `--require-hashes` desde `requirements-ci.txt`, y
-esa propiedad no se toca. `pytest-cov` se instala **aparte, solo en el job
-`calidad`**: es instrumental de ese job y no una dependencia del producto.
-Meterlo en el lock obligaría al job de pruebas a instalar algo que no usa, y a
-todo el que clone el repositorio también.
+esa propiedad no se toca. `pytest-cov` vive en su propio lock,
+[`backend/requirements-calidad.txt`](../backend/requirements-calidad.txt), con
+el mismo régimen: versiones exactas, hashes y solo ruedas.
+
+Están separados porque son cosas distintas: uno declara lo que el producto
+necesita para funcionar, el otro lo que este job necesita para medir. Meter el
+segundo en el primero obligaría al job de pruebas —y a cualquiera que clone el
+repositorio— a instalar algo que no usa.
+
+La primera versión instalaba `pytest-cov` con un rango de versiones y sin
+hashes. SonarCloud lo marcó como dos incidencias de seguridad, y con razón:
+cualquier versión nueva del paquete o de sus dependencias podía entrar en la
+construcción sin que nadie lo hubiera decidido.
 
 ## 3. Evidencia para la revisión
 
@@ -63,10 +90,10 @@ Una vez completado el paso 1, la evidencia auditable son estas tres cosas
 juntas —ninguna sirve sola—:
 
 - **URL pública del proyecto:**
-  `https://sonarcloud.io/summary/overall?id=<projectKey>`
+  `https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb`
 - **Insignia del Quality Gate** en el README, que refleja el estado en vivo:
   ```markdown
-  [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=<projectKey>&metric=alert_status)](https://sonarcloud.io/summary/overall?id=<projectKey>)
+  [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=ISCOUTB_AS_202620_PideUtb&metric=alert_status)](https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb)
   ```
 - **Run del hash revisado:** el enlace al run de Actions correspondiente al
   commit exacto que se entrega. Un run de un commit anterior no demuestra el

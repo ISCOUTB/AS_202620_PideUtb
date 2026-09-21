@@ -1,0 +1,35 @@
+# Instrumental del job `calidad` del pipeline: solo medición de cobertura.
+#
+# Vive aparte de `requirements-ci.txt` a propósito. `pytest-cov` no es una
+# dependencia del producto ni del job de pruebas: meterlo en el lock principal
+# obligaría a instalarlo a todo el que clone el repositorio y a cada ejecución
+# de la suite, que no lo necesita.
+#
+# Mismo régimen que el lock principal: versiones exactas, hashes, y solo
+# ruedas. Un `pip install paquete` suelto en el pipeline deja la puerta abierta
+# a que una versión nueva del paquete —o de cualquiera de sus dependencias—
+# entre en la construcción sin que nadie lo haya decidido.
+#
+# Regenerar tras cambiar una versión (desde `backend/`):
+#
+#   python -m pip download --only-binary=:all: --no-deps \
+#     --platform manylinux2014_x86_64 --python-version 312 \
+#     --implementation cp --abi cp312 -d /tmp/whl \
+#     "pytest-cov==X.Y.Z" "coverage==A.B.C"
+#   python -m pip hash /tmp/whl/*.whl
+#
+# `coverage` trae extensión en C, así que su rueda es distinta por versión de
+# Python. Se listan los hashes de CPython 3.11, 3.12 y 3.13: pip acepta la
+# instalación si coincide **cualquiera** de ellos, de modo que subir la versión
+# de Python del job no rompe la construcción.
+
+pytest-cov==6.3.0 \
+    --hash=sha256:440db28156d2468cafc0415b4f8e50856a0d11faefa38f30906048fe490f1749
+
+coverage==7.11.0 \
+    --hash=sha256:aef1747ede4bd8ca9cfc04cc3011516500c6891f1b33a94add3253f6f876b7b7 \
+    --hash=sha256:16ce17ceb5d211f320b62df002fa7016b7442ea0fd260c11cec8ce7730954893 \
+    --hash=sha256:10ad04ac3a122048688387828b4537bc9cf60c0bf4869c1e9989c46e45690b82
+
+# `pluggy` es la otra dependencia de pytest-cov y ya viene con su hash desde
+# `requirements-ci.txt`, que se instala antes en el mismo job.

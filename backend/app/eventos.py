@@ -53,7 +53,10 @@ def publicar(canal: str, mensaje: dict[str, Any]) -> int:
     """
     entregados = 0
 
-    for manejador in list(_suscriptores.get(canal, [])):
+    # Instantánea inmutable de los suscriptores: un manejador puede
+    # suscribir a otro mientras se reparte el evento, y modificar la lista
+    # durante su propio recorrido es un error silencioso.
+    for manejador in tuple(_suscriptores.get(canal, ())):
         try:
             manejador(mensaje)
         except Exception:  # noqa: BLE001 — aislar al publicador es el objetivo

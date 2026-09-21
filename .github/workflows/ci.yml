@@ -65,7 +65,7 @@ jobs:
   #   3. pytest    — ¿lo cumple el código, y sigue emitiendo lo que el
   #                  consumidor declaró que lee? (corre en el job `pruebas`)
   #
-  # Las dos primeras no tocan `requirements-ci.txt`: Spectral entra por npx y
+  # Las dos primeras no tocan `requirements-ci.txt`: Spectral entra por npm y
   # oasdiff por su imagen oficial, así que el lock con hashes del backend
   # sigue siendo el único origen de dependencias de Python.
   # --------------------------------------------------------------------------
@@ -84,12 +84,22 @@ jobs:
         with:
           node-version: "22"
 
+      # Se instala explícitamente en lugar de dejar que `npx` lo descargue
+      # sobre la marcha: `npx` resuelve el paquete en el momento de usarlo y
+      # ejecuta sus scripts de instalación, que es código de terceros corriendo
+      # con los permisos del runner. `--ignore-scripts` los desactiva, y la
+      # versión exacta evita que la construcción cambie sola.
+      - name: Instalar Spectral
+        run: |
+          npm install --no-save --no-audit --no-fund --ignore-scripts \
+            @stoplight/spectral-cli@6.15.0
+
       # `--fail-severity=warn` y no `error`: con el umbral en `error` la
       # validación solo se activaría ante un archivo roto, que es el caso que
       # nunca ocurre. Los avisos son los que detectan la degradación real.
       - name: Validar la forma de los contratos (Spectral)
         run: |
-          npx --yes @stoplight/spectral-cli@6.15.0 lint \
+          ./node_modules/.bin/spectral lint \
             docs/api/openapi.yaml \
             docs/api/asyncapi.yaml \
             --ruleset .spectral.yaml \
@@ -159,16 +169,19 @@ jobs:
         working-directory: backend
         run: |
           pip install --require-hashes --only-binary=:all: -r requirements-ci.txt
-          pip install "pytest-cov>=5,<7"
+          pip install --require-hashes --only-binary=:all: -r requirements-calidad.txt
 
       - name: Medir cobertura
         if: steps.config.outputs.configurado == 'si'
         working-directory: backend
         run: pytest --cov=app --cov-report=xml:coverage.xml
 
+      # Anclada al SHA del commit y no a la etiqueta `v8`: una etiqueta se
+      # puede mover a otro commit sin que nadie se entere, de modo que el
+      # pipeline pasaría a ejecutar código distinto del revisado. El SHA no.
       - name: Analizar con SonarCloud
         if: steps.config.outputs.configurado == 'si'
-        uses: SonarSource/sonarqube-scan-action@v5
+        uses: SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4  # v8.2.2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
@@ -177,7 +190,7 @@ jobs:
       # seguiría en verde aunque la puerta estuviera en rojo.
       - name: Esperar el veredicto del Quality Gate
         if: steps.config.outputs.configurado == 'si'
-        uses: SonarSource/sonarqube-quality-gate-action@v1
+        uses: SonarSource/sonarqube-quality-gate-action@7a5fffe8e523c40e0c740b6bc2712ab503e52efa  # v1.2.1
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
