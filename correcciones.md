@@ -7,6 +7,11 @@
 **Evidencia de que la validación puede fallar:** ❌ [run #22](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35557297196) — commit `adb4077`, conclusión `failure`, provocado a propósito. Detalle en la [sección 3](#3-evidencia-s7--contrato-de-api-pruebas-de-contrato-y-adr-de-integración).
 **Quality Gate:** ✅ `OK` — [panel público](https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb) · `projectKey` `ISCOUTB_AS_202620_PideUtb`, organización `isco-utb`, visibilidad `public`. Las cinco condiciones en verde, incluidas fiabilidad y seguridad sobre código nuevo, que fallaban antes.
 
+> **Para una revisión rápida:** [`docs/evidencia-s7.md`](docs/evidencia-s7.md)
+> reúne las citas de los diez criterios de la ficha —archivo, línea y fragmento
+> reproducido— en 12 KB. Este documento es el histórico completo de la
+> retroalimentación; aquel es la evidencia puntual de la S7.
+
 Este documento resume, para la nueva revisión, qué se corrigió de la
 retroalimentación de las semanas 1 a 5 y dónde quedó cada evidencia. El detalle
 punto por punto está en la [sección 7](#7-respuesta-punto-por-punto-a-la-retroalimentación).

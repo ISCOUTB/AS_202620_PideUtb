@@ -6,6 +6,32 @@
 
 Pide UTB es una plataforma web para realizar pedidos de comida dentro del campus universitario. Permite consultar menús y precios, realizar pedidos, gestionar pagos mediante una pasarela en ambiente Sandbox y recibir un código para verificar y recoger las compras de forma rápida y organizada.
 
+## Evidencia de la entrega, con citas
+
+Cada criterio apunta a un archivo y una línea concretos. El detalle, con los
+fragmentos reproducidos, está en [`docs/evidencia-s7.md`](docs/evidencia-s7.md)
+— 12 KB, pensado para leerse de una sola vez.
+
+| Criterio | Evidencia citada |
+|---|---|
+| Contrato ejecutable versionado | [`docs/api/openapi.yaml`](docs/api/openapi.yaml) `openapi: 3.1.0`, `info.version: 1.0.0` · [`asyncapi.yaml`](docs/api/asyncapi.yaml) `3.0.0` |
+| Rutas y esquemas, no solo endpoints | 7 `paths` con `content`/`schema`; `components.schemas` con `required` y tipos |
+| **Correspondencia contrato ↔ código** | 7 paths ↔ 7 rutas: `menu/router.py:18,22,35` · `pedidos/router.py:12,16,36` · `pagos/router.py:18,22,40` · `main.py:33`. Lo verifica `test_contrato_api.py` en cada push |
+| Versión declarada con historial | `info.version: 1.0.0` + [`docs/api/historial/openapi-1.0.0.yaml`](docs/api/historial/) congelado |
+| Prueba de contrato presente | `test_contrato_api.py` · `test_compatibilidad_contrato.py` · `test_expectativas_consumidor.py` — **20 casos negativos** |
+| **El pipeline la ejecuta** | [`ci.yml:47-48`](.github/workflows/ci.yml) `pytest -v` · `ci.yml:100-106` Spectral · `ci.yml:115-120` oasdiff |
+| **Falla ante un cambio incompatible** | [Run #22](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35557297196) — `failure`. Cayeron oasdiff y las pruebas; **Spectral pasó**, porque lo roto era la promesa y no la forma |
+| ADR ligado a un escenario | [ADR-0003](docs/adr/0003-estrategia-integracion.md) ← ESC-05, con las dos alternativas descartadas |
+| **arc42 §6 con los flujos** | [`arc42.md`](docs/arc42/arc42.md) **líneas 391-644**: 6 flujos etiquetados, 4 diagramas de secuencia, 9 modos de fallo |
+| **C4 N2 con protocolo y formato** | [`nivel2-contenedores.md`](docs/c4/nivel2-contenedores.md) **líneas 27-34**: 7 relaciones, cada una con protocolo · formato · modo |
+| Tabla de aspectos de 8 columnas | [`docs/aspectos.md`](docs/aspectos.md) — 6 filas, ninguna celda de Código o Pruebas vacía |
+| **SonarCloud** | [Panel público](https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb) · Quality Gate **`OK`** · workflow en `ci.yml:174-193` |
+
+Las citas por número de línea las protege
+[`backend/tests/test_evidencia.py`](backend/tests/test_evidencia.py): si un
+archivo se reordena, la construcción falla y obliga a actualizarlas. Una cita
+caducada afirma algo falso con apariencia de precisión.
+
 ## Contrato de API
 
 La API se define **antes que el código** (API-first). El contrato versionado es
