@@ -3,8 +3,8 @@
 **Equipo:** `Santiago-C0` · `daniarriet` · `ruddy2000utb-droid`
 **Repositorio:** https://github.com/ISCOUTB/AS_202620_PideUtb
 **Rama evaluable:** `master`
-**Estado de CI:** ⚠️ `PENDIENTE` — completar con el run del **commit exacto que se entrega**, tal como pidió la retroalimentación de S6 («el run de CI del hash revisado»). Formato a usar: `[run #N](<url del run>) — commit <hash>, 77 pruebas en Python 3.11 y 3.12`
-**Quality Gate:** ⚠️ `PENDIENTE` — requiere el alta descrita en [`docs/calidad-sonarcloud.md`](docs/calidad-sonarcloud.md) §1
+**Estado de CI:** ✅ verde — [run #18](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35550051257) — commit `356369d` sobre `master`, conclusión `success`. Es el run del **hash exacto que se entrega**, como pidió la retroalimentación de S6.
+**Quality Gate:** ⚠️ `PENDIENTE` — el job `calidad` ya corre y se omite sin fallar mientras no exista el secreto `SONAR_TOKEN`, tal como se diseñó. Alta en [`docs/calidad-sonarcloud.md`](docs/calidad-sonarcloud.md) §1
 
 Este documento resume, para la nueva revisión, qué se corrigió de la
 retroalimentación de las semanas 1 a 5 y dónde quedó cada evidencia. El detalle
@@ -357,7 +357,7 @@ Estados: ✅ corregido · ➖ retirado de las exigencias por el docente.
 | Observación | Estado | Evidencia |
 |---|---|---|
 | Enlace al análisis público de SonarCloud con su Quality Gate | ⚠️ En curso | [`sonar-project.properties`](sonar-project.properties) y el job `calidad` de [`ci.yml`](.github/workflows/ci.yml) ya están en el repositorio. Falta el alta en SonarCloud y el secreto `SONAR_TOKEN`; el procedimiento está en [`docs/calidad-sonarcloud.md`](docs/calidad-sonarcloud.md). Hasta entonces el job se omite sin poner el pipeline en rojo |
-| Run de CI del hash revisado | ⚠️ Pendiente | Se completa en el encabezado de este documento con el run del commit que se entrega. La observación era correcta: el run citado (`cd70d84`) ya no era el estado de `master` |
+| Run de CI del hash revisado | ✅ | [Run #18](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35550051257) — commit `356369d`, el mismo que se entrega. La observación era correcta: el run citado antes (`cd70d84`) ya no era el estado de `master` |
 | Títulos de los ADR que enuncien la decisión, no el tema | ✅ | Los tres reescritos. ADR-0001: «Adoptar un monolito modular en el que un módulo solo invoca la interfaz pública de otro». ADR-0002: «Hacer del contexto Cuentas el único escritor de `Establecimiento`…». ADR-0003: «Confirmar el pago de forma asíncrona por webhook y mantener síncrono el resto de la API». El índice de [arc42 §9](docs/arc42/arc42.md) se rehízo como tabla con una columna *Decisión* y otra *Escenario que la motiva* |
 | arc42 §8 con lenguaje ubicuo y mapa de contextos | ✅ | [§8.1](docs/arc42/arc42.md#lenguaje-ubicuo) lenguaje ubicuo, [§8.2](docs/arc42/arc42.md#seccion-8) contextos y propiedad de datos. Ya estaba desde S6; se confirma |
 | Mantener la trazabilidad de aspectos y el registro de IA | ✅ | [`docs/aspectos.md`](docs/aspectos.md) amplía la cadena a ESC-04 y ESC-05, que dejan de estar pendientes; [`docs/ia.md`](docs/ia.md) registra el uso de S7 con lo rechazado |
@@ -377,16 +377,26 @@ Estados: ✅ corregido · ➖ retirado de las exigencias por el docente.
 
 ### Evidencia de integración continua
 
-El pipeline [`.github/workflows/ci.yml`](.github/workflows/ci.yml) ejecuta la
-suite completa (`pytest`, 13 pruebas) en Python 3.11 y 3.12 en cada push y cada
-pull request.
+El pipeline [`.github/workflows/ci.yml`](.github/workflows/ci.yml) ejecuta
+cuatro jobs en cada push y cada pull request:
+
+| Job | Qué corre | Resultado en el run #18 |
+|---|---|---|
+| `pytest (Python 3.11)` | 77 pruebas | ✅ |
+| `pytest (Python 3.12)` | 77 pruebas | ✅ |
+| `Contrato de API` | Spectral sobre los dos contratos + oasdiff contra la versión congelada | ✅ en 15 s |
+| `SonarCloud` | Cobertura y Quality Gate | ✅ omitido — *«Falta el secreto SONAR_TOKEN; se omite el análisis»*, que es el comportamiento diseñado |
+
+Duración total: 55 s.
 
 | Run | Rama | Commit | Evento | Resultado |
 |---|---|---|---|---|
-| [#15](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34783395594) | `master` | `cd70d84` | push | ✅ success |
+| [**#18**](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35550051257) | `master` | `356369d` | push | ✅ **success** — entrega S7 |
+| [#15](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/34783395594) | `master` | `cd70d84` | push | ✅ success — entrega S6 |
 
-Ese es el run de referencia para la entrega: corresponde al estado actual de
-`master`, con la entrega S6 completa. El historial completo de
+El run **#18** es el de referencia para esta entrega: corresponde al commit
+`356369d`, que es el estado actual de `master` con la entrega S7 completa. El
+#15 se conserva como referencia de S6. El historial completo de
 ejecuciones —todas en verde— está en la
 [pestaña Actions](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/ci.yml).
 
