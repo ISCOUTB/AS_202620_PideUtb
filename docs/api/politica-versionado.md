@@ -18,7 +18,7 @@ Es la confusión más fácil de cometer, así que se separan explícitamente.
 
 | Qué | Dónde vive | Para qué sirve |
 |---|---|---|
-| **Versión del contrato** | `info.version` (SemVer: `1.0.0`) | Comunica a los consumidores **qué cambió y si les afecta**. Cambia en cada modificación del archivo. |
+| **Versión del contrato** | `info.version` (SemVer; hoy `1.1.0`) | Comunica a los consumidores **qué cambió y si les afecta**. Cambia en cada modificación del archivo. |
 | **Versión de la ruta** | El prefijo `/v1` en cada path | Permite que **dos versiones incompatibles convivan** desplegadas. Solo cambia cuando hay una rotura. |
 
 Un contrato puede pasar de `1.0.0` a `1.4.0` sin que la ruta deje de ser `/v1`:
@@ -119,7 +119,31 @@ Al revés se avisa de una migración hacia un destino que todavía no existe.
 
 | Versión | Ruta | Estado | Archivo congelado | Cambios |
 |---|---|---|---|---|
-| **1.0.0** | `/v1` | **Vigente** | [`historial/openapi-1.0.0.yaml`](historial/openapi-1.0.0.yaml) | Versión inicial: catálogo, pedidos y pagos. |
+| **1.0.0** | `/v1` | Soportada | [`historial/openapi-1.0.0.yaml`](historial/openapi-1.0.0.yaml) | Versión inicial: catálogo, pedidos y pagos. |
+| **1.1.0** | `/v1` | **Vigente** | [`historial/openapi-1.1.0.yaml`](historial/openapi-1.1.0.yaml) | `/health` sondea dependencias; nuevo `503`; nueva operación `/metricas`. |
+
+### El caso 1.1.0, como ejemplo de esta política aplicada
+
+Es el primer cambio que se midió contra estas reglas, y el diseño cambió por lo
+que dijeron.
+
+Hacer real el chequeo de salud pedía, en la versión intuitiva, que `status`
+pudiera valer `ok` **o** `no_disponible`. Eso es exactamente la regla **I-8**:
+un valor nuevo en un `enum` de respuesta. Un cliente cuyo `if (status === "ok")`
+funcionaba habría empezado a caer en la rama equivocada sin que nadie tocara su
+código, y habría obligado a `/v2`.
+
+La forma compatible fue separar por código de respuesta: el `200` conserva su
+`enum` de un solo valor y **añade** el campo `dependencias`, y el estado
+degradado vive en un esquema propio, `ServicioNoDisponible`, bajo un `503`
+nuevo. Añadir un campo a una respuesta y añadir un código no están en la lista
+de §3, así que el salto es **MINOR**: 1.0.0 → 1.1.0, la ruta sigue en `/v1` y
+ningún consumidor tuvo que cambiar.
+
+Quedó un rastro que conviene notar: el `503` obligó a declararlo en
+`contracts/consumidor-web.yaml`, porque `test_expectativas_consumidor.py` exige
+que el consumidor sepa manejar todo código que puede recibir. Un cambio
+compatible tampoco se cuela sin que alguien lo mire.
 
 El contrato de eventos sigue la misma política y su propio historial:
 [`historial/asyncapi-1.0.0.yaml`](historial/asyncapi-1.0.0.yaml).

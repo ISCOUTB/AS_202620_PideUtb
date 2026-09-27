@@ -24,20 +24,25 @@ con límite. Este archivo cabe entero.
 
 ## 1. Correspondencia contrato ↔ código
 
-Las siete operaciones del contrato y la línea exacta que las implementa. La ruta
+Las ocho operaciones del contrato y la línea exacta que las implementa. La ruta
 efectiva es `prefix` del router más el path del decorador.
 
 | Path en `openapi.yaml` | Prefijo del router | Path del decorador | Ruta resultante |
 |---|---|---|---|
-| `/health` · L77 | — | `main.py:70-71` `@app.get("/health")` | `/health` ✔ |
-| `/v1/menu/items/{item_id}` · L94 | `menu/router.py:18` `/v1/menu` | `:21-22` `"/items/{item_id}"` | ✔ |
-| `/v1/menu/establecimientos/{establecimiento_id}/items` · L118 | `menu/router.py:18` `/v1/menu` | `:34-35` `"/establecimientos/{establecimiento_id}/items"` | ✔ |
-| `/v1/pedidos` · L152 | `pedidos/router.py:12` `/v1/pedidos` | `:15-16` `""` | ✔ |
-| `/v1/pedidos/{pedido_id}` · L187 | `pedidos/router.py:12` `/v1/pedidos` | `:35-36` `"/{pedido_id}"` | ✔ |
-| `/v1/pagos/intentos` · L211 | `pagos/router.py:18` `/v1/pagos` | `:21-22` `"/intentos"` | ✔ |
-| `/v1/pagos/eventos` · L244 | `pagos/router.py:18` `/v1/pagos` | `:39-40` `"/eventos"` | ✔ |
+| `/health` · L77 | — | `main.py:81-82` `@app.get("/health")` | `/health` ✔ |
+| `/metricas` · L110 | — | `main.py:116-117` `@app.get("/metricas")` | `/metricas` ✔ |
+| `/v1/menu/items/{item_id}` · L133 | `menu/router.py:18` `/v1/menu` | `:21-22` `"/items/{item_id}"` | ✔ |
+| `/v1/menu/establecimientos/{establecimiento_id}/items` · L157 | `menu/router.py:18` `/v1/menu` | `:34-35` `"/establecimientos/{establecimiento_id}/items"` | ✔ |
+| `/v1/pedidos` · L191 | `pedidos/router.py:12` `/v1/pedidos` | `:15-16` `""` | ✔ |
+| `/v1/pedidos/{pedido_id}` · L226 | `pedidos/router.py:12` `/v1/pedidos` | `:35-36` `"/{pedido_id}"` | ✔ |
+| `/v1/pagos/intentos` · L250 | `pagos/router.py:18` `/v1/pagos` | `:21-22` `"/intentos"` | ✔ |
+| `/v1/pagos/eventos` · L283 | `pagos/router.py:18` `/v1/pagos` | `:39-40` `"/eventos"` | ✔ |
 
-**7 paths declarados, 7 rutas implementadas, ninguna de más.**
+**8 paths declarados, 8 rutas implementadas, ninguna de más.**
+
+`/metricas` entró en el contrato **1.1.0** junto con el chequeo de salud real.
+El cambio es compatible —solo añade superficie— y por eso la versión sube en el
+segundo número y no en el primero (`politica-versionado.md` §2).
 
 Los prefijos, literales:
 
