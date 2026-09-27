@@ -1,0 +1,43 @@
+# Qué NO llega nunca a Git desde esta carpeta.
+
+# --------------------------------------------------------------------------
+# El state: la memoria de Terraform
+# --------------------------------------------------------------------------
+# Contiene un inventario de todo lo creado y, dentro, **los valores sensibles
+# en claro**: la contraseña de la base de datos, los tokens, las cadenas de
+# conexión. Marcar una variable como `sensitive` la oculta en la salida de la
+# terminal, pero NO la cifra en el state.
+#
+# Versionarlo sería publicar las credenciales del sistema.
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Planes guardados: contienen los mismos valores que el state.
+*.tfplan
+*.tfplan.*
+
+# Caché local de providers. Se regenera con `terraform init`.
+.terraform/
+
+# Volcados de error de Terraform, que incluyen el estado en memoria.
+crash.log
+crash.*.log
+
+# --------------------------------------------------------------------------
+# Las credenciales
+# --------------------------------------------------------------------------
+# `terraform.tfvars` es el archivo donde cada integrante pone sus tokens
+# reales. La plantilla sin valores sí se versiona, para que se sepa qué hay
+# que rellenar.
+*.tfvars
+*.tfvars.json
+!terraform.tfvars.example
+
+# --------------------------------------------------------------------------
+# Lo que SÍ se versiona, y conviene decirlo
+# --------------------------------------------------------------------------
+# `.terraform.lock.hcl` NO está ignorado, y es a propósito: fija la versión
+# exacta de cada provider y su hash. Es el equivalente de
+# `backend/requirements-ci.txt` para la infraestructura, y es lo que hace que
+# el mismo código produzca los mismos recursos desde otra máquina.
