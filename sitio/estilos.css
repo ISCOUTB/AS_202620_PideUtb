@@ -1,0 +1,156 @@
+/* Estilos del sitio.
+   Sin framework y sin paso de construcción: `render.tf` publica esta carpeta
+   tal cual, y añadir un compilador obligaría a un build que no aporta nada a
+   tres archivos. */
+
+:root {
+  --fondo: #0f1115;
+  --superficie: #181c23;
+  --borde: #2a303a;
+  --texto: #e8eaed;
+  --tenue: #9aa3af;
+  --acento: #3d8bfd;
+  --ok: #34c759;
+  --aviso: #ffb020;
+  --error: #ff5c5c;
+  --radio: 10px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --fondo: #f7f8fa;
+    --superficie: #ffffff;
+    --borde: #dfe3e8;
+    --texto: #1b1f24;
+    --tenue: #616a75;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0 16px 48px;
+  background: var(--fondo);
+  color: var(--texto);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+header, main, footer { max-width: 680px; margin: 0 auto; }
+
+header { padding: 32px 0 8px; }
+h1 { margin: 0; font-size: 2rem; letter-spacing: -0.02em; }
+.lema { margin: 4px 0 0; color: var(--tenue); }
+
+h2 { font-size: 1.35rem; margin: 28px 0 12px; }
+h3 { font-size: 1.05rem; margin: 24px 0 10px; }
+
+/* Solo una pantalla visible a la vez. */
+.pantalla { display: none; }
+.pantalla.activa { display: block; }
+.oculto { display: none !important; }
+
+/* --- Carta --- */
+.items { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+
+.item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+}
+
+.item-datos { flex: 1; min-width: 0; }
+.item-nombre { font-weight: 600; }
+.item-precio { color: var(--tenue); font-variant-numeric: tabular-nums; }
+
+.item.agotado { opacity: 0.55; }
+.etiqueta-agotado {
+  font-size: 0.8rem; color: var(--aviso);
+  border: 1px solid var(--aviso); border-radius: 999px; padding: 2px 10px;
+}
+
+/* --- Botones --- */
+button {
+  font: inherit; cursor: pointer;
+  border-radius: var(--radio);
+  border: 1px solid transparent;
+  padding: 10px 18px;
+  background: var(--acento); color: #fff;
+  transition: filter 0.15s ease;
+}
+button:hover:not(:disabled) { filter: brightness(1.12); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+
+.secundario {
+  background: transparent; color: var(--tenue);
+  border-color: var(--borde); margin-top: 20px;
+}
+
+.metodos { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* --- Resumen --- */
+.resumen {
+  margin: 0; padding: 16px;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  display: grid; grid-template-columns: auto 1fr; gap: 6px 16px;
+}
+.resumen dt { color: var(--tenue); }
+.resumen dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.resumen .total { font-weight: 700; font-size: 1.1rem; }
+
+/* --- Espera --- */
+.cargando { text-align: center; padding: 48px 0 8px; }
+
+.girando {
+  width: 34px; height: 34px; margin: 0 auto 16px;
+  border: 3px solid var(--borde);
+  border-top-color: var(--acento);
+  border-radius: 50%;
+  animation: girar 0.9s linear infinite;
+}
+@keyframes girar { to { transform: rotate(360deg); } }
+
+/* Respeta a quien pidió menos movimiento en su sistema. */
+@media (prefers-reduced-motion: reduce) {
+  .girando { animation-duration: 3s; }
+}
+
+.nota { color: var(--tenue); font-size: 0.9rem; }
+
+/* --- Código de canje --- */
+.codigo-canje {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 2.4rem; letter-spacing: 0.28em;
+  text-align: center; padding: 22px 16px;
+  background: var(--superficie);
+  border: 2px dashed var(--ok);
+  border-radius: var(--radio);
+  margin: 16px 0;
+}
+
+.estado-linea { display: flex; align-items: center; gap: 10px; margin: 12px 0; }
+.punto { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.punto.ok { background: var(--ok); }
+.punto.espera { background: var(--aviso); }
+.punto.mal { background: var(--error); }
+
+/* --- Error --- */
+.error {
+  margin: 20px 0; padding: 14px 16px;
+  border: 1px solid var(--error);
+  border-left-width: 4px;
+  border-radius: var(--radio);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+}
+
+footer {
+  margin-top: 48px; padding-top: 20px;
+  border-top: 1px solid var(--borde);
+  color: var(--tenue); font-size: 0.9rem;
+}
+footer a { color: var(--acento); }
