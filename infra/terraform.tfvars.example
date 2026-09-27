@@ -41,7 +41,13 @@ supabase_db_password = "GENERAR-UNA-DE-AL-MENOS-16-CARACTERES"
 # --------------------------------------------------------------------------
 # GitHub · Settings → Developer settings → Personal access tokens
 # --------------------------------------------------------------------------
-# Permisos mínimos necesarios: `repo` y `admin:repo_hook`.
+# Permiso mínimo necesario: **solo `repo`** (el grupo completo).
+#
+# No hace falta `admin:repo_hook`: ese permiso sirve para gestionar webhooks, y
+# el único recurso de GitHub que declara esta carpeta es
+# `github_branch_protection`. Pedir un permiso que nunca se usa amplía sin
+# motivo lo que puede hacer el token si se filtra.
+#
 # Sin permiso de administración sobre el repositorio de la organización, la
 # protección de rama fallará al aplicarse.
 github_token = "ghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
