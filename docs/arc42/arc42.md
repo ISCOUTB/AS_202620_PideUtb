@@ -150,10 +150,28 @@ equipo y a condiciones del proyecto académico.
                                       sin utilizar dinero real durante el
                                       desarrollo académico.
 
-  **Despliegue previsto en Vercel**   Se utilizará como opción de
-                                      despliegue del proyecto dentro de
-                                      las posibilidades disponibles para
-                                      el equipo.
+  **Despliegue en Render, plan        Sustituye a la previsión inicial de
+  gratuito**                          Vercel. El motivo decisivo fue el
+                                      manejo de conexiones a la base de
+                                      datos: una función sin servidor
+                                      abre una conexión nueva en cada
+                                      arranque en frío, y el tráfico del
+                                      sistema es una ráfaga de dos horas.
+                                      La comparación completa de las dos
+                                      alternativas está en
+                                      docs/comparacion-despliegue.md; la
+                                      decisión, en ADR-0004.
+
+  **Infraestructura declarada con     Lo que se puede crear con la API
+  Terraform**                         del proveedor se declara en infra/
+                                      y no se configura a mano. La
+                                      excepción está documentada: el plan
+                                      gratuito de servicios web de Render
+                                      no lo soporta su proveedor de
+                                      Terraform, así que la API se crea
+                                      manualmente y eso queda anotado en
+                                      infra/README.md en lugar de
+                                      simularse.
   -----------------------------------------------------------------------
 
 ### 2.2 Restricciones organizativas
@@ -642,10 +660,137 @@ consultar y se puede reintentar.
 
 ------------------------------------------------------------------------
 
+<a id="7-vista-de-despliegue"></a>
+<a id="seccion-7"></a>
+
 ## 7. Vista de despliegue
 
-*(Pendiente — se documentará cuando se configure el despliegue real en
-Vercel, en una próxima entrega.)*
+La vista de bloques (sección 5) dice qué piezas existen y la de tiempo de
+ejecución (sección 6) qué pasa entre ellas. Esta dice **dónde corre cada una,
+quién la crea y qué se rompe cuando el entorno falla** — que es distinto de lo
+que se rompe cuando falla el código.
+
+La decisión de plataforma, con la comparación de la alternativa descartada,
+está en [ADR-0004](../adr/0004-plataforma-de-despliegue.md).
+
+<a id="despliegue-piezas"></a>
+
+### 7.1 Las piezas desplegables
+
+| # | Pieza | Dónde corre | Cómo se crea | Qué pasa si se cae |
+|---|---|---|---|---|
+| 1 | **Sitio** (`sitio/`) | Static site en Render | Terraform, [`infra/render.tf`](../../infra/render.tf) | Nadie puede entrar. La API sigue atendiendo el webhook, así que los pagos en curso se confirman igual |
+| 2 | **API** (`backend/`) | Web service en Render, contenedor con proceso persistente | **A mano** — ver §7.4 | El sitio muestra el aviso de servicio no disponible. Los webhooks de la pasarela se pierden salvo que ella reintente |
+| 3 | **Base de datos** | Proyecto PostgreSQL gestionado en Supabase | Terraform, [`infra/supabase.tf`](../../infra/supabase.tf) | La API responde `503` en `/health` y la plataforma la saca de rotación |
+| 4 | **Protección de rama** | GitHub | Terraform, [`infra/github.tf`](../../infra/github.tf) | Se podría fusionar a `master` sin pipeline en verde |
+| 5 | **Pipeline** | GitHub Actions | [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) | No hay despliegue nuevo; lo desplegado sigue funcionando |
+
+No hay pieza de **trabajos programados**: el sistema no tiene ninguno. Se hace
+constar porque una casilla vacía sin explicación se lee como un olvido.
+
+Tampoco hay pieza de **archivos**: no se suben imágenes ni documentos. Es una
+consecuencia deliberada de que el disco del contenedor sea efímero (§7.3), no
+una funcionalidad pendiente.
+
+<a id="despliegue-topologia"></a>
+
+### 7.2 Topología y protocolos
+
+Las mismas fronteras de §6.1, ahora con la frontera de despliegue marcada:
+
+```
+  Navegador del usuario
+        │  HTTPS · HTML/CSS/JS
+        ▼
+  ┌──────────────────────┐        ┌───────────────────────────────┐
+  │  Sitio (estático)    │        │  Pasarela Wompi (Sandbox)     │
+  │  Render · CDN        │        │  Infraestructura de terceros  │
+  └──────────┬───────────┘        └───────────────┬───────────────┘
+             │  HTTPS · JSON (REST) · síncrono    │
+             │                                    │  HTTPS · JSON + HMAC
+             ▼                                    │  ASÍNCRONO, entrante
+  ┌──────────────────────────────────────────┐    │
+  │  API (contenedor, proceso persistente)   │◄───┘
+  │  Render · 512 MB · disco efímero         │
+  └──────────┬───────────────────────────────┘
+             │  HTTPS · JSON (PostgREST) · síncrono
+             ▼
+  ┌──────────────────────────────────────────┐
+  │  PostgreSQL gestionado · Supabase        │
+  └──────────────────────────────────────────┘
+```
+
+Dos cosas que esta vista hace visibles y las anteriores no:
+
+- **La flecha del webhook entra desde fuera.** La API tiene que ser alcanzable
+  públicamente por un tercero, no solo por nuestro sitio. Eso descarta cualquier
+  despliegue detrás de una red privada y obliga a que la ruta `/v1/pagos/eventos`
+  se autentique por firma HMAC y no por origen ([ADR-0003](../adr/0003-estrategia-integracion.md)).
+- **Sitio y API son dos desplegables distintos.** Por eso hace falta CORS
+  (`app/main.py`), que sería innecesario si se sirvieran del mismo origen. La
+  lista de orígenes permitidos llega por variable de entorno y nunca es `*`.
+
+<a id="despliegue-entorno"></a>
+
+### 7.3 Lo que impone el entorno
+
+Restricciones del plan gratuito que **ya cambiaron el código**. Se listan aquí
+porque son propiedades del despliegue, no del diseño, y quien lea solo las
+secciones 5 y 6 no las vería:
+
+| Restricción del entorno | Qué obligó a hacer | Dónde está |
+|---|---|---|
+| El servicio se duerme tras 15 min sin tráfico y tarda ~60 s en volver | Pantalla de arranque que avisa al usuario en vez de dejar la página congelada | `sitio/index.html`, `sitio/config.js` |
+| El disco es efímero: nada sobrevive a un despliegue | Los logs van a salida estándar, nunca a un archivo | `app/observabilidad.py` |
+| Sin proceso persistente no hay pool de conexiones | Se descartó el modelo sin servidor | [ADR-0004](../adr/0004-plataforma-de-despliegue.md) |
+| La plataforma decide si enrutar tráfico leyendo el chequeo de salud | `/health` sondea dependencias de verdad y devuelve `503` | `app/salud.py` |
+| 512 MB de memoria | La ventana de latencias tiene tamaño fijo y no crece con el tráfico | `app/observabilidad.py` |
+
+<a id="despliegue-limites-iac"></a>
+
+### 7.4 Qué está declarado y qué no
+
+De las cinco piezas, **cuatro se declaran en [`infra/`](../../infra/) y una no**.
+
+La API se crea a mano porque el proveedor de Terraform de Render no sabe
+gestionar servicios web del plan gratuito
+([issue #105](https://github.com/render-oss/terraform-provider-render/issues/105)).
+Se deja constancia en lugar de escribir un recurso que no funciona: una
+definición de infraestructura que miente es peor que una incompleta, porque
+`terraform plan` diría que todo está en orden.
+
+Tampoco están en Terraform los **secretos** —claves de la pasarela, credenciales
+de la base de datos—. No es una limitación de la herramienta sino una decisión:
+el estado de Terraform guarda en claro todo lo que gestiona, así que declararlos
+ahí los escribiría en un archivo. Se configuran en el panel de cada servicio y
+llegan a la aplicación por variable de entorno. El motivo está anotado en
+[`infra/github.tf`](../../infra/github.tf).
+
+<a id="despliegue-observabilidad"></a>
+
+### 7.5 Cómo se sabe que está vivo
+
+| Señal | Dónde se consulta | Qué responde |
+|---|---|---|
+| `GET /health` | Directamente, y la plataforma cada pocos segundos | Si cada dependencia sondeada responde. `503` si alguna no |
+| `GET /metricas` | Directamente | p50, p95 y máximo por operación, sobre la ventana de peticiones recientes |
+| Logs JSON | Panel de la plataforma | Una línea por petición con `request_id`, `status` y `duration_ms` |
+
+Los tres tienen el mismo límite declarado: **miden un proceso**. La ventana de
+latencias se reinicia con el servicio y no se comparte entre réplicas, igual que
+el resto del estado ([V-09](../violaciones.md)). Es suficiente para responder
+«¿cómo va ahora mismo?» y no pretende ser un sistema de métricas.
+
+<a id="despliegue-deuda"></a>
+
+### 7.6 Deuda conocida de esta vista
+
+| # | Qué falta | Consecuencia |
+|---|---|---|
+| 1 | El estado sigue en memoria del proceso ([V-09](../violaciones.md)) | Un reinicio pierde los pedidos en curso. La base de datos está creada, pero los `repository.py` aún no la usan |
+| 2 | La API no está en Terraform | Recrear el entorno desde cero exige un paso manual documentado |
+| 3 | No hay entorno de pruebas separado | Se despliega contra el mismo entorno que se demuestra |
+| 4 | No hay alerta automática | El `503` lo ve la plataforma, pero nadie recibe aviso: hay que mirar |
 
 <a id="seccion-8"></a>
 <a id="lenguaje-ubicuo"></a>
@@ -757,6 +902,7 @@ arquitectura sin abrir nada.
 | [ADR-0001](../adr/0001-estilo-arquitectonico.md) | Adoptar un monolito modular en el que un módulo solo invoca la interfaz pública de otro | [ESC-01](#esc-01) | Aceptada |
 | [ADR-0002](../adr/0002-propiedad-datos-establecimiento.md) | Hacer del contexto Cuentas el único escritor de `Establecimiento` y comunicar los contextos por lenguaje publicado | [ESC-03](#esc-03) | Aceptada |
 | [ADR-0003](../adr/0003-estrategia-integracion.md) | Confirmar el pago de forma asíncrona por webhook y mantener síncrono el resto de la API | [ESC-05](#esc-05) | Aceptada |
+| [ADR-0004](../adr/0004-plataforma-de-despliegue.md) | Desplegar la API en un contenedor con proceso persistente, y no en funciones sin servidor | [ESC-02](#esc-02) | Aceptada |
 
 *(Este índice se amplía en cada entrega a medida que surgen nuevas
 decisiones — por ejemplo, la forma de validar el código de canje en el punto de

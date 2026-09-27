@@ -31,12 +31,12 @@ efectiva es `prefix` del router más el path del decorador.
 |---|---|---|---|
 | `/health` · L77 | — | `main.py:81-82` `@app.get("/health")` | `/health` ✔ |
 | `/metricas` · L110 | — | `main.py:116-117` `@app.get("/metricas")` | `/metricas` ✔ |
-| `/v1/menu/items/{item_id}` · L133 | `menu/router.py:18` `/v1/menu` | `:21-22` `"/items/{item_id}"` | ✔ |
-| `/v1/menu/establecimientos/{establecimiento_id}/items` · L157 | `menu/router.py:18` `/v1/menu` | `:34-35` `"/establecimientos/{establecimiento_id}/items"` | ✔ |
-| `/v1/pedidos` · L191 | `pedidos/router.py:12` `/v1/pedidos` | `:15-16` `""` | ✔ |
-| `/v1/pedidos/{pedido_id}` · L226 | `pedidos/router.py:12` `/v1/pedidos` | `:35-36` `"/{pedido_id}"` | ✔ |
-| `/v1/pagos/intentos` · L250 | `pagos/router.py:18` `/v1/pagos` | `:21-22` `"/intentos"` | ✔ |
-| `/v1/pagos/eventos` · L283 | `pagos/router.py:18` `/v1/pagos` | `:39-40` `"/eventos"` | ✔ |
+| `/v1/menu/items/{item_id}` · L136 | `menu/router.py:18` `/v1/menu` | `:21-22` `"/items/{item_id}"` | ✔ |
+| `/v1/menu/establecimientos/{establecimiento_id}/items` · L160 | `menu/router.py:18` `/v1/menu` | `:34-35` `"/establecimientos/{establecimiento_id}/items"` | ✔ |
+| `/v1/pedidos` · L194 | `pedidos/router.py:12` `/v1/pedidos` | `:15-16` `""` | ✔ |
+| `/v1/pedidos/{pedido_id}` · L229 | `pedidos/router.py:12` `/v1/pedidos` | `:35-36` `"/{pedido_id}"` | ✔ |
+| `/v1/pagos/intentos` · L253 | `pagos/router.py:18` `/v1/pagos` | `:21-22` `"/intentos"` | ✔ |
+| `/v1/pagos/eventos` · L286 | `pagos/router.py:18` `/v1/pagos` | `:39-40` `"/eventos"` | ✔ |
 
 **8 paths declarados, 8 rutas implementadas, ninguna de más.**
 
@@ -151,16 +151,16 @@ La rama se borró; el run permanece en el historial.
 
 ## 4. arc42 §6 — Vista de ejecución
 
-Ubicación: [`docs/arc42/arc42.md`](arc42/arc42.md) **líneas 391 a 644**.
+Ubicación: [`docs/arc42/arc42.md`](arc42/arc42.md) **líneas 409 a 662**.
 
 | Subsección | Línea | Contenido |
 |---|---|---|
-| 6.1 Resumen de los flujos y sus fronteras | 406 | Tabla de 6 flujos con protocolo, formato, modo y qué pasa si el otro lado no responde |
-| 6.2 Crear un pedido | 427 | Diagrama de secuencia — síncrono, en proceso |
-| 6.3 Pagar un pedido | 492 | Diagrama de secuencia — dos fases, cruza la frontera asíncrona |
-| 6.4 Consultar el estado | 574 | Diagrama de secuencia — cómo se entera el usuario |
-| 6.5 Modos de fallo | 607 | 9 modos de fallo, cada uno con la prueba que lo cubre |
-| 6.6 Deuda conocida | 631 | Limitaciones del transporte en proceso |
+| 6.1 Resumen de los flujos y sus fronteras | 424 | Tabla de 6 flujos con protocolo, formato, modo y qué pasa si el otro lado no responde |
+| 6.2 Crear un pedido | 445 | Diagrama de secuencia — síncrono, en proceso |
+| 6.3 Pagar un pedido | 510 | Diagrama de secuencia — dos fases, cruza la frontera asíncrona |
+| 6.4 Consultar el estado | 592 | Diagrama de secuencia — cómo se entera el usuario |
+| 6.5 Modos de fallo | 625 | 9 modos de fallo, cada uno con la prueba que lo cubre |
+| 6.6 Deuda conocida | 649 | Limitaciones del transporte en proceso |
 
 La tabla de §6.1, reproducida:
 
