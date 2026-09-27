@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es-CO">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PideUTB — pedidos en el campus</title>
+  <meta name="description" content="Pedí tu comida en el campus sin hacer fila.">
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+<header>
+  <h1>PideUTB</h1>
+  <p class="lema">Pedí sin hacer fila. Recogé con un código.</p>
+</header>
+
+<main>
+
+  <!-- Pantalla 0 · comprobación de salud.
+       Existe por el arranque en frío: el plan gratuito duerme el servicio tras
+       15 min sin tráfico y tarda ~60 s en volver. Sin esta pantalla, el primer
+       usuario de cada pico vería la página congelada. -->
+  <section id="pantalla-arranque" class="pantalla activa">
+    <div class="cargando" role="status" aria-live="polite">
+      <div class="girando" aria-hidden="true"></div>
+      <p id="mensaje-arranque">Comprobando el servicio…</p>
+      <p id="aviso-frio" class="nota oculto">
+        El servicio estaba dormido y se está despertando. Puede tardar hasta un
+        minuto: es el arranque en frío del plan gratuito.
+      </p>
+    </div>
+  </section>
+
+  <!-- Pantalla 1 · la carta -->
+  <section id="pantalla-carta" class="pantalla">
+    <h2>Carta</h2>
+    <ul id="lista-items" class="items"></ul>
+  </section>
+
+  <!-- Pantalla 2 · confirmar el pedido y elegir método de pago -->
+  <section id="pantalla-pedido" class="pantalla">
+    <h2>Tu pedido</h2>
+
+    <dl id="resumen-pedido" class="resumen"></dl>
+
+    <h3>¿Cómo querés pagar?</h3>
+    <!-- Los tres métodos son los que declara contracts/consumidor-web.yaml.
+         Añadir uno aquí sin declararlo allí rompe la prueba de contrato. -->
+    <div class="metodos" role="group" aria-label="Método de pago">
+      <button class="metodo" data-metodo="tarjeta">Tarjeta</button>
+      <button class="metodo" data-metodo="nequi">Nequi</button>
+      <button class="metodo" data-metodo="pse">PSE</button>
+    </div>
+
+    <button id="volver-a-carta" class="secundario">Volver a la carta</button>
+  </section>
+
+  <!-- Pantalla 3 · esperando la confirmación del pago.
+       Esta pantalla existe porque la confirmación llega por un canal
+       asíncrono (ADR-0003): la pasarela avisa cuando puede, y puede no avisar
+       nunca. Por eso se consulta el estado en vez de esperar una respuesta. -->
+  <section id="pantalla-espera" class="pantalla">
+    <div class="cargando" role="status" aria-live="polite">
+      <div class="girando" aria-hidden="true"></div>
+      <p>Esperando la confirmación del pago…</p>
+      <p class="nota">
+        La pasarela confirma por su cuenta. Si tarda, tu pedido sigue guardado.
+      </p>
+    </div>
+    <button id="dejar-de-esperar" class="secundario">Consultar más tarde</button>
+  </section>
+
+  <!-- Pantalla 4 · el resultado, según el estado del pedido -->
+  <section id="pantalla-resultado" class="pantalla">
+    <h2 id="titulo-resultado"></h2>
+    <div id="cuerpo-resultado"></div>
+    <button id="nuevo-pedido" class="secundario">Hacer otro pedido</button>
+  </section>
+
+  <!-- Errores -->
+  <div id="error" class="error oculto" role="alert"></div>
+
+</main>
+
+<footer>
+  <p>
+    Proyecto académico ·
+    <a href="https://github.com/ISCOUTB/AS_202620_PideUtb">Código y documentación</a>
+  </p>
+  <p class="nota">Los pagos usan la pasarela en ambiente de pruebas. No se cobra dinero real.</p>
+</footer>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

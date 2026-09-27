@@ -29,7 +29,7 @@ efectiva es `prefix` del router más el path del decorador.
 
 | Path en `openapi.yaml` | Prefijo del router | Path del decorador | Ruta resultante |
 |---|---|---|---|
-| `/health` · L77 | — | `main.py:32-33` `@app.get("/health")` | `/health` ✔ |
+| `/health` · L77 | — | `main.py:70-71` `@app.get("/health")` | `/health` ✔ |
 | `/v1/menu/items/{item_id}` · L94 | `menu/router.py:18` `/v1/menu` | `:21-22` `"/items/{item_id}"` | ✔ |
 | `/v1/menu/establecimientos/{establecimiento_id}/items` · L118 | `menu/router.py:18` `/v1/menu` | `:34-35` `"/establecimientos/{establecimiento_id}/items"` | ✔ |
 | `/v1/pedidos` · L152 | `pedidos/router.py:12` `/v1/pedidos` | `:15-16` `""` | ✔ |
