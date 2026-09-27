@@ -1,0 +1,55 @@
+# Plantilla de credenciales. Copiala a `terraform.tfvars` y rellená los valores.
+#
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# `terraform.tfvars` está en .gitignore y NUNCA debe versionarse.
+# Este archivo, sin valores reales, sí: documenta qué hay que rellenar.
+#
+# Terraform lee `terraform.tfvars` automáticamente. Si preferís no tener las
+# credenciales en un archivo, la alternativa es exportarlas como variables de
+# entorno con el prefijo `TF_VAR_`:
+#
+#   export TF_VAR_render_api_key="rnd_..."
+#
+# Es lo que hace el pipeline: en CI no existe ningún `.tfvars`, los valores
+# llegan desde los secretos de GitHub Actions.
+
+# --------------------------------------------------------------------------
+# Render · panel → Account Settings → API Keys
+# --------------------------------------------------------------------------
+render_api_key  = "rnd_XXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+# Aparece en la URL del panel. `usr-` si es cuenta individual, `tea-` si es de
+# equipo. Ejemplo de URL: https://dashboard.render.com/u/usr-abc123...
+render_owner_id = "usr-XXXXXXXXXXXXXXXXXXXX"
+
+# --------------------------------------------------------------------------
+# Supabase · supabase.com/dashboard/account/tokens
+# --------------------------------------------------------------------------
+supabase_access_token = "sbp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+# Identificador de la organización. Aparece en la URL del panel:
+# https://supabase.com/dashboard/org/<ESTE_VALOR>
+supabase_org_id = "XXXXXXXXXXXXXXXXXXXX"
+
+# Contraseña del usuario `postgres`. Generala, no la inventes:
+#   python -c "import secrets; print(secrets.token_urlsafe(32))"
+# No se puede recuperar después, solo restablecer. Guardala en el gestor de
+# contraseñas del equipo antes de continuar.
+supabase_db_password = "GENERAR-UNA-DE-AL-MENOS-16-CARACTERES"
+
+# --------------------------------------------------------------------------
+# GitHub · Settings → Developer settings → Personal access tokens
+# --------------------------------------------------------------------------
+# Permisos mínimos necesarios: `repo` y `admin:repo_hook`.
+# Sin permiso de administración sobre el repositorio de la organización, la
+# protección de rama fallará al aplicarse.
+github_token = "ghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+# --------------------------------------------------------------------------
+# Valores con defecto — descomentá solo si necesitás cambiarlos
+# --------------------------------------------------------------------------
+# supabase_region = "us-east-1"
+# github_owner    = "ISCOUTB"
+# github_repo     = "AS_202620_PideUtb"
+# rama_evaluable  = "master"
