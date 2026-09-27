@@ -28,6 +28,18 @@
 # La versión congelada de cada release vive en `docs/api/historial/`, y es
 # contra ella que `oasdiff` compara en CI para detectar roturas.
 
+# Contrato de la API pública de PideUTB.
+#
+# Este archivo es la FUENTE ÚNICA DE VERDAD de la superficie HTTP del sistema.
+# Se escribe antes que el código (API-first) y el pipeline falla si el código
+# deja de cumplirlo: ver `backend/tests/test_contrato_api.py`.
+#
+# Reglas de evolución y qué cuenta como cambio incompatible:
+#   docs/api/politica-versionado.md
+#
+# La versión congelada de cada release vive en `docs/api/historial/`, y es
+# contra ella que `oasdiff` compara en CI para detectar roturas.
+
 openapi: 3.1.0
 
 info:
@@ -132,9 +144,12 @@ paths:
       summary: Latencias observadas por operación.
       description: |
         Percentiles de latencia de las últimas peticiones atendidas, para poder
-        contestar con un número al escenario **ESC-02** («confirmar un pedido
-        en menos de 2 s para el 90 % de los casos»): la respuesta es `p95_ms`
-        de la clave `POST /v1/pedidos`.
+        hablar con números del escenario **ESC-02** (*el proceso completo de
+        pedir toma menos de 2 minutos en el 90 % de los intentos*).
+
+        No mide ESC-02 entera: esos 120 segundos incluyen el tiempo que tarda
+        una persona en decidir. Mide la parte del presupuesto que el servidor
+        controla, en `p95_ms` de la clave `POST /v1/pedidos`.
 
         Alcance declarado: mide **un** proceso, sobre una ventana de las
         últimas `ventana_maxima` peticiones, y se reinicia con el servicio. Se

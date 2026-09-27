@@ -91,8 +91,13 @@ def test_se_respeta_el_identificador_que_envia_el_cliente():
     assert respuesta.headers["X-Request-Id"] == "traza-del-cliente"
 
 
-def test_las_metricas_reportan_la_operacion_del_escenario_esc02():
-    """`POST /v1/pedidos` aparece con su p95: es lo que mide ESC-02."""
+def test_las_metricas_reportan_la_operacion_ligada_a_esc02():
+    """`POST /v1/pedidos` aparece con su p95.
+
+    Es la parte de ESC-02 que el servidor controla. El escenario mide el
+    recorrido completo del usuario en menos de 2 minutos, e incluye tiempo
+    humano que no se puede instrumentar desde aquí.
+    """
     LATENCIAS.limpiar()
 
     client.post("/v1/pedidos", json={"item_id": 1, "cantidad": 1})

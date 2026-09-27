@@ -38,12 +38,12 @@ CITAS = [
 
     # §1 — Los siete paths del contrato
     ("docs/api/openapi.yaml", 77, "/health:"),
-    ("docs/api/openapi.yaml", 133, "/v1/menu/items/{item_id}:"),
-    ("docs/api/openapi.yaml", 157, "/v1/menu/establecimientos/{establecimiento_id}/items:"),
-    ("docs/api/openapi.yaml", 191, "/v1/pedidos:"),
-    ("docs/api/openapi.yaml", 226, "/v1/pedidos/{pedido_id}:"),
-    ("docs/api/openapi.yaml", 250, "/v1/pagos/intentos:"),
-    ("docs/api/openapi.yaml", 283, "/v1/pagos/eventos:"),
+    ("docs/api/openapi.yaml", 136, "/v1/menu/items/{item_id}:"),
+    ("docs/api/openapi.yaml", 160, "/v1/menu/establecimientos/{establecimiento_id}/items:"),
+    ("docs/api/openapi.yaml", 194, "/v1/pedidos:"),
+    ("docs/api/openapi.yaml", 229, "/v1/pedidos/{pedido_id}:"),
+    ("docs/api/openapi.yaml", 253, "/v1/pagos/intentos:"),
+    ("docs/api/openapi.yaml", 286, "/v1/pagos/eventos:"),
 
     # §2 — El pipeline ejecuta la prueba de contrato
     (".github/workflows/ci.yml", 47, "Ejecutar pruebas"),
@@ -69,13 +69,13 @@ CITAS = [
     ("docs/c4/nivel2-contenedores.md", 34, "HTTPS · JSON + HMAC · ASÍNCRONO"),
 
     # §4 — arc42 sección 6
-    ("docs/arc42/arc42.md", 391, "## 6. Vista de tiempo de ejecución"),
-    ("docs/arc42/arc42.md", 406, "### 6.1 Resumen de los flujos"),
-    ("docs/arc42/arc42.md", 427, "### 6.2 Crear un pedido"),
-    ("docs/arc42/arc42.md", 492, "### 6.3 Pagar un pedido"),
-    ("docs/arc42/arc42.md", 574, "### 6.4 Consultar el estado"),
-    ("docs/arc42/arc42.md", 607, "### 6.5 Modos de fallo"),
-    ("docs/arc42/arc42.md", 631, "### 6.6 Deuda conocida"),
+    ("docs/arc42/arc42.md", 409, "## 6. Vista de tiempo de ejecución"),
+    ("docs/arc42/arc42.md", 424, "### 6.1 Resumen de los flujos"),
+    ("docs/arc42/arc42.md", 445, "### 6.2 Crear un pedido"),
+    ("docs/arc42/arc42.md", 510, "### 6.3 Pagar un pedido"),
+    ("docs/arc42/arc42.md", 592, "### 6.4 Consultar el estado"),
+    ("docs/arc42/arc42.md", 625, "### 6.5 Modos de fallo"),
+    ("docs/arc42/arc42.md", 649, "### 6.6 Deuda conocida"),
 ]
 
 

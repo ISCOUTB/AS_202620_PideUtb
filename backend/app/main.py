@@ -122,10 +122,16 @@ def health() -> EstadoServicio | JSONResponse:
 def metricas() -> Metricas:
     """Percentiles de latencia de las últimas peticiones atendidas.
 
-    Existe para poder responder con un número, y no con una impresión, a la
-    pregunta del escenario **ESC-02**: «¿el sistema confirma un pedido en menos
-    de 2 s para el 90 % de los casos?». La respuesta está en `p95_ms` de
-    `POST /v1/pedidos`.
+    Existe para poder responder con un número, y no con una impresión, sobre el
+    escenario **ESC-02**: *el proceso completo de pedir toma menos de 2 minutos
+    en el 90 % de los intentos*.
+
+    La métrica no mide ESC-02 entera, y decir lo contrario sería exagerar lo que
+    prueba: esos 120 segundos incluyen el tiempo que una persona tarda en elegir
+    qué comer, que no ocurre en el servidor. Mide **la parte del presupuesto que
+    el servidor sí controla**, en `p95_ms` de `POST /v1/pedidos`. Sirve para
+    distinguir un escenario incumplido por lentitud del backend de uno
+    incumplido por el arranque en frío o por el usuario.
 
     Es deliberadamente modesto: mide **este** proceso, en una ventana de las
     últimas peticiones, y se reinicia con el servicio. No sustituye a un
