@@ -33,7 +33,12 @@ operaciones:
   consultarSalud:
     proposito: Comprobar que la API responde antes de mostrar la pantalla inicial.
     campos_leidos: [status]
-    codigos_manejados: ["200"]
+    # El 503 se declara porque el chequeo pasó a sondear dependencias de verdad
+    # (contrato 1.1.0). Añadir un código de respuesta es compatible según
+    # `politica-versionado.md`, pero el consumidor tiene que declarar que sabe
+    # manejarlo: si no, `test_expectativas_consumidor.py` falla. Eso es lo que
+    # hace que un cambio compatible no se cuele sin que nadie lo mire.
+    codigos_manejados: ["200", "503"]
 
   listarItemsDeEstablecimiento:
     proposito: Pintar la carta de un establecimiento.

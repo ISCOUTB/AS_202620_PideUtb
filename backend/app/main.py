@@ -9,9 +9,12 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
-from app.esquemas_comunes import EstadoServicio
+from app import salud
+from app.esquemas_comunes import EstadoServicio, Metricas, ServicioNoDisponible
 from app.menu.router import router as menu_router
+from app.observabilidad import LATENCIAS, TAMANO_VENTANA, RegistroDePeticiones, configurar_logs
 from app.pagos.router import router as pagos_router
 from app.pedidos.router import router as pedidos_router
 
@@ -36,7 +39,7 @@ ORIGENES_PERMITIDOS = [
 
 app = FastAPI(
     title="PideUTB API",
-    version="1.0.0",
+    version="1.1.0",
     description=(
         "Pedidos de comida dentro del campus universitario. El contrato "
         "versionado que esta aplicación implementa está en "
@@ -61,6 +64,14 @@ app.add_middleware(
     allow_credentials=False,
 )
 
+# Se añade después de CORS y por eso queda **por fuera**: Starlette envuelve
+# cada middleware nuevo alrededor de los anteriores. Así el tiempo medido
+# incluye todo lo que tarda la petición de verdad, incluida la comprobación de
+# origen, y no solo la parte de la que este servicio se siente responsable.
+app.add_middleware(RegistroDePeticiones)
+
+configurar_logs(os.getenv("PIDEUTB_NIVEL_LOG", "INFO"))
+
 app.include_router(menu_router)
 app.include_router(pedidos_router)
 app.include_router(pagos_router)
@@ -71,14 +82,56 @@ app.include_router(pagos_router)
     "/health",
     tags=["operacion"],
     response_model=EstadoServicio,
-    summary="Comprueba que el proceso responde.",
+    summary="Comprueba que el servicio y sus dependencias responden.",
+    responses={503: {"model": ServicioNoDisponible, "description": "Alguna dependencia no responde."}},
 )
-def health() -> EstadoServicio:
-    """Sonda de vida.
+def health() -> EstadoServicio | JSONResponse:
+    """Sonda de disponibilidad.
 
     Queda **fuera de `/v1`** a propósito: es una sonda para la plataforma de
     despliegue, no parte de la superficie de negocio, y por eso no arrastra la
     promesa de compatibilidad de la API
     (`docs/api/politica-versionado.md` §1).
+
+    Devuelve `503` cuando alguna dependencia sondeada no responde. El código
+    importa más que el cuerpo: la plataforma decide si enruta tráfico leyendo
+    el estado HTTP, y un `200` con `{"estado": "mal"}` dentro la dejaría
+    mandando usuarios a un servicio roto.
     """
-    return EstadoServicio(status="ok")
+    sano, dependencias = salud.revisar()
+
+    if not sano:
+        # Se construye la respuesta a mano porque `response_model` fija el
+        # esquema del 200. Devolver el 503 con su propio esquema es lo que
+        # mantiene `status` como `enum` cerrado en cada código y evita la
+        # regla I-8.
+        return JSONResponse(
+            status_code=503,
+            content=ServicioNoDisponible(status="no_disponible", dependencias=dependencias).model_dump(),
+        )
+
+    return EstadoServicio(status="ok", dependencias=dependencias)
+
+
+@app.get(
+    "/metricas",
+    tags=["operacion"],
+    response_model=Metricas,
+    summary="Latencias observadas por operación.",
+)
+def metricas() -> Metricas:
+    """Percentiles de latencia de las últimas peticiones atendidas.
+
+    Existe para poder responder con un número, y no con una impresión, a la
+    pregunta del escenario **ESC-02**: «¿el sistema confirma un pedido en menos
+    de 2 s para el 90 % de los casos?». La respuesta está en `p95_ms` de
+    `POST /v1/pedidos`.
+
+    Es deliberadamente modesto: mide **este** proceso, en una ventana de las
+    últimas peticiones, y se reinicia con el servicio. No sustituye a un
+    sistema de métricas; sustituye a no tener ninguno.
+    """
+    return Metricas(
+        ventana_maxima=TAMANO_VENTANA,
+        operaciones=LATENCIAS.resumen(),
+    )

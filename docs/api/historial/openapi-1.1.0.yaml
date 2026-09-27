@@ -1,3 +1,21 @@
+# ============================================================================
+# VERSIÓN CONGELADA 1.1.0 — NO EDITAR
+#
+# Copia inmutable del contrato tal como se publicó. No es documentación: es la
+# prueba de qué se prometió. `tests/test_compatibilidad_contrato.py` compara el
+# contrato vivo contra `openapi-1.0.0.yaml` —la promesa más antigua todavía
+# vigente— y no contra esta, para que no se acumule deriva compatible entre
+# versiones consecutivas que en conjunto rompa a un cliente viejo.
+#
+# Cambios respecto a 1.0.0, todos aditivos (MINOR):
+#   · `/health` sondea dependencias y añade `dependencias` a su respuesta.
+#   · `/health` documenta un `503` con esquema propio, `ServicioNoDisponible`.
+#   · Nueva operación `/metricas`.
+#
+# El `503` usa un esquema aparte y no un valor más en el `enum` de `status`:
+# esto último sería la regla I-8 de `politica-versionado.md`.
+# ============================================================================
+
 # Contrato de la API pública de PideUTB.
 #
 # Este archivo es la FUENTE ÚNICA DE VERDAD de la superficie HTTP del sistema.

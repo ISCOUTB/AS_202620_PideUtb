@@ -16,7 +16,7 @@ fragmentos reproducidos, está en [`docs/evidencia-s7.md`](docs/evidencia-s7.md)
 |---|---|
 | Contrato ejecutable versionado | [`docs/api/openapi.yaml`](docs/api/openapi.yaml) `openapi: 3.1.0`, `info.version: 1.0.0` · [`asyncapi.yaml`](docs/api/asyncapi.yaml) `3.0.0` |
 | Rutas y esquemas, no solo endpoints | 7 `paths` con `content`/`schema`; `components.schemas` con `required` y tipos |
-| **Correspondencia contrato ↔ código** | 7 paths ↔ 7 rutas: `menu/router.py:18,22,35` · `pedidos/router.py:12,16,36` · `pagos/router.py:18,22,40` · `main.py:71`. Lo verifica `test_contrato_api.py` en cada push |
+| **Correspondencia contrato ↔ código** | 8 paths ↔ 8 rutas: `menu/router.py:18,22,35` · `pedidos/router.py:12,16,36` · `pagos/router.py:18,22,40` · `main.py:82,117`. Lo verifica `test_contrato_api.py` en cada push |
 | Versión declarada con historial | `info.version: 1.0.0` + [`docs/api/historial/openapi-1.0.0.yaml`](docs/api/historial/) congelado |
 | Prueba de contrato presente | `test_contrato_api.py` · `test_compatibilidad_contrato.py` · `test_expectativas_consumidor.py` — **20 casos negativos** |
 | **El pipeline la ejecuta** | [`ci.yml:47-48`](.github/workflows/ci.yml) `pytest -v` · `ci.yml:100-106` Spectral · `ci.yml:115-120` oasdiff |
@@ -40,7 +40,7 @@ el código deja de cumplirlo.
 
 | Contrato | Describe | Versión |
 |---|---|---|
-| [`docs/api/openapi.yaml`](docs/api/openapi.yaml) | Superficie **síncrona**: menú, pedidos e inicio del cobro (OpenAPI 3.1) | **1.0.0** |
+| [`docs/api/openapi.yaml`](docs/api/openapi.yaml) | Superficie **síncrona**: menú, pedidos, inicio del cobro y sondas de operación (OpenAPI 3.1) | **1.1.0** |
 | [`docs/api/asyncapi.yaml`](docs/api/asyncapi.yaml) | Canales **asíncronos**: confirmación de pago y evento interno (AsyncAPI 3.0) | **1.0.0** |
 | [`docs/api/politica-versionado.md`](docs/api/politica-versionado.md) | Qué cambios son compatibles, cuáles no, y cómo se avisa a los consumidores | — |
 | [`docs/api/historial/`](docs/api/historial/) | Versiones congeladas: la referencia contra la que se mide la compatibilidad | — |

@@ -19,10 +19,65 @@ from typing import Literal
 from pydantic import BaseModel
 
 
+class EstadoDependencia(BaseModel):
+    """Resultado de sondear una dependencia concreta.
+
+    `tipo` existe para que la respuesta no se pueda malinterpretar: saber que
+    el almacenamiento respondió no dice nada si no se sabe que hoy es memoria
+    del proceso y no una base de datos gestionada.
+    """
+
+    estado: Literal["ok", "caido"]
+    tipo: str
+    latencia_ms: float
+    detalle: str | None = None
+
+
 class EstadoServicio(BaseModel):
-    """Respuesta de la sonda de vida."""
+    """Respuesta de la sonda de vida cuando **todo** lo sondeado responde.
+
+    `status` es `Literal["ok"]` y sigue siéndolo. El estado degradado viaja en
+    `ServicioNoDisponible`, un esquema distinto bajo el código `503`, y no como
+    un valor más de este `enum`: añadirlo aquí sería la regla **I-8** de
+    `docs/api/politica-versionado.md` —un cliente cuyo `if status === "ok"`
+    funcionaba empezaría a caer en la rama equivocada sin cambiar una línea.
+    """
 
     status: Literal["ok"]
+    dependencias: dict[str, EstadoDependencia]
+
+
+class ServicioNoDisponible(BaseModel):
+    """Respuesta del `503`: alguna dependencia no responde.
+
+    Lleva `dependencias` con el mismo formato que el `200` para que quien
+    diagnostica no tenga que leer dos estructuras distintas según el resultado,
+    justo en el momento en que menos ganas tiene de leer documentación.
+    """
+
+    status: Literal["no_disponible"]
+    dependencias: dict[str, EstadoDependencia]
+
+
+class ResumenOperacion(BaseModel):
+    """Latencias observadas para una operación."""
+
+    muestras: int
+    p50_ms: float
+    p95_ms: float
+    max_ms: float
+
+
+class Metricas(BaseModel):
+    """Lo que devuelve `/metricas`.
+
+    `ventana_maxima` se publica junto a los datos a propósito: un percentil sin
+    su ventana no es interpretable, y quien lo lea necesita saber que son las
+    últimas N peticiones de **este** proceso y no un histórico.
+    """
+
+    ventana_maxima: int
+    operaciones: dict[str, ResumenOperacion]
 
 
 class ErrorDeNegocio(BaseModel):

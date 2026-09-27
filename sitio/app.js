@@ -59,9 +59,12 @@ async function api(ruta, opciones = {}) {
   if (respuesta.ok) return respuesta.json();
 
   // El cuerpo de error del contrato es {detail: string} en los 4xx de negocio.
+  // El 503 de `/health` no lo sigue: trae {status, dependencias}, porque la
+  // pregunta que responde no es «qué hiciste mal» sino «qué está caído».
   let detalle = "";
+  let cuerpo = null;
   try {
-    const cuerpo = await respuesta.json();
+    cuerpo = await respuesta.json();
     detalle = typeof cuerpo.detail === "string" ? cuerpo.detail : "";
   } catch {
     // Una respuesta sin JSON válido no debe tumbar la página.
@@ -69,6 +72,7 @@ async function api(ruta, opciones = {}) {
 
   const error = new Error(detalle || `La API respondió ${respuesta.status}`);
   error.status = respuesta.status;
+  error.cuerpo = cuerpo;
   throw error;
 }
 
@@ -103,8 +107,31 @@ async function comprobarSalud() {
     await cargarCarta();
   } catch (e) {
     clearTimeout(avisar);
-    $("mensaje-arranque").textContent = "No se pudo contactar con el servicio.";
     $("aviso-frio").classList.add("oculto");
+
+    // Un 503 y un fallo de red no son lo mismo y no merecen el mismo mensaje.
+    // En el 503 la API contestó: sabemos que existe, que llegamos a ella y
+    // cuál de sus dependencias falló. Decirle al usuario «no se pudo
+    // contactar» en ese caso sería mandarlo a revisar su wifi por un problema
+    // que no está en su lado. El 503 está declarado en
+    // `contracts/consumidor-web.yaml`, y la prueba de contrato falla si se
+    // deja de manejar aquí.
+    if (e.status === 503) {
+      const caidas = Object.entries(e.cuerpo?.dependencias ?? {})
+        .filter(([, dep]) => dep.estado !== "ok")
+        .map(([nombre]) => nombre);
+
+      $("mensaje-arranque").textContent = "El servicio no está disponible ahora mismo.";
+      fallar(
+        caidas.length
+          ? `El servicio está en mantenimiento: no responde ${caidas.join(", ")}. ` +
+            "Tu pedido no se perdió; volvé a intentarlo en unos minutos."
+          : "El servicio está en mantenimiento. Volvé a intentarlo en unos minutos."
+      );
+      return;
+    }
+
+    $("mensaje-arranque").textContent = "No se pudo contactar con el servicio.";
     fallar(
       `${e.message} Si acabás de abrir la página, esperá un minuto y recargá: ` +
       "el servicio puede estar despertando."

@@ -6,7 +6,7 @@ código deja de cumplirlo.
 
 | Archivo | Qué describe | Versión |
 |---|---|---|
-| [`openapi.yaml`](openapi.yaml) | Superficie **síncrona**: menú, pedidos e inicio del cobro | `1.0.0` |
+| [`openapi.yaml`](openapi.yaml) | Superficie **síncrona**: menú, pedidos, inicio del cobro y sondas de operación | `1.1.0` |
 | [`asyncapi.yaml`](asyncapi.yaml) | Canales **asíncronos**: confirmación de pago y evento interno | `1.0.0` |
 | [`politica-versionado.md`](politica-versionado.md) | Qué cambios son compatibles, cuáles no, y cómo se avisa | — |
 | [`historial/`](historial/) | Versiones congeladas. Referencia contra la que se mide la compatibilidad | — |
