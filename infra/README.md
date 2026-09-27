@@ -23,11 +23,56 @@ del provider, abierta, lo describe como *«free-tier web services can't be
 managed with Terraform […] every apply failing»*.
 
 El equipo eligió **costo cero** sobre cobertura total de IaC. Lo que se acepta a
-cambio está en el ADR de plataforma: ~60 s de arranque en frío, incumplimiento
-de ESC-04 en ~0,2 % de invocaciones, y rollback limitado a dos despliegues.
+cambio está en [ADR-0004](../docs/adr/0004-plataforma-de-despliegue.md): el
+servicio se duerme tras 15 minutos sin tráfico y tarda alrededor de un minuto en
+volver, lo que consume la mitad del presupuesto de
+[ESC-02](../docs/arc42/arc42.md#esc-02) en el primer pedido de cada pico.
 
 La API se crea a mano en el panel de Render. **No es un olvido: es la decisión
-documentada.**
+documentada.** El procedimiento exacto está abajo, para que el paso manual sea
+repetible y no dependa de que alguien recuerde cómo lo hizo.
+
+### Crear la API a mano, paso a paso
+
+En el panel de Render: **New → Web Service**, y conectar este repositorio.
+
+| Campo | Valor | Por qué |
+|---|---|---|
+| Language | `Python 3` | |
+| Region | La misma que el sitio | Dos regiones distintas añaden latencia entre piezas que se llaman todo el tiempo |
+| Branch | `master` | |
+| Root Directory | `backend` | El proyecto de Python no está en la raíz del repositorio |
+| Build Command | `pip install -r requirements.txt` | |
+| Start Command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` | `0.0.0.0` y no `127.0.0.1`: dentro de un contenedor, escuchar solo en local significa que nadie de fuera llega. `$PORT` lo fija la plataforma y no se puede elegir |
+| Instance Type | `Free` | |
+| Health Check Path | `/health` | Sin esto la plataforma solo sabe si el proceso arrancó, no si sus dependencias responden |
+
+Variables de entorno, en **Environment**:
+
+| Variable | Valor | Si falta |
+|---|---|---|
+| `PIDEUTB_ORIGENES_PERMITIDOS` | La URL del sitio, sin barra final | El navegador bloquea toda llamada del sitio a la API |
+| `PIDEUTB_SUPABASE_URL` | La URL del proyecto de Supabase | La sonda de base de datos no se registra y `/health` solo reporta el catálogo |
+| `PIDEUTB_NIVEL_LOG` | `INFO` | Opcional; por defecto ya es `INFO` |
+
+Después del primer despliegue quedan **dos pasos que no se pueden hacer antes**,
+porque nadie conoce la URL hasta que existe:
+
+1. Poner la URL de la API en [`sitio/config.js`](../sitio/config.js)
+   (`API_PRODUCCION`) y hacer push: el sitio se redespliega solo.
+2. Registrar `https://<la-api>/v1/pagos/eventos` como URL de webhook en el
+   panel de la pasarela.
+
+Comprobación de que quedó bien —las tres, no solo la primera—:
+
+```bash
+curl -s https://<la-api>/health
+curl -s https://<la-api>/metricas
+curl -si https://<la-api>/health | grep -i x-request-id
+```
+
+La primera llamada tras un rato de silencio tarda ~60 s: es el arranque en
+frío, no un fallo.
 
 ## Antes de empezar
 
