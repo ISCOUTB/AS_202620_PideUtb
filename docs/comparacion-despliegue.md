@@ -3,6 +3,9 @@
 > Entrega calificada de la semana 8. Compara dos alternativas de despliegue
 > para **una pieza concreta y nombrada** del sistema, a partir de la condición
 > operativa, no para el sistema entero.
+>
+> **Escrito antes de desplegar; §10 se actualizó después con lo medido.** La
+> alternativa elegida está en producción: https://pideutb-api.onrender.com
 
 ---
 
@@ -91,7 +94,7 @@ Ambas son gratuitas y **ninguna exige tarjeta**.
 | **Condición operativa** | Cumple: $0, sin tarjeta | Cumple: $0, sin tarjeta |
 | **Escenario de calidad** | ESC-02 sí; **ESC-04 falla en frío** | ESC-02 sí; ESC-04 depende del cold start medido |
 | **Latencia en caliente** | p50 ~3 ms medido en proceso | Similar, más el salto a `iad1` |
-| **p95** | 3,02 ms en proceso ([línea base](linea-base.md)) | Pendiente de medir en la plataforma |
+| **p95** | 3,02 ms en proceso ([línea base](linea-base.md)); **1,58 ms medido en la plataforma** tras desplegar, ver §10 | No medido: la alternativa no se desplegó |
 | **Arranque en frío** | **~60 s** tras 15 min sin tráfico (dato oficial de Render) | Menor, pero **por invocación aislada** |
 | **Duración máxima** | Sin tope | **300 s** en Hobby |
 | **Estado en memoria** | **Se conserva** entre peticiones | **Se pierde** en cada invocación |
@@ -269,14 +272,38 @@ revierte. La mitigación es que las migraciones sean aditivas.
 
 ---
 
-## 10. Qué queda por medir
+## 10. Lo proyectado contra lo medido
 
-Este documento contiene proyecciones, no mediciones de producción. Lo que falta:
+Este documento se escribió **antes** de desplegar, y contenía proyecciones. La
+alternativa A está ahora en producción, así que toca contrastar. Las capturas
+completas, con el comando que las reproduce, están en
+[`evidencia-s8.md`](evidencia-s8.md).
 
-- [ ] p95 real de la API desplegada, contra los 3,02 ms medidos en proceso
-- [ ] Latencia real del arranque en frío, contra los ~60 s que documenta Render
-- [ ] Porcentaje real de invocaciones frías con tráfico real
-- [ ] Consumo real de conexiones a Supabase durante un pico
+### Medido
 
-Ninguna de esas cifras se inventa aquí. Cuando el despliegue exista, se miden y
-se contrastan contra lo proyectado — y si la proyección estaba mal, se dice.
+| Qué | Proyectado | Medido | Lectura |
+|---|---|---|---|
+| p95 de `POST /v1/pedidos` | 3,02 ms en proceso | **1,58 ms** en la plataforma | La proyección se quedó **corta**: la API desplegada resultó más rápida que la línea base local. No es sorprendente —la máquina de Render no compite con un portátil haciendo otras cosas— pero conviene decir que la proyección erró, no presentarla como acertada |
+
+**Ese 1,58 ms está calculado sobre una sola muestra y no significa nada
+estadísticamente.** El campo `muestras` de `/metricas` se publica precisamente
+para que nadie lo lea como si significara algo. Sirve para descartar un orden de
+magnitud equivocado, no para afirmar un percentil.
+
+### Sigue sin medir
+
+- [ ] **Latencia real del arranque en frío**, contra los ~60 s que documenta
+      Render. Exige dejar el servicio 15 minutos sin tráfico y cronometrar la
+      primera petición. Es la medición que más importa, porque el arranque en
+      frío es el costo que [ADR-0004](adr/0004-plataforma-de-despliegue.md)
+      acepta y el que amenaza a ESC-02.
+- [ ] **Porcentaje real de invocaciones frías** con tráfico real. No hay tráfico
+      real todavía.
+- [ ] **Consumo de conexiones a Supabase durante un pico.** No se puede medir:
+      el código aún no abre ninguna conexión ([V-09](violaciones.md)). Es
+      irónico, porque las conexiones fueron **el motivo decisivo** de §7 — la
+      decisión se tomó sobre un modo de fallo proyectado, no observado, y eso
+      hay que decirlo en vez de dejar que parezca verificado.
+
+Ninguna de estas cifras se inventa. Cuando se midan, se contrastan igual que la
+primera: si la proyección estaba mal, se dice.
