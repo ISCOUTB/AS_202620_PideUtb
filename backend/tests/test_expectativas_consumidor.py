@@ -139,6 +139,23 @@ def test_todo_campo_que_el_consumidor_lee_sigue_emitiendose(contrato, expectativ
     )
 
 
+def _parametros(contrato: dict, operacion: dict) -> set[str]:
+    """Nombres de los parámetros de una operación, resolviendo los `$ref`.
+
+    Un consumidor que envía un parámetro de consulta depende de él exactamente
+    igual que de un campo del cuerpo: si el proveedor lo retira, el consumidor
+    se rompe. Mirar solo el `requestBody` dejaba ciega a la prueba ante la mitad
+    de lo que un cliente manda.
+    """
+    nombres = set()
+    for parametro in operacion.get("parameters") or []:
+        if "$ref" in parametro:
+            parametro = resolver(contrato, parametro["$ref"])
+        if "name" in parametro:
+            nombres.add(parametro["name"])
+    return nombres
+
+
 def test_todo_campo_que_el_consumidor_envia_sigue_aceptandose(contrato, expectativas):
     del_contrato = _por_operation_id(contrato)
     rechazados: list[str] = []
@@ -149,7 +166,13 @@ def test_todo_campo_que_el_consumidor_envia_sigue_aceptandose(contrato, expectat
             continue
 
         esquema = _esquema_de_peticion(contrato, operacion)
+        parametros = _parametros(contrato, operacion)
+
         for campo in declaracion.get("campos_enviados") or []:
+            # Un campo declarado vale si viaja en el cuerpo **o** como
+            # parámetro. El consumidor declara qué manda, no por dónde.
+            if campo in parametros:
+                continue
             if not _existe_campo(contrato, esquema, campo):
                 rechazados.append(f"{nombre} → {campo}")
 

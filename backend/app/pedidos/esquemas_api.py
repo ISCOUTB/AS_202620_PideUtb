@@ -5,7 +5,7 @@ Debe coincidir con `docs/api/openapi.yaml`; que coincida lo verifica
 """
 from pydantic import BaseModel, Field
 
-from app.pedidos.contracts import EstadoPedido, PedidoPublicado
+from app.pedidos.contracts import EstadoPedido, EstadoSolicitable, PedidoPublicado
 
 
 class CrearPedidoRequest(BaseModel):
@@ -44,3 +44,37 @@ class PedidoResponse(BaseModel):
     @classmethod
     def desde_contrato(cls, pedido: PedidoPublicado) -> "PedidoResponse":
         return cls(**pedido.model_dump())
+
+
+class CambiarEstadoRequest(BaseModel):
+    """Estado al que el mostrador quiere llevar el pedido.
+
+    Usa `EstadoSolicitable` y no `EstadoPedido` completo. La consecuencia
+    práctica es que los dos modos de fallo quedan separados por código HTTP, y
+    cada uno dice algo distinto:
+
+    - **`422`** — «ese estado no es algo que puedas pedir». Es el caso de
+      `pagado`: no lo decide el mostrador, lo decide el webhook firmado de la
+      pasarela.
+    - **`409`** — «ese estado es pedible, pero no desde donde está el pedido».
+      Lo responde la lógica de negocio, con el estado actual en el mensaje,
+      porque quien atiende suele tener la pantalla desactualizada.
+
+    Meter todo en un solo código habría perdido esa distinción, que es
+    justamente la que le dice a quien atiende si el problema es suyo o de otro.
+    """
+
+    estado: EstadoSolicitable
+
+
+class ListaDePedidosResponse(BaseModel):
+    """Pedidos de un establecimiento.
+
+    Va envuelto en un objeto y no como array en la raíz, por el mismo motivo
+    que la carta: con un sobre, añadir paginación o un total más adelante es un
+    campo nuevo en una respuesta —cambio compatible—; con un array en la raíz
+    sería una rotura.
+    """
+
+    establecimiento_id: int = Field(ge=1)
+    pedidos: list[PedidoResponse]

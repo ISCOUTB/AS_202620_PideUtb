@@ -29,3 +29,19 @@ def guardar(pedido: Pedido) -> Pedido:
 
 def buscar_por_id(pedido_id: int) -> Pedido | None:
     return _PEDIDOS.get(pedido_id)
+
+
+def buscar_por_establecimiento(establecimiento_id: int) -> list[Pedido]:
+    """Pedidos de un establecimiento, del más reciente al más antiguo.
+
+    El orden se fija aquí y no se deja al azar del almacenamiento, igual que en
+    `menu.repository`. Pero aquí el criterio además tiene motivo de negocio:
+    quien atiende el mostrador necesita ver arriba lo que acaba de entrar, no
+    lo que lleva media hora resuelto. Con el orden al revés, el pedido urgente
+    aparecería al final de la lista justo en hora pico.
+    """
+    return sorted(
+        (p for p in _PEDIDOS.values() if p.establecimiento_id == establecimiento_id),
+        key=lambda p: p.id,
+        reverse=True,
+    )

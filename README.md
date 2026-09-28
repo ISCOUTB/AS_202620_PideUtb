@@ -46,7 +46,7 @@ fragmentos reproducidos, está en [`docs/evidencia-s7.md`](docs/evidencia-s7.md)
 |---|---|
 | Contrato ejecutable versionado | [`docs/api/openapi.yaml`](docs/api/openapi.yaml) `openapi: 3.1.0`, `info.version: 1.1.0` · [`asyncapi.yaml`](docs/api/asyncapi.yaml) `3.0.0` |
 | Rutas y esquemas, no solo endpoints | 8 `paths` con `content`/`schema`; `components.schemas` con `required` y tipos |
-| **Correspondencia contrato ↔ código** | 8 paths ↔ 8 rutas: `menu/router.py:18,22,35` · `pedidos/router.py:12,16,36` · `pagos/router.py:18,22,40` · `main.py:82,117`. Lo verifica `test_contrato_api.py` en cada push |
+| **Correspondencia contrato ↔ código** | 9 paths ↔ 10 operaciones: `menu/router.py:18,22,35` · `pedidos/router.py:18,22,42,55,78` · `pagos/router.py:18,22,40` · `main.py:82,117`. Lo verifica `test_contrato_api.py` en cada push |
 | Versión declarada con historial | `info.version: 1.1.0`; [`historial/`](docs/api/historial/) congela **1.0.0 y 1.1.0**. El salto de MINOR se justifica en [§6 de la política](docs/api/politica-versionado.md): la forma intuitiva de hacer real el chequeo de salud era la regla **I-8**, y el diseño cambió por eso |
 | Prueba de contrato presente | `test_contrato_api.py` · `test_compatibilidad_contrato.py` · `test_expectativas_consumidor.py` — **20 casos negativos** |
 | **El pipeline la ejecuta** | [`ci.yml:47-48`](.github/workflows/ci.yml) `pytest -v` · `ci.yml:100-106` Spectral · `ci.yml:115-120` oasdiff |

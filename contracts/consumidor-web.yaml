@@ -50,11 +50,6 @@ operaciones:
       - items[].disponible
     codigos_manejados: ["200", "404"]
 
-  obtenerItemMenu:
-    proposito: Mostrar el detalle de un ítem antes de pedirlo.
-    campos_leidos: [item_id, nombre, precio_centavos, disponible]
-    codigos_manejados: ["200", "404"]
-
   crearPedido:
     proposito: Enviar el pedido y mostrar el resumen de confirmación.
     campos_enviados: [item_id, cantidad]
@@ -80,6 +75,33 @@ operaciones:
       el usuario se quedaría mirando una pantalla que nunca cambia.
     campos_leidos: [pedido_id, estado, codigo_canje, total_centavos]
     codigos_manejados: ["200", "404"]
+
+  # --- Panel del mostrador (sitio/panel.html) ---------------------------------
+  # Mismo consumidor: es el mismo desplegable sirviendo a otro de los tres roles
+  # que declara la descripción de arriba.
+
+  listarPedidosDeEstablecimiento:
+    proposito: Pintar la cola de pedidos que el mostrador tiene que atender.
+    campos_enviados: [establecimiento_id]
+    campos_leidos:
+      - establecimiento_id
+      - pedidos[].pedido_id
+      - pedidos[].nombre_item
+      - pedidos[].cantidad
+      - pedidos[].total_centavos
+      - pedidos[].estado
+      - pedidos[].codigo_canje
+    codigos_manejados: ["200", "422"]
+
+  cambiarEstadoDePedido:
+    proposito: >
+      Avanzar el pedido por la máquina de estados del mostrador. El `409` se
+      maneja explícitamente y no como error genérico: significa que otra
+      persona ya movió el pedido, y la respuesta del panel es refrescar la
+      lista en vez de insistir.
+    campos_enviados: [estado]
+    campos_leidos: [pedido_id, estado, codigo_canje]
+    codigos_manejados: ["200", "404", "409", "422"]
 
 # Valores de `EstadoPedido` que este consumidor sabe interpretar, con lo que
 # hace ante cada uno. La lista debe ser EXHAUSTIVA respecto del enum del

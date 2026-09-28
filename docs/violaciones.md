@@ -27,6 +27,7 @@ la auditoría.
 | [V-07](#v-07) | El dinero se representa con `float` | Modelado | 🟠 Media | ✅ Corregida (S7) |
 | [V-08](#v-08) | `estado` del pedido es texto libre | Modelado | 🟠 Media | ✅ Corregida (S7) |
 | [V-09](#v-09) | El estado vive en memoria del proceso | Arquitectura | 🟡 Conocida | ⏳ Con plazo |
+| [V-10](#v-10) | El panel del mostrador no está autenticado | Seguridad | 🔴 Abierta | ⏳ Con plazo |
 
 Seis se corrigieron en S6 y **dos más en S7** —V-07 y V-08—, cada una con su
 prueba. Queda una, V-09, con plazo y motivo.
@@ -279,9 +280,13 @@ proceso 1 -> pedido id = 1
 proceso 2 -> pedido id = 1
 ```
 
-Dos pedidos distintos con el mismo identificador. Con el despliegue en Vercel
-previsto en [arc42 §4.1](arc42/arc42.md#seccion-4), además, los pedidos
-desaparecen entre invocaciones.
+Dos pedidos distintos con el mismo identificador.
+
+El despliegue real ([ADR-0004](adr/0004-plataforma-de-despliegue.md)) usa un
+contenedor con proceso persistente, así que los pedidos **sí** sobreviven entre
+peticiones — pero no entre despliegues, y Render redespliega en cada push a
+`master`. El chequeo de salud lo declara en voz alta: responde
+`tipo: "memoria"`.
 
 **Plan.** Conectar Supabase y delegar en la base de datos la generación de
 identificadores. **Antes de cualquier despliegue**, aunque sea de demostración.
@@ -315,3 +320,54 @@ Orden por dependencia, no por severidad.
 Cada corrección entra con su prueba en el mismo cambio, y la fila
 correspondiente de [`docs/aspectos.md`](aspectos.md) se completa cuando el
 escenario asociado queda cubierto.
+
+---
+
+<a id="v-10"></a>
+
+## V-10 · El panel del mostrador no está autenticado
+
+**Estado:** 🔴 abierta, con plazo. **Archivos:** `sitio/panel.html`,
+`sitio/panel.js`, `app/pedidos/router.py`
+
+Cualquiera que conozca la URL del panel puede listar los pedidos de cualquier
+establecimiento y avanzar su estado. No hay sesión, ni rol, ni comprobación de
+que quien pide el cambio trabaje en ese establecimiento.
+
+**Reproducción.** Sin ninguna credencial, contra el entorno desplegado:
+
+```bash
+curl -s "https://pideutb-api.onrender.com/v1/pedidos?establecimiento_id=1"
+curl -s -X POST https://pideutb-api.onrender.com/v1/pedidos/1/estado \
+  -H "Content-Type: application/json" -d '{"estado":"entregado"}'
+```
+
+**Por qué se desplegó igual.** La autenticación es trabajo de la entrega
+siguiente, y dejar [ESC-03](arc42/arc42.md#esc-03) sin implementar por esperarla
+habría dejado al establecimiento sin ninguna forma de gestionar sus pedidos.
+
+**Por qué no se puso un secreto compartido.** Fue la primera idea y se
+descartó: un sitio estático no puede guardar un secreto. Cualquier clave en
+`panel.js` se lee con F12, así que sería teatro — y peor que admitir que está
+abierto, porque *parece* protegido y nadie volvería a mirarlo.
+
+**Lo que sí se hizo, porque sí se podía.** El daño está acotado por diseño, no
+por confianza:
+
+| Contención | Cómo |
+|---|---|
+| **El panel no puede marcar un pedido como pagado** | `pagado` no está en `EstadoSolicitable`, así que el esquema lo rechaza con `422`. Esa transición solo la dispara el webhook firmado de la pasarela ([ADR-0003](adr/0003-estrategia-integracion.md)) |
+| **No se puede revertir un pago** | `pendiente_pago` tampoco es solicitable |
+| **No se pueden saltar estados** | `TRANSICIONES_DEL_MOSTRADOR` solo admite el recorrido legítimo |
+| **Los estados finales son finales** | Desde `entregado` o `cancelado` no se sale |
+| **La cola exige un establecimiento** | `establecimiento_id` es obligatorio: sin él la ruta habría devuelto los pedidos de todo el campus |
+| **Se avisa en la propia pantalla** | El panel dice que no está protegido, en vez de dejarlo solo en este documento |
+
+Sin la primera, cualquiera con un navegador podría marcar su propio pedido como
+pagado y retirar comida sin pagarla. Es la contención que importa, y está
+cubierta por
+`tests/test_panel_mostrador.py::test_el_mostrador_no_puede_marcar_un_pedido_como_pagado`.
+
+**Plan.** Autenticación y roles en la entrega siguiente: sesión para el personal
+del establecimiento y comprobación de que el pedido que se modifica pertenece al
+establecimiento de quien lo pide. **Antes de cualquier uso real con dinero.**
