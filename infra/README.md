@@ -23,10 +23,19 @@ del provider, abierta, lo describe como *«free-tier web services can't be
 managed with Terraform […] every apply failing»*.
 
 El equipo eligió **costo cero** sobre cobertura total de IaC. Lo que se acepta a
-cambio está en [ADR-0004](../docs/adr/0004-plataforma-de-despliegue.md): el
-servicio se duerme tras 15 minutos sin tráfico y tarda alrededor de un minuto en
-volver, lo que consume la mitad del presupuesto de
-[ESC-02](../docs/arc42/arc42.md#esc-02) en el primer pedido de cada pico.
+cambio está analizado en
+[`comparacion-despliegue.md`](../docs/comparacion-despliegue.md) y decidido en
+[ADR-0004](../docs/adr/0004-plataforma-de-despliegue.md):
+
+| Se acepta | Cifra | De dónde sale |
+|---|---|---|
+| Arranque en frío | ~60 s tras 15 min sin tráfico | Dato oficial de Render |
+| ESC-04 se incumple en el peor caso | **~0,2 %** de las invocaciones | Derivado en §5: ~60 invocaciones frías sobre 30 000 llamadas/mes |
+| Rollback limitado | Solo los **2 despliegues anteriores** | Límite del plan gratuito, §9 |
+
+Ese minuto de arranque consume además **la mitad del presupuesto** de
+[ESC-02](../docs/arc42/arc42.md#esc-02) —120 s para el recorrido completo del
+usuario— en el primer pedido de cada pico.
 
 La API se crea a mano en el panel de Render. **No es un olvido: es la decisión
 documentada.** El procedimiento exacto está abajo, para que el paso manual sea
