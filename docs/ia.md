@@ -182,3 +182,74 @@ propósito tres formas de violación de import y las tres fallan la construcció
 Como en S6, ningún hallazgo se incorporó sin ejecutarlo antes. El procedimiento
 del run en rojo se reprodujo en local y la salida documentada en
 `docs/api/README.md` §3 es la que produce de verdad.
+
+---
+
+## Uso de IA en la octava entrega (S8 — Despliegue, IaC y observabilidad)
+
+**Herramienta utilizada:** Claude (Anthropic), vía Claude Code sobre el repositorio.
+
+### Qué se usó
+
+- **Auditoría previa sin modificar nada:** antes de escribir una línea se
+  inventarió qué existía ya en el repositorio, para no rehacer trabajo del
+  equipo ni duplicar decisiones ya tomadas.
+- **Infraestructura como código** (`infra/`): los archivos de Terraform para el
+  sitio en Render, el proyecto de Supabase y la protección de rama de GitHub,
+  con las variables, las salidas, el `.gitignore` y el README con el
+  procedimiento manual.
+- **Sitio estático** (`sitio/`): las cinco pantallas que consumen las seis
+  operaciones declaradas en `contracts/consumidor-web.yaml`, sin framework ni
+  paso de construcción.
+- **Comparación de alternativas de despliegue**
+  (`docs/comparacion-despliegue.md`): los veinte criterios, el modelo de costo,
+  el punto de cruce y las alternativas descartadas.
+- **Observabilidad:** `app/salud.py` (chequeo que sondea dependencias y devuelve
+  `503`), `app/observabilidad.py` (logs JSON y ventana de latencias) y el
+  endpoint `/metricas`, con sus pruebas.
+- **Contrato 1.1.0:** el rediseño de `/health` y la nueva operación `/metricas`
+  en `docs/api/openapi.yaml`, más el registro del caso en la política de
+  versionado.
+- **Documentación:** ADR-0004, la sección 7 de arc42 (que estaba vacía), la
+  actualización de las restricciones en §2.1 y el dossier
+  `docs/evidencia-s8.md`.
+- **Acompañamiento del despliegue real:** guía paso a paso para crear las
+  cuentas, los tokens con permisos mínimos y el servicio que Terraform no puede
+  gestionar.
+
+### Qué se rechazó y por qué
+
+| Propuesta de la IA | Decisión | Motivo del rechazo |
+|---|---|---|
+| Declarar `status: ok \| no_disponible` en el chequeo de salud, que es la forma intuitiva | **Rechazada** | Es exactamente la regla **I-8** de nuestra propia política de versionado: añadir un valor a un `enum` de respuesta. Un cliente cuyo `if (status === "ok")` ya funcionaba habría caído en la rama equivocada sin tocar su código, y habría obligado a sacar `/v2`. Se separó por código de respuesta y el salto quedó en MINOR |
+| Configurar `PIDEUTB_SUPABASE_URL` en el despliegue para que `/health` sondee la base de datos | **Rechazada** | El código todavía guarda el estado en memoria y no abre ninguna conexión: anunciar esa dependencia sería describir una arquitectura que no está desplegada. Además, los proyectos gratuitos de Supabase se pausan, y la sonda tumbaría un servicio que por lo demás funciona |
+| Escribir el recurso `render_web_service` en Terraform aunque el provider no admita el plan gratuito | **Rechazada** | Una definición de infraestructura que miente es peor que una incompleta: `terraform plan` diría que todo está en orden. Se documentó el procedimiento manual en `infra/README.md`, con cada campo y su motivo, para que la excepción sea repetible |
+| Aplicar `terraform apply -auto-approve` para terminar antes | **Rechazada** | Crea infraestructura real sin que ninguna persona confirme. La aprobación la dio un integrante del equipo escribiendo `yes`, que es donde debe estar esa decisión |
+| Recrear la protección de rama marcada como `tainted` con un `apply` normal | **Rechazada** | El `destroy` + `create` habría dejado `master` desprotegida en el hueco entre ambos, justo en un recurso que ya había fallado a medias una vez. Se comprobó contra la API de GitHub que lo creado coincidía con lo declarado y se usó `terraform untaint`, que solo toca el estado local |
+| Afirmar que dos cifras de `infra/README.md` («0,2 % de invocaciones», «rollback a 2 despliegues») estaban inventadas, y eliminarlas | **Rechazada tras comprobarlo** | **Fue un error de la IA.** Las dos se derivan en `docs/comparacion-despliegue.md`: el 0,2 % en §5 y el límite de rollback en §9. Se detectó al releer el documento completo. Se restauraron en una tabla que cita de dónde sale cada una, que es mejor que las dos versiones anteriores |
+| Enunciar ESC-02 como «2 segundos de latencia para el 90 % de los pedidos» | **Rechazada tras comprobarlo** | **Segundo error de la IA.** ESC-02 mide **2 minutos para el proceso completo del usuario**, no 2 segundos de API. Se verificó contra arc42 §10.3 antes de seguir y se corrigió en el ADR, el contrato, el código y la prueba. El encuadre correcto además refuerza el argumento: un arranque en frío de ~60 s consume la mitad del presupuesto |
+| Pedir al token de GitHub solo el permiso `repo` | **Rechazada tras comprobarlo** | Se quitó `admin:repo_hook` con razón —no se gestiona ningún webhook—, pero faltaba `read:org`: el provider crea la protección de rama por la API **GraphQL**, y resolver el `id` del repositorio dentro de una organización exige leer sus metadatos. Lo descubrió el `apply` al fallar, y quedó documentado en la plantilla |
+| Dar por bueno que oasdiff no marcaría como rotura el nuevo código `503` | **Rechazada como suposición** | En vez de asumirlo se leyó el código fuente de oasdiff: `response-non-success-status-added` está declarado como **INFO**, y el pipeline corre con `--fail-on ERR`. La decisión de diseño se tomó sobre un dato verificado, no sobre una expectativa |
+| Dar por buenos los cinco nombres de check de la protección de rama | **Rechazada como suposición** | Un check requerido cuyo nombre no coincide con el que reporta el pipeline **bloquea el merge para siempre**. Se consultaron los checks reales del último commit de `master` antes de aplicar, y los cinco coincidían |
+| Desplegar con la versión de Python que Render elige por defecto | **Rechazada** | Render usaba **3.14.3** en servicios nuevos, y nuestro CI solo prueba 3.11 y 3.12: habríamos estado sirviendo en una versión que ninguna prueba cubre, con un pipeline en verde que no significaría nada. Se fijó con `.python-version` |
+| Presentar el p95 medido en producción como confirmación de la proyección | **Rechazada** | La proyección eran 3,02 ms y lo medido 1,58 ms: **la proyección se quedó corta**, y así se escribió en §10, en lugar de presentarla como acertada. Se añadió además que ese número sale de una sola muestra y no significa nada estadísticamente |
+
+### Cómo se verificó lo incorporado
+
+Ningún dato se aceptó por venir de la IA. En concreto:
+
+- Las **131 pruebas** se ejecutaron en verde antes de cada commit, y Spectral se
+  corrió en local para no mandar el pipeline a rojo.
+- La evidencia de `docs/evidencia-s8.md` se capturó **contra las URLs públicas**,
+  no contra la máquina de desarrollo, y cada bloque incluye el comando que lo
+  reproduce.
+- El sistema se probó **en un navegador real**, no solo con `curl`: es lo único
+  que demuestra que CORS está bien configurado, porque `curl` ignora la política
+  de orígenes.
+- Las citas por número de línea de la documentación las sigue protegiendo
+  `backend/tests/test_evidencia.py`, que falló varias veces durante la entrega
+  al desplazarse las líneas y obligó a corregirlas.
+
+Los dos errores de la IA marcados arriba se detectaron **releyendo las fuentes**,
+no confiando en lo que la herramienta afirmaba recordar. Es la misma disciplina
+de las entregas anteriores: reproducir antes de registrar.
