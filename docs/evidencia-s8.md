@@ -204,6 +204,24 @@ Dos decisiones de diseño visibles en esa respuesta:
 - **`codigo_canje: null`** — el código no existe hasta que el pago se confirma.
   Llega por el canal asíncrono, no en esta respuesta.
 
+### Verificado también desde un navegador, que es lo que `curl` no prueba
+
+Abriendo https://pideutb-sitio.onrender.com se pasó la pantalla de arranque, se
+pintó la carta con los precios formateados en pesos (`$ 4.000`, `$ 3.000`) y al
+pulsar **Pedir** apareció la pantalla «Tu pedido» con el total y los tres
+métodos de pago. Sin errores en la consola.
+
+Esta comprobación aporta algo que los `curl` de arriba no pueden aportar:
+**demuestra que CORS está bien configurado**. `curl` ignora la política de
+orígenes —no es un navegador—, así que habría funcionado igual con la
+configuración mal puesta. El sitio y la API son dos desplegables distintos y en
+orígenes distintos, así que sin `PIDEUTB_ORIGENES_PERMITIDOS` correcta el
+navegador habría bloqueado cada llamada.
+
+La lista de orígenes llega por variable de entorno y **nunca es `*`**
+(`app/main.py`): un comodín dejaría que cualquier página de Internet llamara a
+esta API con el navegador de un usuario.
+
 ---
 
 ## 7. Lo que NO está hecho
