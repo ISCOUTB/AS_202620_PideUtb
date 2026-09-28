@@ -41,12 +41,19 @@ supabase_db_password = "GENERAR-UNA-DE-AL-MENOS-16-CARACTERES"
 # --------------------------------------------------------------------------
 # GitHub · Settings → Developer settings → Personal access tokens
 # --------------------------------------------------------------------------
-# Permiso mínimo necesario: **solo `repo`** (el grupo completo).
+# Permisos mínimos necesarios: **`repo`** (el grupo completo) y **`read:org`**.
 #
-# No hace falta `admin:repo_hook`: ese permiso sirve para gestionar webhooks, y
-# el único recurso de GitHub que declara esta carpeta es
-# `github_branch_protection`. Pedir un permiso que nunca se usa amplía sin
-# motivo lo que puede hacer el token si se filtra.
+# `read:org` es el hijo de `admin:org`, y hay que marcar solo el hijo: el padre
+# daría escritura sobre toda la organización. Hace falta porque el provider crea
+# la protección de rama por la API **GraphQL** de GitHub, y resolver el campo
+# `id` del repositorio dentro de una organización exige leer sus metadatos. El
+# scope `repo` cubre la API REST, pero no ese campo. Sin él, el `apply` falla
+# con «Your token has not been granted the required scopes».
+#
+# NO hace falta `admin:repo_hook`: sirve para gestionar webhooks, y el único
+# recurso de GitHub que declara esta carpeta es `github_branch_protection`.
+# Pedir un permiso que nunca se ejerce solo amplía lo que puede hacer el token
+# si se filtra.
 #
 # Sin permiso de administración sobre el repositorio de la organización, la
 # protección de rama fallará al aplicarse.
