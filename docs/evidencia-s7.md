@@ -33,22 +33,28 @@ efectiva es `prefix` del router más el path del decorador.
 | `/metricas` · L110 | — | `main.py:116-117` `@app.get("/metricas")` | `/metricas` ✔ |
 | `/v1/menu/items/{item_id}` · L136 | `menu/router.py:18` `/v1/menu` | `:21-22` `"/items/{item_id}"` | ✔ |
 | `/v1/menu/establecimientos/{establecimiento_id}/items` · L160 | `menu/router.py:18` `/v1/menu` | `:34-35` `"/establecimientos/{establecimiento_id}/items"` | ✔ |
-| `/v1/pedidos` · L194 | `pedidos/router.py:12` `/v1/pedidos` | `:15-16` `""` | ✔ |
-| `/v1/pedidos/{pedido_id}` · L229 | `pedidos/router.py:12` `/v1/pedidos` | `:35-36` `"/{pedido_id}"` | ✔ |
-| `/v1/pagos/intentos` · L253 | `pagos/router.py:18` `/v1/pagos` | `:21-22` `"/intentos"` | ✔ |
-| `/v1/pagos/eventos` · L286 | `pagos/router.py:18` `/v1/pagos` | `:39-40` `"/eventos"` | ✔ |
+| `/v1/pedidos` (POST) · L194 | `pedidos/router.py:18` `/v1/pedidos` | `:21-22` `""` | ✔ |
+| `/v1/pedidos` (GET) · L194 | `pedidos/router.py:18` `/v1/pedidos` | `:54-55` `""` | ✔ |
+| `/v1/pedidos/{pedido_id}/estado` · L263 | `pedidos/router.py:18` `/v1/pedidos` | `:77-78` `"/{pedido_id}/estado"` | ✔ |
+| `/v1/pedidos/{pedido_id}` · L324 | `pedidos/router.py:18` `/v1/pedidos` | `:41-42` `"/{pedido_id}"` | ✔ |
+| `/v1/pagos/intentos` · L348 | `pagos/router.py:18` `/v1/pagos` | `:21-22` `"/intentos"` | ✔ |
+| `/v1/pagos/eventos` · L381 | `pagos/router.py:18` `/v1/pagos` | `:39-40` `"/eventos"` | ✔ |
 
-**8 paths declarados, 8 rutas implementadas, ninguna de más.**
+**9 paths declarados, 10 operaciones implementadas, ninguna de más.** `/v1/pedidos`
+aparece dos veces porque tiene dos métodos: `POST` crea y `GET` lista.
 
-`/metricas` entró en el contrato **1.1.0** junto con el chequeo de salud real.
-El cambio es compatible —solo añade superficie— y por eso la versión sube en el
-segundo número y no en el primero (`politica-versionado.md` §2).
+Dos saltos de versión, los dos **compatibles** y por eso en el segundo número
+(`politica-versionado.md` §2):
+
+- **1.1.0** — `/metricas` y el chequeo de salud real.
+- **1.2.0** — la cola del mostrador y la máquina de estados, que cierran
+  [ESC-03](arc42/arc42.md#esc-03).
 
 Los prefijos, literales:
 
 ```python
 backend/app/menu/router.py:18     router = APIRouter(prefix="/v1/menu",    tags=["menu"])
-backend/app/pedidos/router.py:12  router = APIRouter(prefix="/v1/pedidos", tags=["pedidos"])
+backend/app/pedidos/router.py:18  router = APIRouter(prefix="/v1/pedidos", tags=["pedidos"])
 backend/app/pagos/router.py:18    router = APIRouter(prefix="/v1/pagos",   tags=["pagos"])
 ```
 

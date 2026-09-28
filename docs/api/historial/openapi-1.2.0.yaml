@@ -1,3 +1,21 @@
+# ============================================================================
+# VERSIÓN CONGELADA 1.2.0 — NO EDITAR
+#
+# Copia inmutable del contrato tal como se publicó. `test_compatibilidad_contrato.py`
+# compara el contrato vivo contra `openapi-1.0.0.yaml` —la promesa más antigua
+# vigente— y no contra esta, para que no se acumule deriva compatible entre
+# versiones consecutivas que en conjunto rompa a un cliente viejo.
+#
+# Cambios respecto a 1.1.0, todos aditivos (MINOR):
+#   · `GET /v1/pedidos` — cola de pedidos de un establecimiento.
+#   · `POST /v1/pedidos/{pedido_id}/estado` — máquina de estados del mostrador.
+#   · Esquemas `EstadoSolicitable`, `CambiarEstadoRequest` y `ListaDePedidos`.
+#
+# `EstadoSolicitable` es un `enum` aparte y no `EstadoPedido`: usar el mismo en
+# petición y respuesta lo habría dejado bidireccional, y quitarle un valor
+# pasaría a ser incompatible por la regla I-7 además de por la I-8.
+# ============================================================================
+
 # Contrato de la API pública de PideUTB.
 #
 # Este archivo es la FUENTE ÚNICA DE VERDAD de la superficie HTTP del sistema.

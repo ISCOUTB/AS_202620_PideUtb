@@ -39,7 +39,7 @@ ORIGENES_PERMITIDOS = [
 
 app = FastAPI(
     title="PideUTB API",
-    version="1.1.0",
+    version="1.2.0",
     description=(
         "Pedidos de comida dentro del campus universitario. El contrato "
         "versionado que esta aplicación implementa está en "

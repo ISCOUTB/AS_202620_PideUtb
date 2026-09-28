@@ -44,6 +44,10 @@ class PedidoNoEncontradoError(Exception):
     pass
 
 
+class TransicionNoPermitidaError(Exception):
+    """Se pidió llevar un pedido a un estado al que no puede ir desde donde está."""
+
+
 def _publicar(pedido: Pedido) -> PedidoPublicado:
     return PedidoPublicado(
         pedido_id=pedido.id,
@@ -153,3 +157,66 @@ def confirmar_pago(pedido_id: int) -> tuple[PedidoPublicado, bool]:
     )
 
     return _publicar(confirmado), False
+
+
+#: Qué transiciones puede pedir **el mostrador**.
+#:
+#: Se declara como dato y no como una cadena de `if`, porque así la regla se
+#: puede leer de un vistazo y probar entera. Cada clave es el estado actual;
+#: cada valor, los estados a los que ese pedido puede pasar.
+#:
+#: Dos ausencias son deliberadas y valen más que lo que está:
+#:
+#: 1. **`PENDIENTE_PAGO` no aparece como origen.** El mostrador no puede
+#:    marcar un pedido como pagado. Esa transición la hace `confirmar_pago`,
+#:    y solo la dispara el webhook firmado de la pasarela (ADR-0003). Si el
+#:    panel pudiera hacerla, cualquiera con un navegador comería gratis: no
+#:    hay autenticación todavía ([V-10](../../../docs/violaciones.md)).
+#: 2. **`ENTREGADO` y `CANCELADO` no aparecen como origen.** Son estados
+#:    finales. Un pedido entregado que vuelve a «en preparación» es un error
+#:    de registro, no una operación del negocio, y permitirlo haría imposible
+#:    contar cuántos pedidos se sirvieron de verdad.
+TRANSICIONES_DEL_MOSTRADOR: dict[EstadoPedido, frozenset[EstadoPedido]] = {
+    EstadoPedido.PAGADO: frozenset({EstadoPedido.EN_PREPARACION, EstadoPedido.CANCELADO}),
+    EstadoPedido.EN_PREPARACION: frozenset({EstadoPedido.LISTO_PARA_RECOGER, EstadoPedido.CANCELADO}),
+    EstadoPedido.LISTO_PARA_RECOGER: frozenset({EstadoPedido.ENTREGADO}),
+}
+
+
+def listar_por_establecimiento(establecimiento_id: int) -> list[PedidoPublicado]:
+    """Pedidos de un establecimiento, para el panel del mostrador.
+
+    Devuelve **todos** los estados, incluidos los ya entregados. Ocultarlos
+    obligaría a quien atiende a recordar qué acaba de entregar para poder
+    corregirse, y ESC-03 pide resolver en tres interacciones, no recordar.
+    """
+    return [_publicar(p) for p in repository.buscar_por_establecimiento(establecimiento_id)]
+
+
+def avanzar_estado(pedido_id: int, nuevo_estado: EstadoPedido) -> PedidoPublicado:
+    """Mueve un pedido dentro de la máquina de estados del mostrador.
+
+    Es la operación que cierra [ESC-03](../../../docs/arc42/arc42.md#esc-03):
+    el establecimiento gestiona el estado de sus pedidos.
+
+    Rechaza con `TransicionNoPermitidaError` cualquier salto que
+    `TRANSICIONES_DEL_MOSTRADOR` no contemple, **incluido marcar como pagado**.
+    La validación vive aquí y no en el router a propósito: una regla de negocio
+    en la capa HTTP solo protege a quien entra por HTTP, y dejaría el camino
+    libre a cualquier otro que llame al servicio.
+    """
+    pedido = repository.buscar_por_id(pedido_id)
+    if pedido is None:
+        raise PedidoNoEncontradoError(f"El pedido {pedido_id} no existe")
+
+    permitidos = TRANSICIONES_DEL_MOSTRADOR.get(pedido.estado, frozenset())
+    if nuevo_estado not in permitidos:
+        # El mensaje dice el estado actual, no solo que se rechazó: quien
+        # atiende suele tener la pantalla desactualizada porque otra persona
+        # ya movió el pedido, y saberlo evita que lo intente otras tres veces.
+        raise TransicionNoPermitidaError(
+            f"Un pedido en '{pedido.estado.value}' no puede pasar a "
+            f"'{nuevo_estado.value}'"
+        )
+
+    return _publicar(repository.guardar(pedido.model_copy(update={"estado": nuevo_estado})))

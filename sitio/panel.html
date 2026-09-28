@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es-CO">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PideUTB — panel del mostrador</title>
+  <meta name="description" content="Cola de pedidos del establecimiento.">
+  <!-- No lo indexen los buscadores: es una pantalla de operación, no de público. -->
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+<header>
+  <h1>Mostrador</h1>
+  <p class="lema">Los pedidos que tenés que atender.</p>
+</header>
+
+<main>
+
+  <!-- Aviso de que esto no está protegido.
+       Va en la pantalla y no solo en la documentación a propósito: quien lo
+       usa tiene que saber que cualquiera con el enlace puede mover sus
+       pedidos. Ver docs/violaciones.md, V-10. -->
+  <div class="aviso" role="note">
+    <strong>Sin autenticación.</strong> Cualquiera con este enlace puede cambiar
+    el estado de los pedidos. La autenticación llega en la siguiente entrega.
+  </div>
+
+  <div class="barra">
+    <label for="establecimiento">Establecimiento</label>
+    <input id="establecimiento" type="number" min="1" value="1" inputmode="numeric">
+    <button id="refrescar" class="secundario">Refrescar</button>
+    <span id="ultima-carga" class="nota"></span>
+  </div>
+
+  <!-- Estado vacío: no tener pedidos es lo normal fuera de hora pico, no un error. -->
+  <p id="cola-vacia" class="nota oculto">No hay pedidos en este establecimiento.</p>
+
+  <ul id="cola" class="items"></ul>
+
+  <div id="error" class="error oculto" role="alert"></div>
+
+</main>
+
+<footer>
+  <p><a href="index.html">Ir a la vista del cliente</a></p>
+</footer>
+
+<script src="config.js"></script>
+<script src="panel.js"></script>
+</body>
+</html>
