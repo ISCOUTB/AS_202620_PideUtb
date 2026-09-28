@@ -6,6 +6,36 @@
 
 Pide UTB es una plataforma web para realizar pedidos de comida dentro del campus universitario. Permite consultar menús y precios, realizar pedidos, gestionar pagos mediante una pasarela en ambiente Sandbox y recibir un código para verificar y recoger las compras de forma rápida y organizada.
 
+## Desplegado y accesible
+
+| Pieza | URL |
+|---|---|
+| **Sitio** | https://pideutb-sitio.onrender.com |
+| **API** | https://pideutb-api.onrender.com |
+| Chequeo de salud | https://pideutb-api.onrender.com/health |
+| Métricas | https://pideutb-api.onrender.com/metricas |
+
+```bash
+curl -s https://pideutb-api.onrender.com/health
+```
+
+```json
+{"status":"ok","dependencias":{"catalogo":{"estado":"ok","tipo":"memoria","latencia_ms":0.01,"detalle":null}}}
+```
+
+Ese `tipo: "memoria"` es deliberado: el chequeo **declara lo que hay** en vez de
+reportar `ok` sobre lo que no comprobó. Hoy el estado vive en memoria del
+proceso ([V-09](docs/violaciones.md)) y el sistema lo dice en voz alta.
+
+La evidencia completa —infraestructura declarada, las tres señales de operación
+y lo que **no** está hecho— está en
+[`docs/evidencia-s8.md`](docs/evidencia-s8.md).
+
+**Primera petición tras 15 minutos de silencio: hasta ~60 s.** Es el arranque en
+frío del plan gratuito, no un fallo. El sitio avisa cuando ocurre. Por qué se
+aceptó ese costo, y contra qué se comparó: [ADR-0004](docs/adr/0004-plataforma-de-despliegue.md)
+y [`docs/comparacion-despliegue.md`](docs/comparacion-despliegue.md).
+
 ## Evidencia de la entrega, con citas
 
 Cada criterio apunta a un archivo y una línea concretos. El detalle, con los
@@ -14,10 +44,10 @@ fragmentos reproducidos, está en [`docs/evidencia-s7.md`](docs/evidencia-s7.md)
 
 | Criterio | Evidencia citada |
 |---|---|
-| Contrato ejecutable versionado | [`docs/api/openapi.yaml`](docs/api/openapi.yaml) `openapi: 3.1.0`, `info.version: 1.0.0` · [`asyncapi.yaml`](docs/api/asyncapi.yaml) `3.0.0` |
-| Rutas y esquemas, no solo endpoints | 7 `paths` con `content`/`schema`; `components.schemas` con `required` y tipos |
+| Contrato ejecutable versionado | [`docs/api/openapi.yaml`](docs/api/openapi.yaml) `openapi: 3.1.0`, `info.version: 1.1.0` · [`asyncapi.yaml`](docs/api/asyncapi.yaml) `3.0.0` |
+| Rutas y esquemas, no solo endpoints | 8 `paths` con `content`/`schema`; `components.schemas` con `required` y tipos |
 | **Correspondencia contrato ↔ código** | 8 paths ↔ 8 rutas: `menu/router.py:18,22,35` · `pedidos/router.py:12,16,36` · `pagos/router.py:18,22,40` · `main.py:82,117`. Lo verifica `test_contrato_api.py` en cada push |
-| Versión declarada con historial | `info.version: 1.0.0` + [`docs/api/historial/openapi-1.0.0.yaml`](docs/api/historial/) congelado |
+| Versión declarada con historial | `info.version: 1.1.0`; [`historial/`](docs/api/historial/) congela **1.0.0 y 1.1.0**. El salto de MINOR se justifica en [§6 de la política](docs/api/politica-versionado.md): la forma intuitiva de hacer real el chequeo de salud era la regla **I-8**, y el diseño cambió por eso |
 | Prueba de contrato presente | `test_contrato_api.py` · `test_compatibilidad_contrato.py` · `test_expectativas_consumidor.py` — **20 casos negativos** |
 | **El pipeline la ejecuta** | [`ci.yml:47-48`](.github/workflows/ci.yml) `pytest -v` · `ci.yml:100-106` Spectral · `ci.yml:115-120` oasdiff |
 | **Falla ante un cambio incompatible** | [Run #22](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35557297196) — `failure`. Cayeron oasdiff y las pruebas; **Spectral pasó**, porque lo roto era la promesa y no la forma |
