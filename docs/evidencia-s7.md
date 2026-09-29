@@ -85,8 +85,8 @@ Tres jobs en [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
 ### Job `pruebas` — ejecuta las tres suites de contrato
 
 ```yaml
-ci.yml:79      - name: Ejecutar pruebas
-ci.yml:82        run: pytest -v --junitxml=reporte-pruebas.xml
+ci.yml:89      - name: Ejecutar pruebas
+ci.yml:92        run: pytest -v --junitxml=reporte-pruebas.xml
 ```
 
 `pytest` recoge todo `backend/tests/`, que incluye
@@ -96,18 +96,18 @@ ci.yml:82        run: pytest -v --junitxml=reporte-pruebas.xml
 ### Job `contrato` — herramientas externas
 
 ```yaml
-ci.yml:148     - name: Validar la forma de los contratos (Spectral)
-ci.yml:150         ./node_modules/.bin/spectral lint \
+ci.yml:158     - name: Validar la forma de los contratos (Spectral)
+ci.yml:160         ./node_modules/.bin/spectral lint \
 ci.yml:103           docs/api/openapi.yaml \
 ci.yml:104           docs/api/asyncapi.yaml \
 ci.yml:105           --ruleset .spectral.yaml \
 ci.yml:106           --fail-severity=warn
 
-ci.yml:163     - name: Detectar cambios incompatibles (oasdiff)
-ci.yml:165         docker run --rm -v "${{ github.workspace }}:/specs" tufin/oasdiff breaking \
+ci.yml:173     - name: Detectar cambios incompatibles (oasdiff)
+ci.yml:175         docker run --rm -v "${{ github.workspace }}:/specs" tufin/oasdiff breaking \
 ci.yml:118           /specs/docs/api/historial/openapi-1.0.0.yaml \
 ci.yml:119           /specs/docs/api/openapi.yaml \
-ci.yml:168           --fail-on ERR
+ci.yml:178           --fail-on ERR
 ```
 
 Ningún paso lleva `continue-on-error`: si cualquiera de los dos falla, el job
@@ -246,12 +246,12 @@ sonar.python.coverage.reportPaths=backend/coverage.xml
 ### Líneas del workflow
 
 ```yaml
-ci.yml:222     - name: Medir cobertura
-ci.yml:225       run: pytest --cov=app --cov-report=xml:coverage.xml
-ci.yml:230     - name: Analizar con SonarCloud
-ci.yml:232       uses: SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4  # v8.2.2
-ci.yml:239     - name: Esperar el veredicto del Quality Gate
-ci.yml:241       uses: SonarSource/sonarqube-quality-gate-action@7a5fffe8e523c40e0c740b6bc2712ab503e52efa  # v1.2.1
+ci.yml:232     - name: Medir cobertura
+ci.yml:235       run: pytest --cov=app --cov-report=xml:coverage.xml
+ci.yml:240     - name: Analizar con SonarCloud
+ci.yml:242       uses: SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4  # v8.2.2
+ci.yml:249     - name: Esperar el veredicto del Quality Gate
+ci.yml:251       uses: SonarSource/sonarqube-quality-gate-action@7a5fffe8e523c40e0c740b6bc2712ab503e52efa  # v1.2.1
 ```
 
 ### URL pública y estado

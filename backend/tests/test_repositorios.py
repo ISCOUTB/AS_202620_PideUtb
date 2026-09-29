@@ -371,8 +371,10 @@ def test_la_base_de_datos_rechaza_un_codigo_de_canje_sin_pago(monkeypatch):
 
     pedido = _crear_pedido()
 
-    with pytest.raises(psycopg.errors.CheckViolation):
-        with base_de_datos.conexion() as conn, conn.cursor() as cur:
+    # Solo el `execute` va dentro del `raises`: si abrir la conexión fallara,
+    # la prueba pasaría creyendo haber comprobado la restricción.
+    with base_de_datos.conexion() as conn, conn.cursor() as cur:
+        with pytest.raises(psycopg.errors.CheckViolation):
             cur.execute(
                 "UPDATE pedidos SET codigo_canje = 'TRAMPA' WHERE id = %s",
                 (pedido.id,),
@@ -420,7 +422,12 @@ def test_no_se_pueden_abrir_dos_cobros_pendientes_sobre_el_mismo_pedido(monkeypa
     pedido = _crear_pedido()
     pagos_repo.guardar(_intento(pedido.id, "ref-1"))
 
+    # El segundo intento se construye fuera del bloque: dentro solo puede
+    # quedar la llamada que se espera que falle, para que un fallo al
+    # construirlo no se confunda con el rechazo del índice.
+    segundo = _intento(pedido.id, "ref-2")
+
     with pytest.raises(psycopg.errors.UniqueViolation):
-        pagos_repo.guardar(_intento(pedido.id, "ref-2"))
+        pagos_repo.guardar(segundo)
 
     base_de_datos.cerrar_pool()

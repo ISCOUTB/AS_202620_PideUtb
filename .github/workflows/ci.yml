@@ -37,8 +37,18 @@ jobs:
         image: postgres:16.4
         env:
           POSTGRES_USER: pideutb
-          POSTGRES_PASSWORD: pruebas
           POSTGRES_DB: pideutb_pruebas
+          # Sin contraseña, a propósito.
+          #
+          # La alternativa era escribir una aquí, y entonces habría una
+          # credencial en el repositorio que nadie va a rotar nunca porque no
+          # protege nada. Una contraseña que no se puede tomar en serio enseña
+          # a no tomarse en serio las que sí importan.
+          #
+          # `trust` es seguro en este contexto concreto y solo en este: el
+          # contenedor vive dentro del job, no se publica fuera de él, y se
+          # destruye al terminar. Sus datos son la semilla de pruebas.
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         # Sin esto, los pasos empiezan antes de que el motor acepte conexiones y
@@ -78,7 +88,7 @@ jobs:
       # defensa fiable contra ese accidente es que el nombre no coincida.
       - name: Ejecutar pruebas
         env:
-          PIDEUTB_DATABASE_URL_PRUEBAS: postgresql://pideutb:pruebas@localhost:5432/pideutb_pruebas
+          PIDEUTB_DATABASE_URL_PRUEBAS: postgresql://pideutb@localhost:5432/pideutb_pruebas
         run: pytest -v --junitxml=reporte-pruebas.xml
 
       # Si el contenedor no arrancara, las pruebas de PostgreSQL se **omitirían
@@ -87,7 +97,7 @@ jobs:
       # en un fallo.
       - name: Comprobar que las pruebas de PostgreSQL se ejecutaron
         env:
-          PIDEUTB_DATABASE_URL_PRUEBAS: postgresql://pideutb:pruebas@localhost:5432/pideutb_pruebas
+          PIDEUTB_DATABASE_URL_PRUEBAS: postgresql://pideutb@localhost:5432/pideutb_pruebas
         run: |
           pytest tests/test_repositorios.py -q -rs 2>&1 | tee salida.txt
           if grep -q "Sin PIDEUTB_DATABASE_URL_PRUEBAS" salida.txt; then
