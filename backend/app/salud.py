@@ -29,23 +29,32 @@ bloqueo.
 """
 from __future__ import annotations
 
-import os
 import time
 from typing import Callable
 
-import httpx
-
+from app import base_de_datos
 from app.esquemas_comunes import EstadoDependencia
 from app.menu import repository as repositorio_catalogo
 
-#: Segundos que se le conceden a una sonda antes de darla por caída.
-#:
-#: Se elige por debajo del tiempo que la plataforma espera por el chequeo: si
-#: la sonda tardara más que ese margen, la plataforma cortaría la conexión y
-#: perderíamos el diagnóstico —sabríamos que falló, no por qué.
-TIMEOUT_SONDA_S = 3.0
+#: El límite de tiempo de la sonda de base de datos no se declara aquí: lo pone
+#: el pool con `base_de_datos.TIMEOUT_POOL_S`. Tener dos habría permitido que se
+#: separaran, y entonces la sonda podría rendirse antes que la aplicación —
+#: reportando «caído» un servicio que atiende— o después, perdiendo el
+#: diagnóstico porque la plataforma ya cortó el chequeo.
 
 Sonda = Callable[[], EstadoDependencia]
+
+
+def _tipo_del_almacenamiento() -> str:
+    """Qué hay de verdad detrás del catálogo.
+
+    El chequeo declara lo que hay en vez de reportar `ok` sobre lo que no
+    comprobó. Mientras el sistema corrió en memoria, esta función devolvía
+    `memoria` y eso era la verdad incómoda; ahora devuelve `postgresql`
+    cuando lo es, y sigue diciendo `memoria` si alguien despliega sin
+    configurar la base de datos.
+    """
+    return "postgresql" if base_de_datos.hay_base_de_datos() else "memoria"
 
 
 def _sondar_catalogo() -> EstadoDependencia:
@@ -61,7 +70,7 @@ def _sondar_catalogo() -> EstadoDependencia:
     except Exception as error:
         return EstadoDependencia(
             estado="caido",
-            tipo="memoria",
+            tipo=_tipo_del_almacenamiento(),
             latencia_ms=_ms(inicio),
             detalle=type(error).__name__,
         )
@@ -72,44 +81,42 @@ def _sondar_catalogo() -> EstadoDependencia:
         # concluiría que no hay comida, no que el sistema está roto.
         return EstadoDependencia(
             estado="caido",
-            tipo="memoria",
+            tipo=_tipo_del_almacenamiento(),
             latencia_ms=_ms(inicio),
             detalle="el catalogo respondio vacio",
         )
 
-    return EstadoDependencia(estado="ok", tipo="memoria", latencia_ms=_ms(inicio))
+    return EstadoDependencia(
+        estado="ok", tipo=_tipo_del_almacenamiento(), latencia_ms=_ms(inicio)
+    )
 
 
 def _sondar_base_de_datos() -> EstadoDependencia:
-    """Pide a la base de datos gestionada que conteste.
+    """Pide a PostgreSQL que conteste, por la misma vía que usa la aplicación.
 
-    Solo se registra cuando `PIDEUTB_SUPABASE_URL` está configurada. Mientras
-    no lo esté, esta dependencia **no aparece** en la respuesta, en vez de
-    aparecer como `ok`: el sistema no depende todavía de ella, y anunciarla
-    sería describir una arquitectura que no está desplegada.
+    Es un `SELECT 1` a través del **pool**, no una conexión nueva. La diferencia
+    importa: una sonda que abriera su propia conexión diría que la base de datos
+    está viva mientras el pool está agotado y todas las peticiones reales
+    fallan. Comprobaría el servicio equivocado.
+
+    Solo se registra cuando `PIDEUTB_DATABASE_URL` está configurada. Mientras no
+    lo esté, esta dependencia **no aparece** en la respuesta en vez de aparecer
+    como `ok`: el sistema no depende de ella, y anunciarla sería describir una
+    arquitectura que no está desplegada.
     """
-    url = os.environ["PIDEUTB_SUPABASE_URL"].rstrip("/")
     inicio = time.perf_counter()
     try:
-        respuesta = httpx.get(f"{url}/rest/v1/", timeout=TIMEOUT_SONDA_S)
-    except httpx.HTTPError as error:
+        with base_de_datos.conexion() as conexion, conexion.cursor() as cur:
+            cur.execute("SELECT 1")
+            cur.fetchone()
+    except Exception as error:
         return EstadoDependencia(
             estado="caido",
             tipo="postgresql",
             latencia_ms=_ms(inicio),
+            # Solo el tipo de la excepción, nunca su mensaje: psycopg incluye la
+            # cadena de conexión en algunos errores, y ahí viaja la contraseña.
             detalle=type(error).__name__,
-        )
-
-    # 401 cuenta como vivo: el servicio contestó y rechazó la sonda por no
-    # traer credenciales, que es exactamente lo que debe hacer. Confundir
-    # «me rechazó» con «está caído» produce alertas falsas a las 3 de la
-    # mañana, y una alerta que miente se termina ignorando.
-    if respuesta.status_code >= 500:
-        return EstadoDependencia(
-            estado="caido",
-            tipo="postgresql",
-            latencia_ms=_ms(inicio),
-            detalle=f"HTTP {respuesta.status_code}",
         )
 
     return EstadoDependencia(estado="ok", tipo="postgresql", latencia_ms=_ms(inicio))
@@ -127,7 +134,7 @@ def sondas_activas() -> dict[str, Sonda]:
     recargar la aplicación entera.
     """
     sondas: dict[str, Sonda] = {"catalogo": _sondar_catalogo}
-    if os.getenv("PIDEUTB_SUPABASE_URL"):
+    if base_de_datos.hay_base_de_datos():
         sondas["base_de_datos"] = _sondar_base_de_datos
     return sondas
 

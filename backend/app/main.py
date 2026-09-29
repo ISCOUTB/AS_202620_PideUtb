@@ -7,11 +7,13 @@ que cumple es peor que no anunciar ninguna.
 """
 import os
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app import salud
+from app import base_de_datos, salud
 from app.esquemas_comunes import EstadoServicio, Metricas, ServicioNoDisponible
 from app.menu.router import router as menu_router
 from app.observabilidad import LATENCIAS, TAMANO_VENTANA, RegistroDePeticiones, configurar_logs
@@ -37,7 +39,26 @@ ORIGENES_PERMITIDOS = [
     if origen.strip()
 ]
 
+@asynccontextmanager
+async def ciclo_de_vida(_: FastAPI):
+    """Abre el pool al arrancar y lo cierra al apagar.
+
+    Conectar aquí y no en la primera petición evita sumar dos esperas al mismo
+    usuario: con un plan que duerme el servicio, la primera petición de cada
+    pico ya paga el arranque en frío, y pagar además el establecimiento de las
+    conexiones la dejaría esperando el doble.
+
+    Cerrarlo al apagar no es cortesía: la capa gratuita de Supabase concede
+    pocas conexiones simultáneas para todo el proyecto, y un despliegue que deja
+    las suyas colgando se las quita al siguiente.
+    """
+    base_de_datos.abrir_pool()
+    yield
+    base_de_datos.cerrar_pool()
+
+
 app = FastAPI(
+    lifespan=ciclo_de_vida,
     title="PideUTB API",
     version="1.2.0",
     description=(

@@ -22,6 +22,33 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12"]
 
+    # PostgreSQL efímero contra el que corren las pruebas de repositorio.
+    #
+    # Existe porque hay **dos implementaciones** de cada repositorio —memoria y
+    # PostgreSQL— y una sola de ellas se ejercitaría sin esto. Una aserción que
+    # solo se comprueba contra memoria no dice nada del código que corre en
+    # producción.
+    #
+    # La versión se fija (no `postgres:latest`) por el mismo motivo que el lock
+    # de dependencias: una imagen que cambia sola convierte un fallo de CI en
+    # una adivinanza sobre qué se movió.
+    services:
+      postgres:
+        image: postgres:16.4
+        env:
+          POSTGRES_USER: pideutb
+          POSTGRES_PASSWORD: pruebas
+          POSTGRES_DB: pideutb_pruebas
+        ports:
+          - 5432:5432
+        # Sin esto, los pasos empiezan antes de que el motor acepte conexiones y
+        # el primer test falla por una carrera, no por el código.
+        options: >-
+          --health-cmd "pg_isready -U pideutb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     defaults:
       run:
         working-directory: backend
@@ -44,8 +71,29 @@ jobs:
         run: |
           pip install --require-hashes --only-binary=:all: -r requirements-ci.txt
 
+      # La variable se llama `..._PRUEBAS` y no `PIDEUTB_DATABASE_URL` a
+      # propósito. Si las pruebas leyeran la misma que usa la aplicación,
+      # bastaría con tenerla exportada —lo normal mientras se desarrolla contra
+      # Supabase— para que la suite truncara las tablas de producción. La única
+      # defensa fiable contra ese accidente es que el nombre no coincida.
       - name: Ejecutar pruebas
+        env:
+          PIDEUTB_DATABASE_URL_PRUEBAS: postgresql://pideutb:pruebas@localhost:5432/pideutb_pruebas
         run: pytest -v --junitxml=reporte-pruebas.xml
+
+      # Si el contenedor no arrancara, las pruebas de PostgreSQL se **omitirían
+      # en silencio** y el job seguiría en verde: la suite está escrita para
+      # omitirlas cuando no hay base de datos. Este paso convierte ese silencio
+      # en un fallo.
+      - name: Comprobar que las pruebas de PostgreSQL se ejecutaron
+        env:
+          PIDEUTB_DATABASE_URL_PRUEBAS: postgresql://pideutb:pruebas@localhost:5432/pideutb_pruebas
+        run: |
+          pytest tests/test_repositorios.py -q -rs 2>&1 | tee salida.txt
+          if grep -q "Sin PIDEUTB_DATABASE_URL_PRUEBAS" salida.txt; then
+            echo "::error::Las pruebas contra PostgreSQL se omitieron. El contenedor no estaba disponible."
+            exit 1
+          fi
 
       - name: Publicar reporte de pruebas
         if: always()

@@ -89,17 +89,19 @@ def crear_pedido(item_id: int, cantidad: int) -> PedidoPublicado:
             f"El establecimiento {item.establecimiento_id} no está recibiendo pedidos"
         )
 
-    pedido = Pedido(
-        id=repository.siguiente_id(),
+    # El identificador lo asigna el almacenamiento, no este servicio. Antes lo
+    # pedía a un contador en memoria del proceso, y con dos instancias
+    # desplegadas las dos habrían empezado por 1: era el ejemplo concreto de
+    # V-09 (`docs/violaciones.md`).
+    pedido = repository.crear(
         establecimiento_id=item.establecimiento_id,
         item_id=item.item_id,
         nombre_item=item.nombre,
         precio_unitario_centavos=item.precio_centavos,
         cantidad=cantidad,
         total_centavos=item.precio_centavos * cantidad,
-        estado=EstadoPedido.PENDIENTE_PAGO,
     )
-    return _publicar(repository.guardar(pedido))
+    return _publicar(pedido)
 
 
 def obtener_pedido(pedido_id: int) -> PedidoPublicado | None:
@@ -133,16 +135,18 @@ def confirmar_pago(pedido_id: int) -> tuple[PedidoPublicado, bool]:
     if pedido is None:
         raise PedidoNoEncontradoError(f"El pedido {pedido_id} no existe")
 
-    if pedido.estado is not EstadoPedido.PENDIENTE_PAGO:
-        return _publicar(pedido), True
+    # La transición va dentro de un `UPDATE ... WHERE estado = 'pendiente_pago'`,
+    # no detrás de un `if`. La diferencia importa: la pasarela entrega
+    # al-menos-una-vez, así que dos avisos del mismo pago pueden llegar a la vez
+    # a dos trabajadores distintos. Con leer-decidir-escribir, los dos verían
+    # «pendiente» y se generarían **dos códigos de canje** para un solo pedido.
+    #
+    # `marcar_pagado` devuelve `None` cuando la fila ya no estaba pendiente, que
+    # es exactamente el caso del aviso repetido.
+    confirmado = repository.marcar_pagado(pedido_id, _generar_codigo_canje())
 
-    confirmado = pedido.model_copy(
-        update={
-            "estado": EstadoPedido.PAGADO,
-            "codigo_canje": _generar_codigo_canje(),
-        }
-    )
-    repository.guardar(confirmado)
+    if confirmado is None:
+        return _publicar(repository.buscar_por_id(pedido_id)), True
 
     # El evento se publica DESPUÉS de persistir, nunca antes: anunciar un hecho
     # que todavía podría no ocurrir obliga a compensarlo después, y ese es el

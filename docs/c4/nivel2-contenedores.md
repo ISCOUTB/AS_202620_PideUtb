@@ -29,7 +29,7 @@ C4Container
     Rel(admin, frontend, "Administra la plataforma", "HTTPS · HTML/JSON · síncrono")
 
     Rel(frontend, api, "Consume la API v1", "HTTPS · JSON (REST) · síncrono")
-    Rel(api, supabase, "Lee/escribe datos, valida identidad", "HTTPS · JSON (PostgREST) · síncrono")
+    Rel(api, supabase, "Lee/escribe datos, valida identidad", "TCP/TLS · PostgreSQL (pool) · síncrono")
     Rel(api, wompi, "Abre el intento de cobro", "HTTPS · JSON · síncrono")
     Rel_Back(api, wompi, "Confirma la transacción (webhook firmado)", "HTTPS · JSON + HMAC · ASÍNCRONO")
 
@@ -46,7 +46,7 @@ La misma información del diagrama, en forma consultable. La última columna es 
 |---|---|---|---|---|---|---|
 | 1 | Usuario / Personal / Admin → Frontend Web | HTTPS | HTML + JSON | Síncrono | *(interfaz de usuario)* | No hay producto |
 | 2 | Frontend Web → API PideUTB | HTTPS | JSON (REST) | Síncrono | [`openapi.yaml`](../api/openapi.yaml) | El usuario no puede operar; se acepta porque sin API no hay sistema |
-| 3 | API PideUTB → Supabase | HTTPS | JSON (PostgREST) | Síncrono | *(pendiente — hoy repositorios en memoria,* [V-09](../violaciones.md#v-09)*)* | La operación falla y se responde un error explícito |
+| 3 | API PideUTB → Supabase | TCP/TLS | PostgreSQL sobre un **pool reutilizado** | Síncrono | `app/base_de_datos.py`, `app/*/repository.py` | La operación falla y se responde un error explícito; `/health` devuelve `503` y la plataforma saca el servicio de rotación |
 | 4 | API PideUTB → Wompi Sandbox | HTTPS | JSON | Síncrono | API externa de la pasarela | Error inmediato; **el pedido se conserva** y se puede reintentar |
 | 5 | Wompi Sandbox → API PideUTB | HTTPS | JSON + firma HMAC (`X-Firma-Evento`) | **Asíncrono** | [`asyncapi.yaml`](../api/asyncapi.yaml) · canal `eventos-de-pago` | El pedido queda en `pendiente_pago`, consultable por el frontend |
 

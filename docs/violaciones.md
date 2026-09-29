@@ -26,20 +26,17 @@ la auditoría.
 | [V-06](#v-06) | La instantánea del pedido era inauditable | Trazabilidad | 🟠 Media | ✅ Corregida |
 | [V-07](#v-07) | El dinero se representa con `float` | Modelado | 🟠 Media | ✅ Corregida (S7) |
 | [V-08](#v-08) | `estado` del pedido es texto libre | Modelado | 🟠 Media | ✅ Corregida (S7) |
-| [V-09](#v-09) | El estado vive en memoria del proceso | Arquitectura | 🟡 Conocida | ⏳ Con plazo |
+| [V-09](#v-09) | El estado vive en memoria del proceso | Arquitectura | 🟡 Conocida | ✅ Corregida (S8) |
 | [V-10](#v-10) | El panel del mostrador no está autenticado | Autenticación | 🔴 Alta | ⏳ Con plazo |
 
 Seis se corrigieron en S6 y **dos más en S7** —V-07 y V-08—, cada una con su
-prueba. Quedan **dos abiertas**, las dos con plazo y motivo, y las dos apuntan a
-la misma entrega siguiente:
+prueba. **V-09 se cerró en S8** con la migración a PostgreSQL. Queda **una**, V-10,
+con plazo y motivo: el panel del mostrador sin autenticar, que espera sesiones
+y roles.
 
-- **V-09** — el estado en memoria, que espera la migración a la base de datos.
-- **V-10** — el panel sin autenticar, que espera sesiones y roles.
-
-Ninguna de las dos se descubrió tarde: las dos son consecuencia de decisiones
-tomadas con los ojos abiertos, y el sistema las declara por su cuenta. `/health`
-responde `tipo: "memoria"` y el panel avisa en pantalla de que no está
-protegido.
+No se descubrió tarde. Es consecuencia de una decisión tomada con los ojos
+abiertos, y el sistema la declara por su cuenta: el panel avisa en pantalla de
+que no está protegido, en vez de dejarlo solo en este documento.
 
 Las dos de S7 no se cerraron por iniciativa propia sino porque **el contrato de
 API obligó a decidir**: escribir `openapi.yaml` antes que el código forzaba a
@@ -276,9 +273,10 @@ que necesita esas transiciones.
 
 ## V-09 · El estado vive en memoria del proceso
 
-**Estado:** ⏳ conocida, con plazo. **Archivos:** `app/*/repository.py`
+**Estado:** ✅ corregida en S8. **Archivos:** `app/*/repository.py`,
+`app/base_de_datos.py`, `migraciones/`
 
-Los datos semilla y los pedidos son variables de módulo: cada proceso tiene su
+Los datos semilla y los pedidos eran variables de módulo: cada proceso tenía su
 propia copia.
 
 **Reproducción.** Dos procesos distintos, equivalentes a dos *workers* de
@@ -297,8 +295,21 @@ peticiones — pero no entre despliegues, y Render redespliega en cada push a
 `master`. El chequeo de salud lo declara en voz alta: responde
 `tipo: "memoria"`.
 
-**Plan.** Conectar Supabase y delegar en la base de datos la generación de
-identificadores. **Antes de cualquier despliegue**, aunque sea de demostración.
+**Corrección.** Los cuatro repositorios consultan PostgreSQL cuando
+`PIDEUTB_DATABASE_URL` está configurada, y **la base de datos genera los
+identificadores**: `siguiente_id()` ya no existe. El esquema está en
+`migraciones/001_esquema_inicial.sql` y lo aplica `scripts/migrar.py`.
+
+Se conserva la implementación en memoria para que la suite corra sin PostgreSQL
+instalado. El riesgo de que las dos se separen se controla ejecutando **las
+mismas pruebas contra ambas** (`tests/test_repositorios.py`), y el CI levanta un
+PostgreSQL efímero para que la parte que importa no se omita en silencio.
+
+La migración cerró además un modo de fallo que el almacenamiento en memoria
+ocultaba: confirmar un pago pasó de leer-decidir-escribir a un
+`UPDATE ... WHERE estado = 'pendiente_pago'` en una sola instrucción. Con dos
+trabajadores y dos entregas simultáneas del mismo webhook, la versión anterior
+habría generado **dos códigos de canje** para un solo pedido.
 La interfaz de los repositorios ya está diseñada para que el cambio no toque
 `service.py` ni `router.py`.
 

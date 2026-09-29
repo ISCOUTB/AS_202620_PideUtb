@@ -61,8 +61,44 @@ Variables de entorno, en **Environment**:
 | Variable | Valor | Si falta |
 |---|---|---|
 | `PIDEUTB_ORIGENES_PERMITIDOS` | La URL del sitio, sin barra final | El navegador bloquea toda llamada del sitio a la API |
-| `PIDEUTB_SUPABASE_URL` | La URL del proyecto de Supabase | La sonda de base de datos no se registra y `/health` solo reporta el catálogo |
+| `PIDEUTB_DATABASE_URL` | Cadena de conexión de Supabase (ver abajo) | **El servicio arranca con el estado en memoria**: funciona, pero pierde los pedidos en cada redespliegue, y `/health` lo declara con `tipo: "memoria"` |
 | `PIDEUTB_NIVEL_LOG` | `INFO` | Opcional; por defecto ya es `INFO` |
+
+#### La cadena de conexión
+
+En el panel de Supabase: **Project Settings → Database → Connection string →
+URI**. Tiene esta forma:
+
+```
+postgresql://postgres:<CONTRASEÑA>@db.<REF>.supabase.co:5432/postgres
+```
+
+`<CONTRASEÑA>` es la que generaste para `supabase_db_password` en
+`terraform.tfvars`, y `<REF>` es lo que devolvió `terraform output
+supabase_project_ref`. Supabase muestra la URI con un marcador en lugar de la
+contraseña: hay que sustituirlo.
+
+Usá la conexión **directa** (puerto 5432), no la del pooler en modo
+transacción. El modo transacción existe para clientes sin proceso persistente
+—funciones sin servidor—, y este servicio sí lo tiene: mantiene su propio pool,
+que es el motivo por el que
+[ADR-0004](../docs/adr/0004-plataforma-de-despliegue.md) eligió un contenedor.
+
+#### Aplicar las migraciones
+
+Antes del primer arranque con base de datos, desde `backend/`:
+
+```bash
+export PIDEUTB_DATABASE_URL='postgresql://...'
+python scripts/migrar.py
+```
+
+Crea el esquema y la semilla. Es idempotente: volver a ejecutarlo no duplica
+nada y solo aplica lo que falte.
+
+**No se pasa la cadena por argumento** y el script no lo permite: lo que va en
+la línea de comandos queda en el historial del shell y en la lista de procesos
+de la máquina, y ahí viaja la contraseña.
 
 Después del primer despliegue quedan **dos pasos que no se pueden hacer antes**,
 porque nadie conoce la URL hasta que existe:
