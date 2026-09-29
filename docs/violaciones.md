@@ -27,10 +27,19 @@ la auditoría.
 | [V-07](#v-07) | El dinero se representa con `float` | Modelado | 🟠 Media | ✅ Corregida (S7) |
 | [V-08](#v-08) | `estado` del pedido es texto libre | Modelado | 🟠 Media | ✅ Corregida (S7) |
 | [V-09](#v-09) | El estado vive en memoria del proceso | Arquitectura | 🟡 Conocida | ⏳ Con plazo |
-| [V-10](#v-10) | El panel del mostrador no está autenticado | Seguridad | 🔴 Abierta | ⏳ Con plazo |
+| [V-10](#v-10) | El panel del mostrador no está autenticado | Autenticación | 🔴 Alta | ⏳ Con plazo |
 
 Seis se corrigieron en S6 y **dos más en S7** —V-07 y V-08—, cada una con su
-prueba. Queda una, V-09, con plazo y motivo.
+prueba. Quedan **dos abiertas**, las dos con plazo y motivo, y las dos apuntan a
+la misma entrega siguiente:
+
+- **V-09** — el estado en memoria, que espera la migración a la base de datos.
+- **V-10** — el panel sin autenticar, que espera sesiones y roles.
+
+Ninguna de las dos se descubrió tarde: las dos son consecuencia de decisiones
+tomadas con los ojos abiertos, y el sistema las declara por su cuenta. `/health`
+responde `tipo: "memoria"` y el panel avisa en pantalla de que no está
+protegido.
 
 Las dos de S7 no se cerraron por iniciativa propia sino porque **el contrato de
 API obligó a decidir**: escribir `openapi.yaml` antes que el código forzaba a
