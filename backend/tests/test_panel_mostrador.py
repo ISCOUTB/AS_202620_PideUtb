@@ -31,6 +31,7 @@ def repositorio_limpio():
     repository._contador = 0
     yield
     repository._PEDIDOS.clear()
+    repository._contador = 0
 
 
 def _pedido_pagado(item_id: int = 1) -> int:
@@ -142,15 +143,35 @@ def test_el_codigo_de_canje_sobrevive_al_cambio_de_estado():
 def test_la_cola_solo_muestra_los_pedidos_del_establecimiento():
     """Sin autenticación, el aislamiento por establecimiento es lo único que hay.
 
-    El ítem 1 pertenece al establecimiento 1 y el 4 al establecimiento 3.
+    **Ningún ítem de la semilla permite crear un pedido fuera del
+    establecimiento 1**: el ítem 3 está agotado y el 4 pertenece a un
+    establecimiento inactivo. Por eso el segundo pedido se escribe directamente
+    en el repositorio en lugar de pedirlo por la API.
+
+    Una versión anterior de esta prueba llamaba a `POST /v1/pedidos` con el ítem
+    4 y **pasaba sin demostrar nada**: ese pedido nunca llegaba a crearse, así
+    que la cola salía con un solo elemento por el motivo equivocado.
     """
     client.post("/v1/pedidos", json={"item_id": 1, "cantidad": 1})
-    client.post("/v1/pedidos", json={"item_id": 4, "cantidad": 1})
+
+    repository.crear(
+        establecimiento_id=3,
+        item_id=4,
+        nombre_item="Café americano",
+        precio_unitario_centavos=200000,
+        cantidad=1,
+        total_centavos=200000,
+    )
 
     cola = client.get("/v1/pedidos", params={"establecimiento_id": 1}).json()
 
     assert cola["establecimiento_id"] == 1
     assert [p["establecimiento_id"] for p in cola["pedidos"]] == [1]
+
+    # Y el del otro establecimiento sí existe: si no, esta prueba volvería a
+    # pasar sin comprobar el filtro.
+    otra = client.get("/v1/pedidos", params={"establecimiento_id": 3}).json()
+    assert [p["establecimiento_id"] for p in otra["pedidos"]] == [3]
 
 
 def test_el_establecimiento_es_obligatorio():

@@ -713,7 +713,7 @@ Las mismas fronteras de §6.1, ahora con la frontera de despliegue marcada:
   │  API (contenedor, proceso persistente)   │◄───┘
   │  Render · 512 MB · disco efímero         │
   └──────────┬───────────────────────────────┘
-             │  HTTPS · JSON (PostgREST) · síncrono
+             │  TCP/TLS · PostgreSQL (pool reutilizado) · síncrono
              ▼
   ┌──────────────────────────────────────────┐
   │  PostgreSQL gestionado · Supabase        │
