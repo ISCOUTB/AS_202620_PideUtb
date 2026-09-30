@@ -1,4 +1,18 @@
-fastapi>=0.115,<1.0
-uvicorn[standard]>=0.30,<1.0
-httpx>=0.27,<1.0
-pytest>=8.0,<9.0
+# Instalación local y de despliegue.
+#
+# Este archivo no lista dependencias: **incluye** `requirements.in`, que es la
+# única lista de dependencias directas del backend.
+#
+# Antes eran dos archivos con el mismo contenido copiado, y nada obligaba a que
+# coincidieran. Eso rompió un despliegue: `psycopg` se añadió a
+# `requirements.in` y al lock de CI, las pruebas pasaron en verde, y el
+# servicio arrancó en producción sin la librería —`ModuleNotFoundError: No
+# module named 'psycopg_pool'`— porque Render instala desde aquí.
+#
+# Con la inclusión, olvidar uno de los dos deja de ser posible.
+#
+# El lock con hashes (`requirements-ci.txt`) sigue siendo solo para CI: se
+# resuelve para Linux y CPython 3.11/3.12, así que imponerlo como instalación
+# local rompería el entorno de quien trabaja en Windows.
+
+-r requirements.in
