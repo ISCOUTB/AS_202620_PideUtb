@@ -217,6 +217,24 @@ async function cambiarEstado(pedidoId, estado, boton) {
 // Arranque
 // --------------------------------------------------------------------------
 
+
+// --------------------------------------------------------------------------
+// Lanzar una función asíncrona desde un sitio que no puede esperarla.
+//
+// Los manejadores de eventos y los temporizadores no son `async`, así que
+// llamar a una función asíncrona desde ellos deja una promesa suelta. Las
+// funciones de abajo capturan sus propios errores y los muestran, pero si algo
+// fallara **fuera** de ese `try` el rechazo se perdería: la pantalla se
+// quedaría igual y en la consola aparecería un error que el usuario no ve.
+//
+// Peor que un fallo visible es uno que parece que no ocurrió.
+// --------------------------------------------------------------------------
+function lanzar(promesa) {
+  Promise.resolve(promesa).catch((e) => {
+    fallar(`Algo falló de forma inesperada: ${e.message}`);
+  });
+}
+
 function reiniciarRefresco() {
   if (temporizador) clearInterval(temporizador);
   temporizador = setInterval(cargarCola, MS_ENTRE_REFRESCOS);
@@ -225,7 +243,7 @@ function reiniciarRefresco() {
 $("refrescar").addEventListener("click", cargarCola);
 $("establecimiento").addEventListener("change", () => {
   huellaPintada = null;   // es otra cola: nada de lo pintado sirve
-  cargarCola();
+  lanzar(cargarCola());
   reiniciarRefresco();
 });
 
@@ -236,10 +254,10 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     clearInterval(temporizador);
   } else {
-    cargarCola();
+    lanzar(cargarCola());
     reiniciarRefresco();
   }
 });
 
-cargarCola();
+lanzar(cargarCola());
 reiniciarRefresco();
