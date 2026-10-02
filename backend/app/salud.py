@@ -34,7 +34,7 @@ from typing import Callable
 
 from app import base_de_datos
 from app.esquemas_comunes import EstadoDependencia
-from app.menu import repository as repositorio_catalogo
+from app.menu import service as catalogo_service
 
 #: El límite de tiempo de la sonda de base de datos no se declara aquí: lo pone
 #: el pool con `base_de_datos.TIMEOUT_POOL_S`. Tener dos habría permitido que se
@@ -61,12 +61,19 @@ def _sondar_catalogo() -> EstadoDependencia:
     """Comprueba que la capa de datos responde a una consulta real.
 
     No es un `return True`: ejecuta la misma función que sirve la carta. Si el
-    repositorio quedara vacío tras una migración mal aplicada, o lanzara al
+    almacenamiento quedara vacío tras una migración mal aplicada, o lanzara al
     importarse, esta sonda lo detecta.
+
+    Llama al **servicio** de Catálogo, no a su repositorio. La primera versión
+    de este archivo —generada con IA en la semana 8— importaba
+    `app.menu.repository`, saltándose la interfaz pública del contexto y
+    violando ADR-0001. La auditoría automática no lo detectó porque solo
+    revisaba archivos dentro de `app/<contexto>/`, y este vive suelto en
+    `app/`. Ver `docs/evidencia-s9.md` §2.
     """
     inicio = time.perf_counter()
     try:
-        items = repositorio_catalogo.buscar_por_establecimiento(1)
+        items = catalogo_service.listar_items_de_establecimiento(1)
     except Exception as error:
         return EstadoDependencia(
             estado="caido",
