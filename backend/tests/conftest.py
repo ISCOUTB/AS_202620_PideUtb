@@ -46,3 +46,22 @@ def mutar(contrato: dict, mutacion: Callable[[dict], None]) -> dict:
         )
 
     return copia
+
+
+@pytest.fixture(autouse=True)
+def secreto_de_la_pasarela(monkeypatch):
+    """Define el secreto del webhook para toda la suite.
+
+    `app/pagos/service.py` ya **no** trae valor por defecto: sin la variable,
+    `firma_valida` rechaza todo evento. Antes sí lo traía, y esa comodidad tuvo
+    una consecuencia: el despliegue nunca definió la variable y quedó
+    verificando contra una cadena publicada en un repositorio público
+    ([V-11](../../docs/violaciones.md)).
+
+    Que las pruebas tengan que declararlo es el punto, no una molestia. Un
+    secreto que se puede omitir termina omitido, y la omisión no se nota porque
+    todo sigue funcionando.
+
+    El valor de aquí es de pruebas y solo existe en el proceso de pytest.
+    """
+    monkeypatch.setenv("PIDEUTB_SECRETO_PASARELA", "secreto-solo-de-pruebas")

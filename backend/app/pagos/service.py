@@ -24,10 +24,24 @@ from app.pagos.models import IntentoPago
 from app.pedidos import service as pedidos_service
 from app.pedidos.contracts import EstadoPedido, PedidoPublicado
 
-#: Secreto compartido con la pasarela. En Sandbox se usa un valor por defecto
-#: para que el repositorio sea ejecutable sin credenciales; en cualquier
-#: despliegue real llega por variable de entorno y nunca se versiona.
-_SECRETO_PASARELA = os.getenv("PIDEUTB_SECRETO_PASARELA", "secreto-de-desarrollo")
+#: Secreto compartido con la pasarela. **Sin valor por defecto, a propósito.**
+#:
+#: Antes había uno —`"secreto-de-desarrollo"`— para que el repositorio fuera
+#: ejecutable sin credenciales. La consecuencia, descubierta en la auditoría de
+#: la semana 9, es que el despliegue nunca definió la variable y quedó
+#: verificando las firmas contra una cadena que **está en un repositorio
+#: público**: cualquiera podía firmar un evento válido y obtener un código de
+#: canje sin pagar ([V-11](../../../docs/violaciones.md)).
+#:
+#: Ahora falla en cerrado. Sin la variable, `firma_valida` rechaza **todo**
+#: evento. Un sistema sin su secreto deja de aceptar confirmaciones de pago,
+#: que es molesto y visible; con un secreto público aceptaba pagos falsos, que
+#: es peor y silencioso.
+#:
+#: Las pruebas y el desarrollo local la definen explícitamente
+#: (`tests/conftest.py`). Que haya que definirla es el punto: un secreto que se
+#: puede omitir termina omitido.
+_SECRETO_PASARELA = os.getenv("PIDEUTB_SECRETO_PASARELA", "")
 
 _URL_CHECKOUT = "https://sandbox.wompi.co/checkout"
 
@@ -48,6 +62,26 @@ class ReferenciaDesconocidaError(Exception):
 # Verificación de la firma del webhook
 # --------------------------------------------------------------------------
 
+class SecretoNoConfiguradoError(RuntimeError):
+    """No hay `PIDEUTB_SECRETO_PASARELA`, así que no se puede verificar nada."""
+
+
+def _secreto() -> str:
+    """Devuelve el secreto o se niega a seguir.
+
+    Se lee en cada llamada y no al importar el módulo para que las pruebas
+    puedan activarlo y desactivarlo, y para que un despliegue que añada la
+    variable no necesite reiniciar para que surta efecto.
+    """
+    secreto = os.getenv("PIDEUTB_SECRETO_PASARELA", "").strip()
+    if not secreto:
+        raise SecretoNoConfiguradoError(
+            "Falta PIDEUTB_SECRETO_PASARELA. Sin ella no se puede distinguir un "
+            "aviso legítimo de la pasarela de uno falsificado."
+        )
+    return secreto
+
+
 def firmar(cuerpo: bytes) -> str:
     """Firma HMAC-SHA256 del cuerpo de un evento.
 
@@ -55,7 +89,7 @@ def firmar(cuerpo: bytes) -> str:
     mismo código produzca y verifique la firma es aceptable aquí porque el
     secreto es lo que se está comprobando, no el algoritmo.
     """
-    return hmac.new(_SECRETO_PASARELA.encode(), cuerpo, hashlib.sha256).hexdigest()
+    return hmac.new(_secreto().encode(), cuerpo, hashlib.sha256).hexdigest()
 
 
 def firma_valida(cuerpo: bytes, firma: str | None) -> bool:
@@ -67,7 +101,17 @@ def firma_valida(cuerpo: bytes, firma: str | None) -> bool:
     """
     if not firma:
         return False
-    return hmac.compare_digest(firmar(cuerpo), firma)
+
+    try:
+        esperada = firmar(cuerpo)
+    except SecretoNoConfiguradoError:
+        # Fallar en cerrado: sin secreto no hay forma de distinguir un aviso
+        # legítimo de uno falsificado, así que se rechazan todos. La alternativa
+        # —aceptarlos— convierte un error de configuración en una vía para
+        # cobrar sin pagar.
+        return False
+
+    return hmac.compare_digest(esperada, firma)
 
 
 # --------------------------------------------------------------------------
