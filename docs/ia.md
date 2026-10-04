@@ -253,3 +253,111 @@ Ningún dato se aceptó por venir de la IA. En concreto:
 Los dos errores de la IA marcados arriba se detectaron **releyendo las fuentes**,
 no confiando en lo que la herramienta afirmaba recordar. Es la misma disciplina
 de las entregas anteriores: reproducir antes de registrar.
+
+---
+
+## Uso de IA en la novena entrega (S9 — Verificación y erosión)
+
+**Herramienta utilizada:** Claude (Anthropic), vía Claude Code sobre el repositorio.
+
+Esta semana el registro deja de ser acompañamiento y pasa a ser el tema. Lo que
+sigue no es «qué generamos», sino **qué encontramos al auditar lo generado en
+las cinco entregas anteriores**.
+
+### Qué se usó
+
+- **Auditoría del repositorio**: credenciales versionadas y en el historial,
+  dependencias propuestas por el modelo, cruces de frontera de contexto.
+- **Corrección del secreto de la pasarela** y las cinco pruebas de
+  `test_secreto_pasarela.py`.
+- **Ampliación de `test_modularidad.py`** a los archivos transversales, con sus
+  dos pruebas adversarias.
+- **Medición de la cobertura** en el pipeline, con umbral exigido.
+- **ADR-0005** (máquina de estados del mostrador) y **ADR-0006** (evaluación del
+  componente generativo).
+- **Medición de ESC-03** en navegador y del arranque en frío en producción.
+
+### Lo que la auditoría encontró en el código que la IA generó
+
+Tres hallazgos, los tres en código que esta herramienta escribió y que pasó
+revisión en su momento.
+
+| Hallazgo | Cómo se detectó | Gravedad |
+|---|---|---|
+| **Secreto de la pasarela publicado y en uso** | Revisión manual de patrones de credencial, más consulta a la API de Render para ver si la variable real existía | Cualquiera podía firmar un pago falso |
+| **`salud.py` cruzaba una frontera de contexto** | Revisión manual de imports, **no** por la auditoría automática | Violaba ADR-0001 durante una entrega entera |
+| **La cobertura nunca se midió** | Tirando del hilo de un «0.0 %» en un comentario de bot | Tres entregas con una métrica inexistente |
+
+Lo que tienen en común los tres: **el pipeline estaba en verde**. Ninguno habría
+aparecido mirando el estado de la construcción.
+
+### Qué se aceptó
+
+| Propuesta de la IA | Por qué se aceptó |
+|---|---|
+| Fallar en cerrado al faltar el secreto, en vez de rechazar solo las firmas inválidas | Un sistema sin su secreto deja de aceptar pagos: molesto y visible. Con un secreto público aceptaba pagos falsos: peor y silencioso |
+| Una prueba que **reproduce el ataque** en vez de solo comprobar el arreglo | Demuestra que el agujero existía. Una prueba que solo verifica el nuevo comportamiento no distingue un arreglo de un cambio cosmético |
+| Separar `EstadoSolicitable` del `enum` de respuesta | Resolvía el problema de contrato detectado por una prueba de mutación y, de paso, dejaba la regla de seguridad escrita en el contrato |
+| Umbral de cobertura **por debajo** del valor real (85 % sobre 95,7 %) | Puesto en el valor exacto, cualquier refactor rompe la construcción y el equipo aprende a subir el umbral en vez de a mirarlo |
+
+### Qué se corrigió de lo que la IA propuso
+
+| Propuesta | Decisión | Motivo |
+|---|---|---|
+| Ensanchar la regla de modularidad para que `main.py` dejara de aparecer como violación | **Corregida** | Ensanchar una regla para que pase es el antipatrón. Se hizo una excepción acotada a la raíz de composición —un archivo y un submódulo concretos— con una prueba que verifica que no se extiende a nadie más |
+| Marcar las promesas sueltas del frontend con el operador `void`, que es lo que sugiere la regla de SonarCloud | **Corregida** | `void` silencia al analizador sin arreglar nada, y convierte el fallo silencioso en permanente y bendecido por una herramienta. Se añadió un lanzador que captura lo inesperado y lo muestra |
+| Dar por buena la verificación de dependencias cuando `uvicorn` salió marcado | **Corregida** | La comprobación esperaba `encode/uvicorn` y el proyecto se mudó a `Kludex/uvicorn`. Se revisó a mano: 204 versiones, mantenedor conocido, ningún nombre confundible registrado en PyPI. **La herramienta hizo su trabajo señalando un cambio real que una persona tuvo que adjudicar** |
+
+### Qué se rechazó
+
+| Propuesta de la IA | Decisión | Motivo del rechazo |
+|---|---|---|
+| Generar descripciones automáticas de los ítems de la carta, el caso de uso más obvio para un componente generativo | **Rechazada por seguridad** | Alucinar un alérgeno —o peor, omitirlo— es un riesgo de salud. Es el candidato que más tienta y el que hay que rechazar más rápido |
+| Explotar el secreto filtrado contra producción para demostrar la vulnerabilidad | **Rechazada** | La deducción era concluyente sin hacerlo: el código lee el valor por defecto y la API de Render confirma que la variable no existía. Explotarlo habría dejado un pedido pagado falso en el sistema sin añadir certeza |
+| Incorporar un componente generativo para cumplir el resultado de aprendizaje 3 | **Rechazada** | El enunciado admite justificar la no incorporación, y con 4 ítems un filtro determinista da el mismo resultado en milisegundos y gratis. Construirlo habría sido funcionalidad para el entregable, no para el sistema |
+| Quitar del código las dos cifras de `infra/README.md` por considerarlas inventadas | **Rechazada tras comprobarlo** | **Error de la IA**, arrastrado de la semana 8 y ya corregido entonces: las dos se derivan en `comparacion-despliegue.md` §5 y §9 |
+| Dejar la insignia de cobertura en el README mientras se consultaba la configuración de SonarCloud | **Rechazada** | Renderizaba «Measure has not been found». Una insignia que anuncia una métrica inexistente afirma una verificación que no ocurre, y es peor que no tenerla |
+
+### Verificación de lo que el modelo trajo consigo
+
+El enunciado lo pide explícitamente. Resultados, con el método:
+
+**Dependencias.** Las cinco directas se contrastaron contra PyPI, comprobando no
+que se instalen —un paquete suplantado también se instala— sino que el
+repositorio declarado sea el oficial del proyecto:
+
+| Paquete | Veredicto |
+|---|---|
+| `fastapi`, `httpx`, `pytest`, `psycopg` | Legítimos |
+| `uvicorn` | Marcado por la comprobación, **revisado a mano, legítimo** |
+
+Se comprobó además que ningún nombre confundible (`uvicorns`,
+`uvicorn-standard`, `uvicom`) esté registrado en PyPI. No lo están.
+
+**Credenciales.** Ninguna en los archivos versionados: solo
+`infra/terraform.tfvars.example` con marcadores. El `terraform.tfvars` real está
+ignorado, verificado porque no aparece en `git status` al editarlo.
+
+La excepción fue el secreto de la pasarela, que no era una credencial *olvidada*
+sino un valor por defecto **deliberado** para que el repositorio fuera
+ejecutable. Esa comodidad es la que lo volvió peligroso: nadie lo trató como un
+secreto porque no lo parecía. Corregido, y con una prueba que impide que vuelva.
+
+**Pruebas que fallan de verdad.** Se comprobó en los dos casos donde importaba:
+
+- Restaurando temporalmente el punto ciego de `test_modularidad.py`, las dos
+  pruebas nuevas **fallan**.
+- `test_el_secreto_que_estuvo_publicado_ya_no_sirve` firma un evento con el
+  secreto filtrado y espera `401`.
+
+### Lo que esta semana enseñó sobre el propio registro
+
+Las entregas anteriores usaron este documento para anotar qué se aceptó y qué se
+rechazó **mientras se construía**. Esta semana se auditó lo construido, y los
+tres hallazgos salieron de sitios donde nadie estaba mirando: un valor por
+defecto cómodo, un archivo fuera del alcance de una regla automatizada, y un
+check que cuenta omitirse como éxito.
+
+El patrón es el mismo en los tres: **una verificación que no cubre todo el
+terreno es peor que no tenerla**, porque nadie vuelve a revisar a mano lo que
+cree cubierto.
