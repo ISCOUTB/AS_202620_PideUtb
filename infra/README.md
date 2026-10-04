@@ -206,7 +206,7 @@ en GitHub queda cifrado y no es legible ni por quien lo creó.
 
 | Secreto | Para qué | Estado |
 |---|---|---|
-| `SONAR_TOKEN` | Análisis desde el pipeline | Pendiente — ver [`docs/calidad-sonarcloud.md`](../docs/calidad-sonarcloud.md) |
+| `SONAR_TOKEN` | Análisis desde el pipeline | **No configurado, y por eso el job `SonarCloud` se omite.** Quien publica el análisis es el automático de SonarCloud, que no ejecuta las pruebas y no puede medir cobertura. Desde la semana 9 la cobertura se mide en el job `pruebas` con umbral exigido, sin depender de esto. Ver [`docs/calidad-sonarcloud.md`](../docs/calidad-sonarcloud.md) |
 
 ## Un aviso sobre la protección de rama
 

@@ -4,6 +4,20 @@
 
 Aceptada — 23/08/2026
 
+> ### Revisión de título — semana 6
+>
+> **Título original:** «Estilo arquitectónico del backend de PideUTB»
+>
+> Se reescribió en el commit `61f31ec` para que **enuncie la decisión y no el
+> tema**, atendiendo la retroalimentación de la semana 6. El contenido de la
+> decisión, sus alternativas y sus consecuencias **no cambiaron**: solo el
+> encabezado.
+>
+> Queda declarado aquí porque un ADR aceptado es un documento histórico. Que la
+> revisión fuera cosmética no la hace invisible: quien citó este ADR antes de
+> esa fecha leyó otro título, y sin esta nota no tendría forma de saberlo.
+> Lo señaló la revisión docente de la semana 9.
+
 ## Contexto
 
 PideUTB necesita una organización interna clara para el código del

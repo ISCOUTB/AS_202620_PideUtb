@@ -136,6 +136,39 @@ ninguna sirve sola—:
 Los tres se registran en [`correcciones.md`](../correcciones.md) al cerrar la
 entrega, con el hash concreto.
 
+## 3 bis. Historial del Quality Gate, y por qué no hay una URL por commit
+
+**Panel del proyecto:**
+<https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb>
+
+El análisis automático de SonarCloud **no analiza cada commit**: analiza cuando
+detecta cambios, y agrupa varios en un mismo análisis. La consecuencia práctica
+es que **no existe una URL de Quality Gate para un hash arbitrario**, y pedirla
+por commit no siempre se puede responder. Lo señaló la revisión docente de la
+semana 9 al no encontrarla para `a94bf4e`, y la respuesta honesta es esa: ese
+commit no tuvo análisis propio.
+
+Lo que sí hay es el historial, consultable con:
+
+```bash
+curl -s "https://sonarcloud.io/api/project_analyses/search?project=ISCOUTB_AS_202620_PideUtb&ps=12"
+```
+
+Los cambios de veredicto registrados:
+
+| Fecha | Commit | Quality Gate |
+|---|---|---|
+| 2026-10-01 | `87bdf2ad` | **Green** (venía de Red) |
+| 2026-09-30 | `0393eee5` | **Red** (venía de Green) |
+| 2026-09-21 | `356369d1` | **Red** (venía de Green) |
+
+Ese historial vale más que una captura en verde: **demuestra que el gate
+bloquea de verdad**. El rojo del 30/09 fue una calificación de fiabilidad C por
+seis promesas sin manejar en el frontend; el verde del 01/10 es el commit que
+las corrigió. Un gate que nunca se ha puesto rojo no ha demostrado nada.
+
+---
+
 ## 4. Cobertura
 
 Desde la semana 9 se mide **en el pipeline** y se exige: el job `pruebas` corre

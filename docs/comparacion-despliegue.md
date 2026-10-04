@@ -284,6 +284,19 @@ completas, con el comando que las reproduce, están en
 | Qué | Proyectado | Medido | Lectura |
 |---|---|---|---|
 | p95 de `POST /v1/pedidos` | 3,02 ms en proceso | **1,58 ms** en la plataforma | La proyección se quedó **corta**: la API desplegada resultó más rápida que la línea base local. No es sorprendente —la máquina de Render no compite con un portátil haciendo otras cosas— pero conviene decir que la proyección erró, no presentarla como acertada |
+| Arranque en frío | ~60 s (dato oficial de Render) | **42,4 s** medidos | La proyección era **pesimista**. Sigue siendo mucho: se come un tercio del presupuesto de 120 s de ESC-02 antes de que el usuario vea la carta |
+
+**Sobre los 42,4 s.** Se midieron sin buscarlo, durante una auditoría del
+repositorio: el servicio llevaba horas dormido y la primera petición a `/health`
+tardó eso. Es **una** muestra, con su red y su TLS dentro, no una distribución.
+Lo que permite afirmar es el orden de magnitud —decenas de segundos, no
+segundos— y que la cifra oficial de Render es un techo, no una media.
+
+Reproducible dejando el servicio 15 minutos sin tráfico y midiendo:
+
+```bash
+curl -s -o /dev/null -w "%{time_total}s\n" https://pideutb-api.onrender.com/health
+```
 
 **Ese 1,58 ms está calculado sobre una sola muestra y no significa nada
 estadísticamente.** El campo `muestras` de `/metricas` se publica precisamente
@@ -292,11 +305,6 @@ magnitud equivocado, no para afirmar un percentil.
 
 ### Sigue sin medir
 
-- [ ] **Latencia real del arranque en frío**, contra los ~60 s que documenta
-      Render. Exige dejar el servicio 15 minutos sin tráfico y cronometrar la
-      primera petición. Es la medición que más importa, porque el arranque en
-      frío es el costo que [ADR-0004](adr/0004-plataforma-de-despliegue.md)
-      acepta y el que amenaza a ESC-02.
 - [ ] **Porcentaje real de invocaciones frías** con tráfico real. No hay tráfico
       real todavía.
 - [ ] **Consumo de conexiones a Supabase durante un pico.** No se puede medir:
