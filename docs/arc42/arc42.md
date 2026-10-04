@@ -918,6 +918,8 @@ arquitectura sin abrir nada.
 | [ADR-0002](../adr/0002-propiedad-datos-establecimiento.md) | Hacer del contexto Cuentas el único escritor de `Establecimiento` y comunicar los contextos por lenguaje publicado | [ESC-03](#esc-03) | Aceptada |
 | [ADR-0003](../adr/0003-estrategia-integracion.md) | Confirmar el pago de forma asíncrona por webhook y mantener síncrono el resto de la API | [ESC-05](#esc-05) | Aceptada |
 | [ADR-0004](../adr/0004-plataforma-de-despliegue.md) | Desplegar la API en un contenedor con proceso persistente, y no en funciones sin servidor | [ESC-02](#esc-02) | Aceptada |
+| [ADR-0005](../adr/0005-maquina-de-estados-del-mostrador.md) | Declarar las transiciones del mostrador como dato y excluir el pago de ellas | [ESC-03](#esc-03) | Aceptada |
+| [ADR-0006](../adr/0006-componente-generativo.md) | No incorporar un componente generativo, y dejar escrito qué lo cambiaría | [ESC-02](#esc-02) | Aceptada |
 
 *(Este índice se amplía en cada entrega a medida que surgen nuevas
 decisiones — por ejemplo, la forma de validar el código de canje en el punto de
