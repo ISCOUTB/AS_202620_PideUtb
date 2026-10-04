@@ -77,19 +77,42 @@ jobs:
       # Se instala desde el lock con versiones exactas y hashes, y solo desde
       # wheels: la build es reproducible y ningún paquete ejecuta su setup.py
       # durante la instalación.
+      # `requirements-calidad.txt` trae `pytest-cov`, que es instrumental de
+      # medición y no una dependencia del producto. Se instala aquí porque la
+      # cobertura se mide en este job: es el único que ejecuta las pruebas
+      # contra PostgreSQL, y sin base de datos las ramas de los `repository.py`
+      # quedan sin ejecutar y el porcentaje miente a la baja.
       - name: Instalar dependencias
         run: |
           pip install --require-hashes --only-binary=:all: -r requirements-ci.txt
+          pip install --require-hashes --only-binary=:all: -r requirements-calidad.txt
 
       # La variable se llama `..._PRUEBAS` y no `PIDEUTB_DATABASE_URL` a
       # propósito. Si las pruebas leyeran la misma que usa la aplicación,
       # bastaría con tenerla exportada —lo normal mientras se desarrolla contra
       # Supabase— para que la suite truncara las tablas de producción. La única
       # defensa fiable contra ese accidente es que el nombre no coincida.
-      - name: Ejecutar pruebas
+      # `--cov-fail-under` convierte la cobertura en un umbral exigido, no en
+      # un dato informativo.
+      #
+      # Existe por un hallazgo de la semana 9: la cobertura **nunca se había
+      # medido**. El job `SonarCloud` de abajo la mide, pero se omite sin
+      # `SONAR_TOKEN` y termina en verde, así que llevaba tres entregas sin
+      # ejecutarse. Quien publicaba el análisis era el automático de
+      # SonarCloud, que no corre las pruebas y por tanto no puede ingerir
+      # cobertura (`docs/calidad-sonarcloud.md` §2). El README llegó a mostrar
+      # una insignia que decía «Measure has not been found».
+      #
+      # El umbral va **por debajo** del valor actual a propósito. Puesto
+      # exactamente en él, cualquier refactor normal rompería la construcción y
+      # el equipo aprendería a subirlo en vez de a mirarlo.
+      - name: Ejecutar pruebas y medir cobertura
         env:
           PIDEUTB_DATABASE_URL_PRUEBAS: postgresql://pideutb@localhost:5432/pideutb_pruebas
-        run: pytest -v --junitxml=reporte-pruebas.xml
+        run: |
+          pytest -v --junitxml=reporte-pruebas.xml \
+            --cov=app --cov-report=term-missing --cov-report=xml:coverage.xml \
+            --cov-fail-under=85
 
       # Si el contenedor no arrancara, las pruebas de PostgreSQL se **omitirían
       # en silencio** y el job seguiría en verde: la suite está escrita para

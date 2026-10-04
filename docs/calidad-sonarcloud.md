@@ -50,6 +50,31 @@ Los dos modos **no pueden convivir**: si se activa el análisis desde CI sin
 apagar el automático, uno de los dos falla con `You are running manual analysis
 while Automatic Analysis is enabled`.
 
+### Cuál de los dos está activo, y qué costó descubrirlo
+
+**El automático.** El job `SonarCloud` del pipeline existe desde la semana 5 y
+**nunca ha corrido**: comprueba si hay `SONAR_TOKEN` y, si no lo hay, se omite
+sin fallar. El check sale **verde** porque omitirse cuenta como éxito.
+
+La consecuencia, descubierta en la auditoría de la semana 9: durante tres
+entregas la cobertura **no se midió ni una vez**, aunque la tabla de arriba ya
+decía que el análisis automático no puede ingerirla. El conocimiento estaba
+escrito; lo que faltaba era notar cuál de los dos modos estaba corriendo.
+
+El README llegó a publicar una insignia de cobertura que renderizaba
+literalmente **«Measure has not been found»**. Se retiró: una insignia que
+anuncia una métrica inexistente afirma una verificación que no ocurre.
+
+**Qué se hizo en su lugar**, sin tocar la configuración de SonarCloud: la
+cobertura se mide ahora en el job `pruebas`, con `--cov-fail-under=85`. Es un
+umbral **exigido**, no un dato informativo, y se mide en el único job que
+ejecuta las pruebas contra PostgreSQL —sin base de datos, las ramas de los
+`repository.py` quedan sin ejecutar y el porcentaje miente a la baja—.
+
+Si algún día se activa el análisis desde CI, la cobertura volverá a aparecer en
+SonarCloud y la insignia se puede reponer. Mientras tanto, el número vive donde
+se puede exigir.
+
 ### Pasos, si se decide hacer el cambio
 
 1. Entrar en el [panel del proyecto](https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb)
@@ -111,13 +136,25 @@ ninguna sirve sola—:
 Los tres se registran en [`correcciones.md`](../correcciones.md) al cerrar la
 entrega, con el hash concreto.
 
-## 4. Cobertura medida en local
+## 4. Cobertura
 
-Referencia previa al primer análisis, para saber de qué punto se parte:
+Desde la semana 9 se mide **en el pipeline** y se exige: el job `pruebas` corre
+`pytest --cov=app --cov-fail-under=85` y la construcción falla si baja de ahí.
+
+El umbral va por debajo del valor real a propósito. Puesto exactamente en él,
+cualquier refactor normal rompería la construcción, y lo que el equipo
+aprendería es a subir el umbral en vez de a mirarlo.
+
+Medición local al fijarlo (sin PostgreSQL, así que es el **suelo**: en CI las
+ramas de los `repository.py` sí se ejecutan y el valor sube):
 
 ```
-77 pruebas · 412 sentencias · 99 % de cobertura
+171 pruebas · 724 sentencias · 88 % de cobertura
 ```
+
+La cifra anterior de este documento —77 pruebas, 99 %— era de la semana 5 y
+quedó obsoleta. Se conserva el dato de entonces solo en el historial de git:
+un número viejo presentado como actual es peor que ninguno.
 
 Reproducible con:
 

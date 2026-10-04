@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/ci.yml/badge.svg)](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/ci.yml)
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=ISCOUTB_AS_202620_PideUtb&metric=alert_status)](https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ISCOUTB_AS_202620_PideUtb&metric=coverage)](https://sonarcloud.io/component_measures?id=ISCOUTB_AS_202620_PideUtb&metric=coverage)
 
 Pide UTB es una plataforma web para realizar pedidos de comida dentro del campus universitario. Permite consultar menús y precios, realizar pedidos, gestionar pagos mediante una pasarela en ambiente Sandbox y recibir un código para verificar y recoger las compras de forma rápida y organizada.
 
@@ -49,13 +48,13 @@ fragmentos reproducidos, está en [`docs/evidencia-s7.md`](docs/evidencia-s7.md)
 | **Correspondencia contrato ↔ código** | 9 paths ↔ 10 operaciones: `menu/router.py:18,22,35` · `pedidos/router.py:18,22,42,55,78` · `pagos/router.py:18,22,40` · `main.py:103,117`. Lo verifica `test_contrato_api.py` en cada push |
 | Versión declarada con historial | `info.version: 1.1.0`; [`historial/`](docs/api/historial/) congela **1.0.0 y 1.1.0**. El salto de MINOR se justifica en [§6 de la política](docs/api/politica-versionado.md): la forma intuitiva de hacer real el chequeo de salud era la regla **I-8**, y el diseño cambió por eso |
 | Prueba de contrato presente | `test_contrato_api.py` · `test_compatibilidad_contrato.py` · `test_expectativas_consumidor.py` — **20 casos negativos** |
-| **El pipeline la ejecuta** | [`ci.yml:89-48`](.github/workflows/ci.yml) `pytest -v` · `ci.yml:158-106` Spectral · `ci.yml:173-120` oasdiff |
+| **El pipeline la ejecuta** | [`ci.yml:109-48`](.github/workflows/ci.yml) `pytest -v` · `ci.yml:181-106` Spectral · `ci.yml:196-120` oasdiff |
 | **Falla ante un cambio incompatible** | [Run #22](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/35557297196) — `failure`. Cayeron oasdiff y las pruebas; **Spectral pasó**, porque lo roto era la promesa y no la forma |
 | ADR ligado a un escenario | [ADR-0003](docs/adr/0003-estrategia-integracion.md) ← ESC-05, con las dos alternativas descartadas |
 | **arc42 §6 con los flujos** | [`arc42.md`](docs/arc42/arc42.md) **líneas 391-644**: 6 flujos etiquetados, 4 diagramas de secuencia, 9 modos de fallo |
 | **C4 N2 con protocolo y formato** | [`nivel2-contenedores.md`](docs/c4/nivel2-contenedores.md) **líneas 27-34**: 7 relaciones, cada una con protocolo · formato · modo |
 | Tabla de aspectos de 8 columnas | [`docs/aspectos.md`](docs/aspectos.md) — 6 filas, ninguna celda de Código o Pruebas vacía |
-| **SonarCloud** | [Panel público](https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb) · Quality Gate **`OK`** · workflow en `ci.yml:242-193` |
+| **SonarCloud** | [Panel público](https://sonarcloud.io/summary/overall?id=ISCOUTB_AS_202620_PideUtb) · Quality Gate **`OK`** · workflow en `ci.yml:265-193` |
 
 Las citas por número de línea las protege
 [`backend/tests/test_evidencia.py`](backend/tests/test_evidencia.py): si un
