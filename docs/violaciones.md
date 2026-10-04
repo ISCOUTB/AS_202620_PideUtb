@@ -28,11 +28,16 @@ la auditoría.
 | [V-08](#v-08) | `estado` del pedido es texto libre | Modelado | 🟠 Media | ✅ Corregida (S7) |
 | [V-09](#v-09) | El estado vive en memoria del proceso | Arquitectura | 🟡 Conocida | ✅ Corregida (S8) |
 | [V-10](#v-10) | El panel del mostrador no está autenticado | Autenticación | 🔴 Alta | ⏳ Con plazo |
+| [V-11](#v-11) | El secreto del webhook estaba escrito en el código | Secretos | 🔴 Alta | ✅ Corregida (S9) |
 
 Seis se corrigieron en S6 y **dos más en S7** —V-07 y V-08—, cada una con su
-prueba. **V-09 se cerró en S8** con la migración a PostgreSQL. Queda **una**, V-10,
-con plazo y motivo: el panel del mostrador sin autenticar, que espera sesiones
-y roles.
+prueba. **V-09 se cerró en S8** con la migración a PostgreSQL y **V-11 en S9**. Queda
+**una**, V-10, con plazo y motivo: el panel del mostrador sin autenticar, que
+espera sesiones y roles.
+
+V-11 merece una línea aparte porque no se descubrió construyendo sino
+**auditando**: estuvo activa en producción tres entregas, con el pipeline en
+verde todo ese tiempo.
 
 No se descubrió tarde. Es consecuencia de una decisión tomada con los ojos
 abiertos, y el sistema la declara por su cuenta: el panel avisa en pantalla de
@@ -391,3 +396,57 @@ cubierta por
 **Plan.** Autenticación y roles en la entrega siguiente: sesión para el personal
 del establecimiento y comprobación de que el pedido que se modifica pertenece al
 establecimiento de quien lo pide. **Antes de cualquier uso real con dinero.**
+
+---
+
+<a id="v-11"></a>
+
+## V-11 · El secreto del webhook estaba escrito en el código
+
+**Estado:** ✅ corregida en S9. **Archivos:** `app/pagos/service.py`,
+`tests/conftest.py`, `tests/test_secreto_pasarela.py`
+
+`app/pagos/service.py` traía un valor por defecto para el secreto que verifica
+la firma de los avisos de la pasarela:
+
+```python
+_SECRETO_PASARELA = os.getenv("PIDEUTB_SECRETO_PASARELA", "secreto-de-desarrollo")
+```
+
+La intención era buena: que el repositorio fuera ejecutable sin credenciales.
+**Esa comodidad es justamente lo que lo volvió peligroso**, porque nadie lo
+trató como un secreto — no lo parecía.
+
+**Reproducción.** El despliegue nunca definió la variable real. Consultando la
+API de Render, el servicio tenía solo `PIDEUTB_DATABASE_URL` y
+`PIDEUTB_ORIGENES_PERMITIDOS`. Así que la API en producción verificaba las
+firmas contra una cadena **publicada en un repositorio público**, y cualquiera
+que lo leyera podía firmar un aviso de pago válido y obtener un código de canje
+sin pagar.
+
+No se explotó contra producción: el código lee el valor por defecto y la
+variable no existía, así que la deducción es concluyente sin hacerlo.
+
+**Por qué no lo detectó nada.** No era una credencial *olvidada* —esas las
+encuentra cualquier escáner de secretos— sino un valor por defecto
+**deliberado**, escrito como tal y con un comentario explicándolo. Ninguna
+herramienta lo marca, porque desde fuera parece una decisión.
+
+**Corrección: fallar en cerrado.** Se quitó el valor por defecto. Sin
+`PIDEUTB_SECRETO_PASARELA`, `firma_valida` rechaza **todo** evento.
+
+Un sistema sin su secreto deja de aceptar confirmaciones de pago: molesto y
+visible. Con un secreto público aceptaba pagos falsos: peor y silencioso.
+
+Cinco pruebas lo cubren, y dos merecen mención:
+
+- `test_el_secreto_que_estuvo_publicado_ya_no_sirve` **reproduce el ataque**: un
+  evento firmado con el secreto filtrado devuelve `401`.
+- `test_el_secreto_no_aparece_en_el_codigo_fuente` comprueba que ningún archivo
+  de `app/` vuelva a traer uno escrito. Es la prueba que lo habría evitado desde
+  el principio: no verifica un comportamiento, verifica la ausencia de la causa.
+
+**Lo que dejó para la próxima vez.** Las pruebas declaran ahora el secreto
+explícitamente en `conftest.py`. Que haya que declararlo es el punto, no una
+molestia: un secreto que se puede omitir termina omitido, y la omisión no se
+nota porque todo sigue funcionando.
