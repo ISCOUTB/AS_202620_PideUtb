@@ -30,6 +30,8 @@ proceso ([V-09](docs/violaciones.md)) y el sistema lo dice en voz alta.
 La evidencia completa —infraestructura declarada, las tres señales de operación
 y lo que **no** está hecho— está en
 [`docs/evidencia-s8.md`](docs/evidencia-s8.md).
+La de la semana 9 —generación verificada, auditoría de erosión y de dependencias—
+en [`docs/evidencia-s9.md`](docs/evidencia-s9.md).
 
 **Primera petición tras 15 minutos de silencio: hasta ~60 s.** Es el arranque en
 frío del plan gratuito, no un fallo. El sitio avisa cuando ocurre. Por qué se
