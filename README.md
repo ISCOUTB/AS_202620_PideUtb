@@ -10,6 +10,7 @@ Pide UTB es una plataforma web para realizar pedidos de comida dentro del campus
 | Pieza | URL |
 |---|---|
 | **Sitio** | https://pideutb-sitio.onrender.com |
+| **Panel del mostrador** | https://pideutb-sitio.onrender.com/panel.html |
 | **API** | https://pideutb-api.onrender.com |
 | Chequeo de salud | https://pideutb-api.onrender.com/health |
 | Métricas | https://pideutb-api.onrender.com/metricas |

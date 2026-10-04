@@ -8,6 +8,20 @@ Aceptada — 13/09/2026
 en discusión, basta cambiar esta línea a «Propuesta» y revertir el commit que
 implementa el módulo `usuarios`.)*
 
+> ### Revisión de título — semana 7
+>
+> **Título original:** «Propiedad de los datos de Establecimiento y lenguaje publicado entre contextos»
+>
+> Se reescribió en el commit `1864353` para que **enuncie la decisión y no el
+> tema**, atendiendo la retroalimentación de la semana 6. El contenido de la
+> decisión, sus alternativas y sus consecuencias **no cambiaron**: solo el
+> encabezado.
+>
+> Queda declarado aquí porque un ADR aceptado es un documento histórico. Que la
+> revisión fuera cosmética no la hace invisible: quien citó este ADR antes de
+> esa fecha leyó otro título, y sin esta nota no tendría forma de saberlo.
+> Lo señaló la revisión docente de la semana 9.
+
 ## Contexto
 
 La auditoría de modularidad de la semana 6

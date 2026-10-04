@@ -133,6 +133,21 @@ equipo y a condiciones del proyecto académico.
                                       API del sistema y facilitar la
                                       implementación del backend.
 
+  **Presupuesto cero y sin tarjeta de El equipo no dispone de
+  crédito**                           financiación ni de una tarjeta con
+                                      la que registrarse. No es «bajo
+                                      coste»: es cero, y sin medio de
+                                      pago. Es la primera restricción que
+                                      se aplica al elegir cualquier
+                                      servicio, porque descarta de
+                                      entrada todo plan que pida tarjeta
+                                      aunque su capa gratuita sea
+                                      suficiente. Condiciona el
+                                      despliegue (ADR-0004), el motor de
+                                      base de datos y los límites de
+                                      operación con los que conviven los
+                                      escenarios de la sección 10.
+
   **Base de datos Supabase basada en  Permite utilizar una base de datos
   PostgreSQL**                        relacional gestionada sin
                                       administrar infraestructura propia.

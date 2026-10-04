@@ -69,13 +69,13 @@ CITAS = [
     ("docs/c4/nivel2-contenedores.md", 34, "HTTPS · JSON + HMAC · ASÍNCRONO"),
 
     # §4 — arc42 sección 6
-    ("docs/arc42/arc42.md", 409, "## 6. Vista de tiempo de ejecución"),
-    ("docs/arc42/arc42.md", 424, "### 6.1 Resumen de los flujos"),
-    ("docs/arc42/arc42.md", 445, "### 6.2 Crear un pedido"),
-    ("docs/arc42/arc42.md", 510, "### 6.3 Pagar un pedido"),
-    ("docs/arc42/arc42.md", 592, "### 6.4 Consultar el estado"),
-    ("docs/arc42/arc42.md", 625, "### 6.5 Modos de fallo"),
-    ("docs/arc42/arc42.md", 649, "### 6.6 Deuda conocida"),
+    ("docs/arc42/arc42.md", 424, "## 6. Vista de tiempo de ejecución"),
+    ("docs/arc42/arc42.md", 439, "### 6.1 Resumen de los flujos"),
+    ("docs/arc42/arc42.md", 460, "### 6.2 Crear un pedido"),
+    ("docs/arc42/arc42.md", 525, "### 6.3 Pagar un pedido"),
+    ("docs/arc42/arc42.md", 607, "### 6.4 Consultar el estado"),
+    ("docs/arc42/arc42.md", 640, "### 6.5 Modos de fallo"),
+    ("docs/arc42/arc42.md", 664, "### 6.6 Deuda conocida"),
 ]
 
 
