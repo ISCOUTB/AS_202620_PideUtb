@@ -710,6 +710,50 @@ def test_el_guion_de_alta_funciona_de_principio_a_fin(postgres, monkeypatch, cap
     assert "clave-de-prueba-larga" not in creado.hash_contrasena
 
 
+@pytest.mark.parametrize(
+    "respuestas, salida_esperada",
+    [
+        (["cierra@utb.edu.co", "personal_establecimiento", "1"], 0),
+        (["cierra@utb.edu.co", "rol_inventado"], 2),
+    ],
+    ids=["camino feliz", "falla a mitad"],
+)
+def test_el_guion_de_alta_cierra_el_pool(postgres, monkeypatch, respuestas, salida_esperada):
+    """Salga bien o mal, al terminar no quedan hilos del pool vivos.
+
+    El síntoma era cosmético y aun así importaba: `psycopg_pool` se queja al
+    apagar el intérprete con cuatro `couldn't stop thread ...`, y eso aparecía
+    **después** del «Usuario N creado». Quien acababa de tocar la base de datos
+    de producción leía «no pude parar» y se preguntaba si la cuenta se había
+    escrito. Un aviso alarmante detrás de una operación correcta enseña a
+    ignorar los avisos.
+
+    Se comprueba el **mecanismo** —que el pool queda cerrado— y no el mensaje de
+    `stderr`. Verificar el mensaje exigiría lanzar el guion como subproceso, y
+    ahí `getpass` lee de la consola y no de `stdin`: sin terminal se queda
+    esperando una tecla que no llega. Una prueba que cuelga dos minutos es peor
+    que una que mide una capa más abajo.
+
+    El segundo caso es el que justifica el `finally`: si el cierre colgara del
+    camino feliz, un fallo a mitad dejaría los hilos igualmente, y encima el
+    error de verdad se perdería entre las quejas del apagado.
+    """
+    import importlib
+
+    monkeypatch.setenv("PIDEUTB_DATABASE_URL", URL_PRUEBAS)
+    siguientes = iter(respuestas)
+    monkeypatch.setattr("builtins.input", lambda *_: next(siguientes))
+    monkeypatch.setattr("getpass.getpass", lambda *_: "clave-de-prueba-larga")
+
+    guion = importlib.import_module("scripts.crear_usuario")
+    assert guion.main() == salida_esperada
+
+    assert base_de_datos._pool is None, (
+        "El guion terminó con el pool abierto: al salir del intérprete, "
+        "`psycopg_pool` se quejará de los hilos que quedan vivos."
+    )
+
+
 def test_el_guion_de_alta_rechaza_un_rol_que_no_existe(postgres, monkeypatch):
     """Sin crear nada. Un rol mal escrito no puede dejar media cuenta."""
     import importlib
