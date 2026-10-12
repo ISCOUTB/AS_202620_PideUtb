@@ -53,20 +53,20 @@ CITAS = [
     # §2 — El pipeline ejecuta la prueba de contrato
     (".github/workflows/ci.yml", 109, "Ejecutar pruebas"),
     (".github/workflows/ci.yml", 113, "pytest -v --junitxml"),
-    (".github/workflows/ci.yml", 181, "Validar la forma de los contratos (Spectral)"),
-    (".github/workflows/ci.yml", 183, "./node_modules/.bin/spectral lint"),
-    (".github/workflows/ci.yml", 199, "Resolver la línea base del contrato"),
-    (".github/workflows/ci.yml", 211, "Detectar cambios incompatibles (oasdiff)"),
-    (".github/workflows/ci.yml", 213, "tufin/oasdiff breaking"),
-    (".github/workflows/ci.yml", 216, "--fail-on ERR"),
+    (".github/workflows/ci.yml", 185, "Validar la forma de los contratos (Spectral)"),
+    (".github/workflows/ci.yml", 187, "./node_modules/.bin/spectral lint"),
+    (".github/workflows/ci.yml", 203, "Resolver la línea base del contrato"),
+    (".github/workflows/ci.yml", 215, "Detectar cambios incompatibles (oasdiff)"),
+    (".github/workflows/ci.yml", 217, "tufin/oasdiff breaking"),
+    (".github/workflows/ci.yml", 220, "--fail-on ERR"),
 
     # §7 — SonarCloud en el pipeline
-    (".github/workflows/ci.yml", 270, "Medir cobertura"),
-    (".github/workflows/ci.yml", 273, "pytest --cov=app"),
-    (".github/workflows/ci.yml", 278, "Analizar con SonarCloud"),
-    (".github/workflows/ci.yml", 280, "sonarqube-scan-action@ba9859ea"),
-    (".github/workflows/ci.yml", 287, "Esperar el veredicto del Quality Gate"),
-    (".github/workflows/ci.yml", 289, "sonarqube-quality-gate-action@7a5fffe8"),
+    (".github/workflows/ci.yml", 274, "Medir cobertura"),
+    (".github/workflows/ci.yml", 277, "pytest --cov=app"),
+    (".github/workflows/ci.yml", 282, "Analizar con SonarCloud"),
+    (".github/workflows/ci.yml", 284, "sonarqube-scan-action@ba9859ea"),
+    (".github/workflows/ci.yml", 291, "Esperar el veredicto del Quality Gate"),
+    (".github/workflows/ci.yml", 293, "sonarqube-quality-gate-action@7a5fffe8"),
 
     # §5 — C4 nivel 2: cada flecha con protocolo, formato y modo
     ("docs/c4/nivel2-contenedores.md", 31, "HTTPS · JSON (REST) · síncrono"),

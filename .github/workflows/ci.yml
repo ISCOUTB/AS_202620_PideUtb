@@ -118,11 +118,15 @@ jobs:
       # en silencio** y el job seguiría en verde: la suite está escrita para
       # omitirlas cuando no hay base de datos. Este paso convierte ese silencio
       # en un fallo.
+      # Cubre los **dos** archivos que dependen de PostgreSQL. Hasta la semana
+      # 10 solo vigilaba `test_repositorios.py`, así que la autenticación
+      # —que no tiene implementación en memoria a propósito— podría haberse
+      # omitido entera sin que este paso se enterara.
       - name: Comprobar que las pruebas de PostgreSQL se ejecutaron
         env:
           PIDEUTB_DATABASE_URL_PRUEBAS: postgresql://pideutb@localhost:5432/pideutb_pruebas
         run: |
-          pytest tests/test_repositorios.py -q -rs 2>&1 | tee salida.txt
+          pytest tests/test_repositorios.py tests/test_autenticacion.py -q -rs 2>&1 | tee salida.txt
           if grep -q "Sin PIDEUTB_DATABASE_URL_PRUEBAS" salida.txt; then
             echo "::error::Las pruebas contra PostgreSQL se omitieron. El contenedor no estaba disponible."
             exit 1
