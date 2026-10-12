@@ -154,14 +154,24 @@ def test_un_hash_con_formato_roto_devuelve_falso_y_no_revienta(almacenado):
 
 
 def test_el_token_se_guarda_hasheado_y_no_en_claro():
-    """`nuevo_token` devuelve el token y su hash, y no son lo mismo."""
+    """`nuevo_token` devuelve el token y su hash, y no son lo mismo.
+
+    La tercera aserción es la que comprueba que el hash es **determinista**, y
+    por eso vale: `token_hash` lo calculó `nuevo_token` por dentro y
+    `hash_de_token` lo vuelve a calcular aquí, así que son dos cómputos
+    independientes de la misma entrada. Sin esa propiedad no se podría buscar
+    una sesión por su hash, que es como está indexada la tabla.
+
+    Hubo una cuarta línea comparando `hash_de_token(token)` consigo mismo. No
+    añadía nada —la anterior ya cubre lo que pretendía— y era una comparación de
+    una expresión contra sí misma, que es lo que marca `python:S5863`. La avisó
+    SonarCloud y tenía razón.
+    """
     token, token_hash = credenciales.nuevo_token()
 
     assert token != token_hash
     assert token not in token_hash
     assert credenciales.hash_de_token(token) == token_hash
-    # Determinista: la misma entrada da el mismo hash, o no se podría buscar.
-    assert credenciales.hash_de_token(token) == credenciales.hash_de_token(token)
 
 
 def test_dos_tokens_seguidos_no_se_repiten():
