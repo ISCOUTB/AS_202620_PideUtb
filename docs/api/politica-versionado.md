@@ -76,7 +76,7 @@ demostración es justamente lo que hace
 [`contracts/consumidor-web.yaml`](../../contracts/consumidor-web.yaml), donde
 cada consumidor declara qué valores interpreta.
 
-### 3.2 Por qué I-12 se añadió tarde
+### 3.2 Por qué I-12 se añadió tarde, y qué más apareció al añadirla
 
 La lista original hablaba de **campos** de petición y respuesta, y las cabeceras
 no son campos. Esa distinción es técnica y no le importa a nadie: a un cliente
@@ -84,12 +84,49 @@ que empieza a recibir `401` le da igual si lo que falta viaja en el cuerpo o en
 una cabecera.
 
 El hueco apareció al añadir autenticación al panel del mostrador en la semana
-10. Conviene decir cómo: **no lo detectó ninguna herramienta**. `oasdiff` no
-marca una cabecera nueva como rotura, y nuestro comparador tampoco la miraba.
-Lo detectó leer la lista preguntándose si cubría el caso que teníamos delante.
+10, y lo encontró leer la lista preguntándose si cubría el caso que teníamos
+delante. Lo que vino después es más interesante que el hueco:
 
-Es el mismo tipo de hallazgo que la semana 9: una verificación que no cubre
-todo el terreno da una seguridad que no tiene.
+**Escribir la regla no la hace cierta.** Con I-12 ya en esta tabla, se midió el
+contrato 2.0.0 contra la 1.2.0 congelada con nuestro propio comparador. Resultado:
+**cero** cambios incompatibles, para el cambio más grande que este contrato ha
+tenido. `comparar_contratos.py` revisaba rutas, esquemas, campos requeridos,
+tipos, `enum` y códigos de respuesta, y no miraba `security` en absoluto. La
+regla existía en este documento y en ningún otro sitio.
+
+**Y había un segundo portón abierto detrás.**
+`test_el_contrato_vigente_no_rompe_la_linea_base` comparaba siempre contra
+`openapi-1.0.0.yaml` y se **omitía** cuando la MAYOR subía. Los dos defectos
+juntos tienen una consecuencia peor que cada uno por separado: el salto a 2.0.0
+habría apagado la comparación de compatibilidad para el resto del proyecto, y la
+prueba habría seguido saliendo como «omitida», que en un resumen de pytest se lee
+casi igual que «pasó».
+
+Las dos cosas quedaron cerradas en la misma semana:
+
+- I-12 está implementada en `backend/scripts/comparar_contratos.py`
+  (`_comparar_credenciales`), con dos casos negativos y uno positivo en
+  `test_compatibilidad_contrato.py`. El positivo importa tanto como los
+  negativos: dejar de exigir una credencial es compatible, y una regla que
+  marcara cualquier cambio de `security` como rotura bloquearía la única
+  dirección inofensiva.
+- La línea base la resuelve ahora `info.version` del propio contrato, así que un
+  salto de MAYOR no apaga la comparación: la **reapunta** a la nueva base y
+  obliga a congelarla en el mismo commit, tanto en la prueba como en el job de
+  `oasdiff`.
+- Y se añadió la simetría que faltaba:
+  `test_el_salto_de_mayor_esta_justificado_por_una_rotura_real` exige que un
+  2.0.0 pueda **señalar** la rotura que lo justifica. Avisar sin romper no es
+  inofensivo: anuncia trabajo que no existe, y gasta la credibilidad del
+  siguiente aviso.
+
+Sobre `oasdiff` no afirmamos nada aquí: no se midió contra este caso, y una
+herramienta externa no es evidencia hasta que uno la corre. Lo que sí se midió
+es lo propio, y lo propio estaba en cero.
+
+Es el mismo tipo de hallazgo que la semana 9, una vez más: una verificación que
+no cubre todo el terreno da una seguridad que no tiene. La diferencia es que esta
+vez el terreno descubierto era la verificación misma.
 
 ---
 

@@ -440,6 +440,89 @@ def _comparar_propiedades(
 # Comparación de operaciones
 # --------------------------------------------------------------------------
 
+def _alternativas_de_credencial(documento: dict, operacion: dict) -> list[frozenset[str]]:
+    """Las formas distintas de autenticarse que una operación acepta.
+
+    En OpenAPI, `security` es una lista de alternativas que se leen con **O**, y
+    cada alternativa es un diccionario de esquemas que se leen con **Y**. Si la
+    operación no la declara, hereda la del documento; una lista vacía, o una
+    alternativa vacía dentro de la lista, significa «se puede llamar sin
+    credencial».
+
+    Devolver conjuntos y no diccionarios es deliberado: a esta pregunta solo le
+    importa *qué esquemas* hay que presentar, no los ámbitos de cada uno. Los
+    ámbitos de OAuth son una comparación distinta que este contrato no necesita
+    todavía, y fingir que la hacemos sería peor que no hacerla.
+    """
+    declarada = operacion.get("security", documento.get("security"))
+    if not declarada:
+        return [frozenset()]
+    return [frozenset(alternativa or {}) for alternativa in declarada]
+
+
+def _comparar_credenciales(
+    doc_viejo: dict, doc_nuevo: dict, etiqueta: str, viejo: dict, nuevo: dict,
+) -> list[Cambio]:
+    """Detecta I-12: exigir una credencial que antes no se exigía.
+
+    Es la regla que la semana 10 obligó a escribir, y el motivo por el que está
+    aquí y no solo en la política: el salto a 2.0.0 —el panel pasó a necesitar
+    sesión— es la rotura más grande que este contrato ha tenido, y el comparador
+    la daba por **compatible**. Comparaba rutas, esquemas, campos requeridos,
+    tipos, enums y códigos de respuesta, pero no `security`, así que una API que
+    de un día para otro responde `401` a todo el mundo pasaba el portón sin que
+    se encendiera nada.
+
+    Un hueco así no se nota mientras no se usa, y cuando se usa ya es tarde. Por
+    eso la regla viene con su caso negativo en
+    `test_compatibilidad_contrato.py`: lo que detecta este código está probado
+    que falla cuando debe.
+    """
+    antes = _alternativas_de_credencial(doc_viejo, viejo)
+    ahora = _alternativas_de_credencial(doc_nuevo, nuevo)
+
+    libre_antes = frozenset() in antes
+    libre_ahora = frozenset() in ahora
+
+    if libre_antes and not libre_ahora:
+        exigidos = sorted({nombre for alternativa in ahora for nombre in alternativa})
+        return [Cambio(
+            regla="I-12",
+            compatible=False,
+            ubicacion=etiqueta,
+            descripcion=(
+                "pasa a exigir una credencial que antes no pedía "
+                f"({', '.join(exigidos)}): un cliente existente recibe 401"
+            ),
+        )]
+
+    if not libre_antes and libre_ahora:
+        return [Cambio(
+            regla="I-12",
+            compatible=True,
+            ubicacion=etiqueta,
+            descripcion="deja de exigir credencial; quien la manda sigue entrando",
+        )]
+
+    # Las dos exigen algo. Lo que rompe es que **ninguna** de las formas que
+    # antes servían siga sirviendo: ahí el cliente tiene la credencial correcta
+    # según el contrato viejo y aun así se queda fuera.
+    retiradas = [a for a in antes if a and a not in ahora]
+    if retiradas and not any(a in ahora for a in antes if a):
+        return [Cambio(
+            regla="I-12",
+            compatible=False,
+            ubicacion=etiqueta,
+            descripcion=(
+                "cambia el tipo de credencial exigida "
+                f"({' | '.join(sorted(','.join(sorted(a)) for a in retiradas))} "
+                "ya no se acepta)"
+            ),
+        )]
+
+    return []
+
+
 def _comparar_operacion(
     doc_viejo: dict, doc_nuevo: dict, clave: tuple[str, str],
     viejo: dict, nuevo: dict,
@@ -447,6 +530,8 @@ def _comparar_operacion(
     ruta, metodo = clave
     etiqueta = f"{metodo.upper()} {ruta}"
     cambios: list[Cambio] = []
+
+    cambios += _comparar_credenciales(doc_viejo, doc_nuevo, etiqueta, viejo, nuevo)
 
     cuerpo_viejo = _cuerpo_json(doc_viejo, viejo)
     cuerpo_nuevo = _cuerpo_json(doc_nuevo, nuevo)
