@@ -44,6 +44,10 @@ class PedidoNoEncontradoError(Exception):
     pass
 
 
+class CodigoDeCanjeInvalidoError(Exception):
+    """El código presentado no es el del pedido, o ya se usó."""
+
+
 class TransicionNoPermitidaError(Exception):
     """Se pidió llevar un pedido a un estado al que no puede ir desde donde está."""
 
@@ -197,7 +201,13 @@ def listar_por_establecimiento(establecimiento_id: int) -> list[PedidoPublicado]
     return [_publicar(p) for p in repository.buscar_por_establecimiento(establecimiento_id)]
 
 
-def avanzar_estado(pedido_id: int, nuevo_estado: EstadoPedido) -> PedidoPublicado:
+def avanzar_estado(
+    pedido_id: int,
+    nuevo_estado: EstadoPedido,
+    *,
+    establecimiento_id: int,
+    codigo_canje: str | None = None,
+) -> PedidoPublicado:
     """Mueve un pedido dentro de la máquina de estados del mostrador.
 
     Es la operación que cierra [ESC-03](../../../docs/arc42/arc42.md#esc-03):
@@ -213,6 +223,12 @@ def avanzar_estado(pedido_id: int, nuevo_estado: EstadoPedido) -> PedidoPublicad
     if pedido is None:
         raise PedidoNoEncontradoError(f"El pedido {pedido_id} no existe")
 
+    # Un pedido de otro establecimiento se trata como inexistente, no como
+    # prohibido. Responder «no podés tocar ese» confirmaría que existe, y eso
+    # permite enumerar los pedidos del campus probando identificadores.
+    if pedido.establecimiento_id != establecimiento_id:
+        raise PedidoNoEncontradoError(f"El pedido {pedido_id} no existe")
+
     permitidos = TRANSICIONES_DEL_MOSTRADOR.get(pedido.estado, frozenset())
     if nuevo_estado not in permitidos:
         # El mensaje dice el estado actual, no solo que se rechazó: quien
@@ -223,4 +239,35 @@ def avanzar_estado(pedido_id: int, nuevo_estado: EstadoPedido) -> PedidoPublicad
             f"'{nuevo_estado.value}'"
         )
 
+    # Entregar exige presentar el código, que es lo que cierra ESC-04.
+    #
+    # La comprobación va aquí, en la última transición, y no en un endpoint
+    # aparte: así el código no es un trámite opcional sino la condición para que
+    # el pedido salga del mostrador.
+    #
+    # El rechazo del 100 % de las reutilizaciones no necesita código propio: sale
+    # de que `entregado` sea un estado final. El segundo intento no falla por el
+    # código sino porque ya no hay transición desde ahí.
+    if nuevo_estado is EstadoPedido.ENTREGADO:
+        if not codigo_canje or not _codigo_coincide(codigo_canje, pedido.codigo_canje):
+            raise CodigoDeCanjeInvalidoError(
+                "El código de canje no corresponde a este pedido."
+            )
+
     return _publicar(repository.guardar(pedido.model_copy(update={"estado": nuevo_estado})))
+
+
+def _codigo_coincide(presentado: str, real: str | None) -> bool:
+    """Compara en tiempo constante y sin distinguir mayúsculas.
+
+    `compare_digest` y no `==` por el mismo motivo que en la firma del webhook:
+    una comparación que termina en el primer carácter distinto filtra, por su
+    duración, cuántos acertó quien la intenta. Aquí el alfabeto es pequeño y el
+    código corto, así que esa fuga es aprovechable de verdad.
+
+    Sin distinguir mayúsculas porque el código se dicta en voz alta en un
+    mostrador, y quien lo teclea no debería fallar por eso.
+    """
+    if real is None:
+        return False
+    return secrets.compare_digest(presentado.strip().upper(), real.upper())

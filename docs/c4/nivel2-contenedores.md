@@ -21,7 +21,7 @@ C4Container
         Container(api, "API PideUTB", "FastAPI (Python) — monolito modular", "Expone /v1 según docs/api/openapi.yaml. Cuatro módulos de dominio que solo se comunican por funciones públicas de servicio (ADR-0001).")
     }
 
-    System_Ext(supabase, "Supabase", "Persistencia (PostgreSQL) y autenticación.")
+    System_Ext(supabase, "Supabase", "Persistencia: PostgreSQL gestionado. Nada más.")
     System_Ext(wompi, "Wompi Sandbox", "Procesamiento de pagos de prueba.")
 
     Rel(usuario, frontend, "Consulta menús, pide, paga y recoge", "HTTPS · HTML/JSON · síncrono")
@@ -29,7 +29,7 @@ C4Container
     Rel(admin, frontend, "Administra la plataforma", "HTTPS · HTML/JSON · síncrono")
 
     Rel(frontend, api, "Consume la API v1", "HTTPS · JSON (REST) · síncrono")
-    Rel(api, supabase, "Lee/escribe datos, valida identidad", "TCP/TLS · PostgreSQL (pool) · síncrono")
+    Rel(api, supabase, "Lee/escribe datos, incluidas credenciales y sesiones", "TCP/TLS · PostgreSQL (pool) · síncrono")
     Rel(api, wompi, "Abre el intento de cobro", "HTTPS · JSON · síncrono")
     Rel_Back(api, wompi, "Confirma la transacción (webhook firmado)", "HTTPS · JSON + HMAC · ASÍNCRONO")
 
@@ -46,7 +46,7 @@ La misma información del diagrama, en forma consultable. La última columna es 
 |---|---|---|---|---|---|---|
 | 1 | Usuario / Personal / Admin → Frontend Web | HTTPS | HTML + JSON | Síncrono | *(interfaz de usuario)* | No hay producto |
 | 2 | Frontend Web → API PideUTB | HTTPS | JSON (REST) | Síncrono | [`openapi.yaml`](../api/openapi.yaml) | El usuario no puede operar; se acepta porque sin API no hay sistema |
-| 3 | API PideUTB → Supabase | TCP/TLS | PostgreSQL sobre un **pool reutilizado** | Síncrono | `app/base_de_datos.py`, `app/*/repository.py` | La operación falla y se responde un error explícito; `/health` devuelve `503` y la plataforma saca el servicio de rotación |
+| 3 | API PideUTB → Supabase | TCP/TLS | PostgreSQL sobre un **pool reutilizado** | Síncrono | `app/base_de_datos.py`, `app/*/repository.py` | La operación falla y se responde un error explícito; `/health` devuelve `503` y la plataforma saca el servicio de rotación. **Desde la 2.0.0 eso incluye no poder iniciar sesión**: las credenciales viven en esta base de datos |
 | 4 | API PideUTB → Wompi Sandbox | HTTPS | JSON | Síncrono | API externa de la pasarela | Error inmediato; **el pedido se conserva** y se puede reintentar |
 | 5 | Wompi Sandbox → API PideUTB | HTTPS | JSON + firma HMAC (`X-Firma-Evento`) | **Asíncrono** | [`asyncapi.yaml`](../api/asyncapi.yaml) · canal `eventos-de-pago` | El pedido queda en `pendiente_pago`, consultable por el frontend |
 
@@ -61,6 +61,35 @@ De ahí se derivan tres exigencias que ninguna de las otras flechas tiene, y que
 - **Idempotencia**, porque la entrega es al-menos-una-vez.
 - **Autenticación propia** (firma HMAC), porque el interlocutor ya no es nuestro frontend sino Internet.
 - **Un camino para que el usuario se entere después**, que es `GET /v1/pedidos/{pedido_id}`.
+
+### Qué provee Supabase, y qué no
+
+Hasta la semana 10 este diagrama describía a Supabase como «persistencia y
+**autenticación**», y la flecha 3 decía «valida identidad». Las dos cosas eran
+falsas: el proyecto usa de Supabase únicamente el PostgreSQL gestionado, y
+Supabase Auth no está integrado ni lo estuvo nunca.
+
+Es el tipo de error más incómodo que puede tener un diagrama de arquitectura,
+porque **describía una protección que no existía**. Cualquiera que leyera el
+nivel 2 concluiría que el acceso estaba resuelto por el proveedor, y por eso no
+iría a buscar si lo estaba. Durante tres entregas el panel del mostrador no
+exigió nada ([V-10](../violaciones.md#v-10)) mientras este archivo afirmaba que
+la identidad se validaba contra Supabase.
+
+Lo que hay de verdad, desde la 2.0.0:
+
+- **Supabase provee PostgreSQL gestionado.** Eso es todo.
+- **La autenticación es propia**, y las credenciales y sesiones son dos tablas
+  más en esa misma base de datos: `usuarios` y `sesiones`. Por eso la flecha 3
+  ahora dice «incluidas credenciales y sesiones», que es información nueva y no
+  cosmética: significa que si Supabase no responde, **tampoco se puede iniciar
+  sesión**, no solo consultar pedidos.
+- El motivo de no usar Supabase Auth, con la comparación completa, está en
+  [ADR-0007](../adr/0007-autenticacion-del-panel.md).
+
+La lección se generaliza más allá de esta caja: un diagrama que nombra una
+capacidad de un servicio externo está afirmando que esa capacidad **se usa**. Es
+tan verificable como una cita con número de línea, y conviene tratarlo igual.
 
 ### El canal de eventos interno no aparece en este nivel
 

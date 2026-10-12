@@ -118,11 +118,15 @@ jobs:
       # en silencio** y el job seguiría en verde: la suite está escrita para
       # omitirlas cuando no hay base de datos. Este paso convierte ese silencio
       # en un fallo.
+      # Cubre los **dos** archivos que dependen de PostgreSQL. Hasta la semana
+      # 10 solo vigilaba `test_repositorios.py`, así que la autenticación
+      # —que no tiene implementación en memoria a propósito— podría haberse
+      # omitido entera sin que este paso se enterara.
       - name: Comprobar que las pruebas de PostgreSQL se ejecutaron
         env:
           PIDEUTB_DATABASE_URL_PRUEBAS: postgresql://pideutb@localhost:5432/pideutb_pruebas
         run: |
-          pytest tests/test_repositorios.py -q -rs 2>&1 | tee salida.txt
+          pytest tests/test_repositorios.py tests/test_autenticacion.py -q -rs 2>&1 | tee salida.txt
           if grep -q "Sin PIDEUTB_DATABASE_URL_PRUEBAS" salida.txt; then
             echo "::error::Las pruebas contra PostgreSQL se omitieron. El contenedor no estaba disponible."
             exit 1
@@ -193,10 +197,25 @@ jobs:
       # redundancia: una herramienta externa no comparte nuestros puntos
       # ciegos, y nuestro comparador conoce reglas que ella no puede saber
       # (la dirección del dato en un enum, política §3.1).
+      # La línea base es la MAYOR que el contrato declara cumplir, no un
+      # literal: con `openapi-1.0.0.yaml` fijo, el salto a 2.0.0 habría dejado
+      # este paso comparando contra una promesa que ya nadie hace.
+      - name: Resolver la línea base del contrato
+        id: linea_base
+        run: |
+          mayor=$(python -c "import yaml,sys; print(yaml.safe_load(open('docs/api/openapi.yaml'))['info']['version'].split('.')[0])")
+          base="docs/api/historial/openapi-${mayor}.0.0.yaml"
+          if [ ! -f "$base" ]; then
+            echo "::error::El contrato declara la MAYOR ${mayor} y falta su línea base congelada ${base}. Copiá docs/api/openapi.yaml ahí en el mismo commit que sube la versión."
+            exit 1
+          fi
+          echo "ruta=${base}" >> "$GITHUB_OUTPUT"
+          echo "Comparando contra ${base}"
+
       - name: Detectar cambios incompatibles (oasdiff)
         run: |
           docker run --rm -v "${{ github.workspace }}:/specs" tufin/oasdiff breaking \
-            /specs/docs/api/historial/openapi-1.0.0.yaml \
+            "/specs/${{ steps.linea_base.outputs.ruta }}" \
             /specs/docs/api/openapi.yaml \
             --fail-on ERR
 

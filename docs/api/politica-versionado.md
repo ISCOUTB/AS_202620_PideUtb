@@ -58,6 +58,7 @@ tocarlo, deja de funcionar.**
 | I-9 | Estrechar una restricción de petición (`maximum` menor, `minLength` mayor, `pattern` más estricto) | Peticiones antes válidas pasan a rechazarse. |
 | I-10 | Quitar un código de respuesta documentado, o cambiar qué significa | El cliente tiene ramas de manejo de error que dejan de dispararse. |
 | I-11 | Cambiar el `content-type` de una respuesta | El cliente no sabe deserializarla. |
+| I-12 | **Exigir una cabecera o una credencial que antes no se pedía** | Peticiones que funcionaban pasan a `401`. Es I-4 aplicado a las cabeceras, y la lista no lo contemplaba hasta la semana 10. Ver §3.2. |
 
 ### 3.1 Los `enum` no son simétricos
 
@@ -74,6 +75,60 @@ salvo que se demuestre que ningún consumidor discrimina por estado — y esa
 demostración es justamente lo que hace
 [`contracts/consumidor-web.yaml`](../../contracts/consumidor-web.yaml), donde
 cada consumidor declara qué valores interpreta.
+
+### 3.2 Por qué I-12 se añadió tarde, y qué más apareció al añadirla
+
+La lista original hablaba de **campos** de petición y respuesta, y las cabeceras
+no son campos. Esa distinción es técnica y no le importa a nadie: a un cliente
+que empieza a recibir `401` le da igual si lo que falta viaja en el cuerpo o en
+una cabecera.
+
+El hueco apareció al añadir autenticación al panel del mostrador en la semana
+10, y lo encontró leer la lista preguntándose si cubría el caso que teníamos
+delante. Lo que vino después es más interesante que el hueco:
+
+**Escribir la regla no la hace cierta.** Con I-12 ya en esta tabla, se midió el
+contrato 2.0.0 contra la 1.2.0 congelada con nuestro propio comparador. Resultado:
+**cero** cambios incompatibles, para el cambio más grande que este contrato ha
+tenido. `comparar_contratos.py` revisaba rutas, esquemas, campos requeridos,
+tipos, `enum` y códigos de respuesta, y no miraba `security` en absoluto. La
+regla existía en este documento y en ningún otro sitio.
+
+**Y había un segundo portón abierto detrás.**
+`test_el_contrato_vigente_no_rompe_la_linea_base` comparaba siempre contra
+`openapi-1.0.0.yaml` y se **omitía** cuando la MAYOR subía. Los dos defectos
+juntos tienen una consecuencia peor que cada uno por separado: el salto a 2.0.0
+habría apagado la comparación de compatibilidad para el resto del proyecto, y la
+prueba habría seguido saliendo como «omitida», que en un resumen de pytest se lee
+casi igual que «pasó».
+
+Las dos cosas quedaron cerradas en la misma semana:
+
+- I-12 está implementada en `backend/scripts/comparar_contratos.py`
+  (`_comparar_credenciales`), con dos casos negativos y uno positivo en
+  `test_compatibilidad_contrato.py`. El positivo importa tanto como los
+  negativos: dejar de exigir una credencial es compatible, y una regla que
+  marcara cualquier cambio de `security` como rotura bloquearía la única
+  dirección inofensiva.
+- La línea base la resuelve ahora `info.version` del propio contrato, así que un
+  salto de MAYOR no apaga la comparación: la **reapunta** a la nueva base y
+  obliga a congelarla en el mismo commit, tanto en la prueba como en el job de
+  `oasdiff`.
+- Y se añadió la simetría que faltaba:
+  `test_el_salto_de_mayor_esta_justificado_por_una_rotura_real` exige que un
+  2.0.0 pueda **señalar** la rotura que lo justifica. Avisar sin romper no es
+  inofensivo: anuncia trabajo que no existe, y gasta la credibilidad del
+  siguiente aviso.
+
+Sobre `oasdiff` no afirmamos nada aquí: no se midió contra este caso, y una
+herramienta externa no es evidencia hasta que uno la corre. Lo que sí se midió
+es lo propio, y lo propio estaba en cero.
+
+Es el mismo tipo de hallazgo que la semana 9, una vez más: una verificación que
+no cubre todo el terreno da una seguridad que no tiene. La diferencia es que esta
+vez el terreno descubierto era la verificación misma.
+
+---
 
 ## 4. El cambio que ninguna herramienta detecta
 
@@ -114,6 +169,39 @@ propia API.
 
 El orden importa: primero se publica `/v2`, luego se marca `/v1` como obsoleto.
 Al revés se avisa de una migración hacia un destino que todavía no existe.
+
+## 5 bis. La excepción: cuando el comportamiento viejo **es** el defecto
+
+El procedimiento de §5 asume una evolución benigna: `/v1` sigue funcionando
+mientras los consumidores migran, y eso es correcto cuando lo viejo es
+simplemente anterior.
+
+**No lo es cuando lo viejo es una vulnerabilidad.** Mantener `/v1` vivo 90 días
+mientras `/v2` exige autenticación significa dejar abierta durante tres meses la
+misma puerta que se está cerrando. El plazo que protege a los consumidores
+protegería también a quien quiera entrar.
+
+Así que para un cambio incompatible **cuyo motivo es cerrar un defecto de
+seguridad** rige esto:
+
+1. **No hay convivencia.** El comportamiento inseguro deja de existir el día del
+   despliegue, no noventa días después.
+2. **El prefijo de ruta no cambia.** `/v1` frente a `/v2` existe *para permitir
+   que dos versiones convivan*; sin convivencia, el prefijo no tiene trabajo que
+   hacer. `info.version` sí sube a MAYOR, porque la rotura es real y hay que
+   anunciarla.
+3. **Se declara aquí, no en el commit.** La excepción tiene que ser legible
+   antes de usarse, o se convierte en la coartada de cualquier rotura.
+4. **Solo aplica mientras los consumidores estén coordinados**, es decir
+   mientras `contracts/` declare consumidores que viven en este repositorio y se
+   despliegan con la API. En cuanto exista uno externo, vuelve a regir §5 sin
+   excepciones, porque ya no se le puede actualizar a la vez.
+
+El riesgo de esta excepción es evidente: justifica saltarse el aviso, y casi
+cualquier cambio se puede presentar como «de seguridad». El punto 4 es lo que la
+acota, y es comprobable: basta mirar cuántos consumidores declara `contracts/`.
+
+---
 
 ## 6. Historial
 

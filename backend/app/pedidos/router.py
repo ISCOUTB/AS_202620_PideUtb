@@ -3,11 +3,16 @@
 El router es el único que traduce excepciones de dominio a códigos HTTP
 (arc42 §8.4): el servicio no conoce el protocolo.
 """
-from fastapi import APIRouter, HTTPException, Query
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from app.autenticacion import establecimiento_que_puede_ver, personal_de_establecimiento
 
 from app.esquemas_comunes import ErrorDeNegocio, ErrorDeValidacion
 from app.pedidos import service
 from app.pedidos.contracts import EstadoPedido
+from app.usuarios.contracts import UsuarioAutenticado
 from app.pedidos.esquemas_api import (
     CambiarEstadoRequest,
     CrearPedidoRequest,
@@ -21,7 +26,6 @@ router = APIRouter(prefix="/v1/pedidos", tags=["pedidos"])
 @router.post(
     "",
     status_code=201,
-    response_model=PedidoResponse,
     responses={404: {"model": ErrorDeNegocio}, 409: {"model": ErrorDeNegocio}, 422: {"model": ErrorDeValidacion}},
     summary="Crea un pedido.",
 )
@@ -40,7 +44,6 @@ def crear_pedido(datos: CrearPedidoRequest) -> PedidoResponse:
 
 @router.get(
     "/{pedido_id}",
-    response_model=PedidoResponse,
     responses={404: {"model": ErrorDeNegocio}, 422: {"model": ErrorDeValidacion}},
     summary="Consulta un pedido y su estado.",
 )
@@ -53,38 +56,58 @@ def obtener_pedido(pedido_id: int) -> PedidoResponse:
 
 @router.get(
     "",
-    response_model=ListaDePedidosResponse,
-    responses={422: {"model": ErrorDeValidacion}},
-    summary="Lista los pedidos de un establecimiento.",
+    responses={
+        401: {"model": ErrorDeNegocio},
+        403: {"model": ErrorDeNegocio},
+        422: {"model": ErrorDeValidacion},
+    },
+    summary="Lista los pedidos del establecimiento de la sesión.",
 )
 def listar_pedidos(
-    establecimiento_id: int = Query(ge=1, description="Establecimiento cuyos pedidos se consultan."),
+    usuario: Annotated[UsuarioAutenticado, Depends(personal_de_establecimiento)],
+    establecimiento_id: Annotated[
+        int | None,
+        Query(
+            ge=1,
+            description=(
+                "Solo para administradores. El personal opera sobre su propio "
+                "establecimiento y recibe `403` si indica otro."
+            ),
+        ),
+    ] = None,
 ) -> ListaDePedidosResponse:
     """Los pedidos que el mostrador tiene que atender.
 
-    `establecimiento_id` es **obligatorio**, y no un filtro opcional: sin él,
-    esta ruta devolvería los pedidos de todos los establecimientos del campus a
-    quien preguntara. Un parámetro con valor por defecto habría convertido un
-    olvido en una fuga de datos.
+    **El establecimiento sale de la sesión, no del parámetro.** Antes era un
+    parámetro obligatorio y cualquiera podía pedir el de otro
+    ([V-10](../../../docs/violaciones.md)); ahora el parámetro solo sirve para
+    que un administrador elija, y para el personal es como mucho una forma de
+    pedir algo que no le corresponde.
     """
-    pedidos = service.listar_por_establecimiento(establecimiento_id)
+    efectivo = establecimiento_que_puede_ver(usuario, establecimiento_id)
+    pedidos = service.listar_por_establecimiento(efectivo)
     return ListaDePedidosResponse(
-        establecimiento_id=establecimiento_id,
+        establecimiento_id=efectivo,
         pedidos=[PedidoResponse.desde_contrato(p) for p in pedidos],
     )
 
 
 @router.post(
     "/{pedido_id}/estado",
-    response_model=PedidoResponse,
     responses={
+        401: {"model": ErrorDeNegocio},
+        403: {"model": ErrorDeNegocio},
         404: {"model": ErrorDeNegocio},
         409: {"model": ErrorDeNegocio},
         422: {"model": ErrorDeValidacion},
     },
-    summary="Avanza el estado de un pedido.",
+    summary="Avanza el estado de un pedido del establecimiento de la sesión.",
 )
-def cambiar_estado(pedido_id: int, datos: CambiarEstadoRequest) -> PedidoResponse:
+def cambiar_estado(
+    pedido_id: int,
+    datos: CambiarEstadoRequest,
+    usuario: Annotated[UsuarioAutenticado, Depends(personal_de_establecimiento)],
+) -> PedidoResponse:
     """Mueve el pedido dentro de la máquina de estados del mostrador.
 
     Es un sub-recurso con nombre (`/estado`) y no un `PATCH` sobre el pedido a
@@ -99,10 +122,20 @@ def cambiar_estado(pedido_id: int, datos: CambiarEstadoRequest) -> PedidoRespons
         # `EstadoSolicitable` es un subconjunto de `EstadoPedido` y los
         # valores coinciden; la conversión es explícita para que el
         # servicio siga hablando solo el lenguaje del dominio.
-        pedido = service.avanzar_estado(pedido_id, EstadoPedido(datos.estado.value))
+        pedido = service.avanzar_estado(
+            pedido_id,
+            EstadoPedido(datos.estado.value),
+            establecimiento_id=establecimiento_que_puede_ver(usuario, None),
+            codigo_canje=datos.codigo_canje,
+        )
     except service.PedidoNoEncontradoError as e:
+        # También se llega aquí cuando el pedido existe pero es de otro
+        # establecimiento. Es deliberado: distinguirlo con un 403 confirmaría
+        # que existe, y permitiría enumerar los pedidos del campus.
         raise HTTPException(status_code=404, detail=str(e))
     except service.TransicionNoPermitidaError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except service.CodigoDeCanjeInvalidoError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
     return PedidoResponse.desde_contrato(pedido)

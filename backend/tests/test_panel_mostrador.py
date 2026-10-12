@@ -12,11 +12,41 @@ la única barrera que existe.
 import pytest
 from fastapi.testclient import TestClient
 
+from app.autenticacion import personal_de_establecimiento, usuario_actual
 from app.main import app
 from app.pedidos import repository, service
 from app.pedidos.contracts import EstadoPedido, EstadoSolicitable
+from app.usuarios.contracts import RolUsuario, UsuarioAutenticado
 
 client = TestClient(app)
+
+#: Quién se supone que está usando el panel en estas pruebas.
+MOSTRADOR = UsuarioAutenticado(
+    usuario_id=1,
+    correo="mostrador@utb.edu.co",
+    rol=RolUsuario.PERSONAL_ESTABLECIMIENTO,
+    establecimiento_id=1,
+)
+
+
+@pytest.fixture(autouse=True)
+def sesion_de_mostrador():
+    """Sustituye la dependencia de autenticación por un usuario conocido.
+
+    Estas pruebas verifican la **máquina de estados y la autorización por
+    establecimiento**, no el mecanismo de sesión. Mezclarlos haría que un fallo
+    de scrypt rompiera quince pruebas que no hablan de contraseñas, y costaría
+    unos 100 ms por caso derivando credenciales que no aportan nada aquí.
+
+    El mecanismo real —derivación, token, caducidad— se prueba contra PostgreSQL
+    en `tests/test_autenticacion.py`, porque `usuarios.repository` **no tiene**
+    implementación en memoria: una autenticación de juguete que funciona sin
+    base de datos invita a desplegar sin ella.
+    """
+    app.dependency_overrides[personal_de_establecimiento] = lambda: MOSTRADOR
+    app.dependency_overrides[usuario_actual] = lambda: MOSTRADOR
+    yield
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -92,8 +122,13 @@ def test_los_estados_finales_son_finales():
     Permitirlo haría imposible contar cuántos pedidos se sirvieron de verdad.
     """
     pedido_id = _pedido_pagado()
-    for estado in ("en_preparacion", "listo_para_recoger", "entregado"):
+    codigo = client.get(f"/v1/pedidos/{pedido_id}").json()["codigo_canje"]
+    for estado in ("en_preparacion", "listo_para_recoger"):
         assert client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": estado}).status_code == 200
+    assert client.post(
+        f"/v1/pedidos/{pedido_id}/estado",
+        json={"estado": "entregado", "codigo_canje": codigo},
+    ).status_code == 200
 
     assert client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": "en_preparacion"}).status_code == 409
 
@@ -110,8 +145,12 @@ def test_un_pedido_inexistente_da_404_y_no_409():
 def test_el_recorrido_completo_del_mostrador():
     pedido_id = _pedido_pagado()
 
+    codigo = client.get(f"/v1/pedidos/{pedido_id}").json()["codigo_canje"]
     for estado in ("en_preparacion", "listo_para_recoger", "entregado"):
-        respuesta = client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": estado})
+        cuerpo = {"estado": estado}
+        if estado == "entregado":
+            cuerpo["codigo_canje"] = codigo
+        respuesta = client.post(f"/v1/pedidos/{pedido_id}/estado", json=cuerpo)
         assert respuesta.status_code == 200
         assert respuesta.json()["estado"] == estado
 
@@ -163,20 +202,154 @@ def test_la_cola_solo_muestra_los_pedidos_del_establecimiento():
         total_centavos=200000,
     )
 
-    cola = client.get("/v1/pedidos", params={"establecimiento_id": 1}).json()
+    cola = client.get("/v1/pedidos").json()
 
     assert cola["establecimiento_id"] == 1
     assert [p["establecimiento_id"] for p in cola["pedidos"]] == [1]
 
-    # Y el del otro establecimiento sí existe: si no, esta prueba volvería a
-    # pasar sin comprobar el filtro.
-    otra = client.get("/v1/pedidos", params={"establecimiento_id": 3}).json()
-    assert [p["establecimiento_id"] for p in otra["pedidos"]] == [3]
+    # Y el del otro establecimiento existe de verdad: si no, esta prueba
+    # volvería a pasar sin comprobar el filtro. Se consulta por el repositorio
+    # porque **la API ya no deja mirarlo**: pedirlo responde 403, que es
+    # justamente lo que esta prueba quiere que ocurra.
+    assert [p.establecimiento_id for p in repository.buscar_por_establecimiento(3)] == [3]
+    assert client.get("/v1/pedidos", params={"establecimiento_id": 3}).status_code == 403
 
 
-def test_el_establecimiento_es_obligatorio():
-    """Sin él, esta ruta devolvería los pedidos de todo el campus."""
-    assert client.get("/v1/pedidos").status_code == 422
+def test_el_establecimiento_sale_de_la_sesion_y_no_del_parametro():
+    """Sin parámetro, se devuelven los del establecimiento de quien pregunta.
+
+    Hasta la semana 10 el parámetro era obligatorio y cualquiera podía pedir el
+    establecimiento que quisiera ([V-10](../../docs/violaciones.md)). Ahora
+    omitirlo es lo normal, y lo que se obtiene es lo propio.
+    """
+    client.post("/v1/pedidos", json={"item_id": 1, "cantidad": 1})
+
+    cola = client.get("/v1/pedidos").json()
+
+    assert cola["establecimiento_id"] == MOSTRADOR.establecimiento_id
+
+
+def test_pedir_el_establecimiento_de_otro_da_403():
+    """No se ignora el parámetro en silencio.
+
+    Quien pide los pedidos del establecimiento 2 y recibe los del 1 creería
+    estar viendo el 2. Es peor que un error: es una respuesta correcta a una
+    pregunta distinta.
+    """
+    assert client.get("/v1/pedidos", params={"establecimiento_id": 2}).status_code == 403
+
+
+def test_sin_sesion_no_se_puede_ni_mirar():
+    """La prueba que demuestra que la puerta existe.
+
+    Quita el sustituto de la dependencia, así que corre contra la verificación
+    real: sin cabecera no hay sesión, y sin sesión no hay cola.
+    """
+    app.dependency_overrides.clear()
+
+    assert client.get("/v1/pedidos").status_code == 401
+    assert client.post(
+        "/v1/pedidos/1/estado", json={"estado": "en_preparacion"}
+    ).status_code == 401
+
+
+def test_avanzar_el_pedido_de_otro_establecimiento_da_404():
+    """Y `404`, no `403`, a propósito.
+
+    Un `403` diría «ese pedido existe pero no es tuyo», y con esa respuesta se
+    enumeran los pedidos del campus probando identificadores: es una fuga
+    distinta, y más silenciosa, que la que se estaba cerrando con la sesión.
+
+    Para quien tiene derecho a ese pedido la respuesta es la misma que si no
+    existiera, que es exactamente lo que se quiere decir: desde esta sesión, no
+    existe.
+    """
+    ajeno = repository.crear(
+        establecimiento_id=3,
+        item_id=4,
+        nombre_item="Café americano",
+        precio_unitario_centavos=200000,
+        cantidad=1,
+        total_centavos=200000,
+    )
+
+    respuesta = client.post(
+        f"/v1/pedidos/{ajeno.id}/estado", json={"estado": "en_preparacion"}
+    )
+
+    assert respuesta.status_code == 404
+    # Y existe de verdad: sin esto la prueba pasaría por el motivo equivocado.
+    assert repository.buscar_por_id(ajeno.id) is not None
+
+
+def test_entregar_sin_el_codigo_no_se_puede():
+    """Lo que cierra ESC-04: el código es la condición de la entrega.
+
+    La comprobación vive en la última transición y no en un endpoint aparte,
+    precisamente para que no sea un trámite opcional. Un endpoint «validar
+    código» que no bloqueara la entrega se podría saltar sin más.
+    """
+    pedido_id = _pedido_pagado()
+    codigo = client.get(f"/v1/pedidos/{pedido_id}").json()["codigo_canje"]
+    for estado in ("en_preparacion", "listo_para_recoger"):
+        client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": estado})
+
+    sin_codigo = client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": "entregado"})
+    equivocado = client.post(
+        f"/v1/pedidos/{pedido_id}/estado",
+        json={"estado": "entregado", "codigo_canje": "ZZZZZZ"},
+    )
+
+    assert sin_codigo.status_code == 409
+    assert equivocado.status_code == 409
+    # El pedido no se movió: un intento fallido no puede dejarlo a medio entregar.
+    assert client.get(f"/v1/pedidos/{pedido_id}").json()["estado"] == "listo_para_recoger"
+
+    # Y con el código correcto sí. Sin esta mitad, la prueba pasaría igual con
+    # un endpoint que rechazara siempre.
+    assert client.post(
+        f"/v1/pedidos/{pedido_id}/estado",
+        json={"estado": "entregado", "codigo_canje": codigo},
+    ).status_code == 200
+
+
+def test_el_codigo_se_acepta_en_minusculas_pero_no_con_otro_valor():
+    """Se dicta en voz alta en un mostrador; quien lo teclea no debe fallar por eso.
+
+    La tolerancia es solo a la caja de las letras. Un código parecido pero
+    distinto sigue siendo un código distinto.
+    """
+    pedido_id = _pedido_pagado()
+    codigo = client.get(f"/v1/pedidos/{pedido_id}").json()["codigo_canje"]
+    for estado in ("en_preparacion", "listo_para_recoger"):
+        client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": estado})
+
+    assert client.post(
+        f"/v1/pedidos/{pedido_id}/estado",
+        json={"estado": "entregado", "codigo_canje": f"  {codigo.lower()} "},
+    ).status_code == 200
+
+
+def test_el_codigo_no_se_puede_reutilizar():
+    """El 100 % de las reutilizaciones se rechaza, y sin código propio que lo haga.
+
+    Sale de que `entregado` sea un estado final: el segundo intento no falla por
+    el código sino porque ya no hay transición desde ahí. Vale la pena tener la
+    prueba igual, porque lo que ESC-04 promete es el rechazo, no el mecanismo
+    por el que ocurre — y si algún día `entregado` deja de ser final, esta
+    prueba es la que avisa de que la promesa se rompió.
+    """
+    pedido_id = _pedido_pagado()
+    codigo = client.get(f"/v1/pedidos/{pedido_id}").json()["codigo_canje"]
+    for estado in ("en_preparacion", "listo_para_recoger"):
+        client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": estado})
+    cuerpo = {"estado": "entregado", "codigo_canje": codigo}
+
+    primera = client.post(f"/v1/pedidos/{pedido_id}/estado", json=cuerpo)
+    segunda = client.post(f"/v1/pedidos/{pedido_id}/estado", json=cuerpo)
+
+    assert primera.status_code == 200
+    assert segunda.status_code == 409
 
 
 def test_la_cola_llega_del_mas_reciente_al_mas_antiguo():
@@ -184,7 +357,7 @@ def test_la_cola_llega_del_mas_reciente_al_mas_antiguo():
     ids = [client.post("/v1/pedidos", json={"item_id": 1, "cantidad": 1}).json()["pedido_id"]
            for _ in range(3)]
 
-    cola = client.get("/v1/pedidos", params={"establecimiento_id": 1}).json()["pedidos"]
+    cola = client.get("/v1/pedidos").json()["pedidos"]
 
     assert [p["pedido_id"] for p in cola] == sorted(ids, reverse=True)
 
@@ -195,16 +368,21 @@ def test_la_cola_incluye_los_pedidos_ya_entregados():
     ESC-03 pide resolver en tres interacciones, no recordar.
     """
     pedido_id = _pedido_pagado()
-    for estado in ("en_preparacion", "listo_para_recoger", "entregado"):
+    codigo = client.get(f"/v1/pedidos/{pedido_id}").json()["codigo_canje"]
+    for estado in ("en_preparacion", "listo_para_recoger"):
         client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": estado})
+    client.post(
+        f"/v1/pedidos/{pedido_id}/estado",
+        json={"estado": "entregado", "codigo_canje": codigo},
+    )
 
-    cola = client.get("/v1/pedidos", params={"establecimiento_id": 1}).json()["pedidos"]
+    cola = client.get("/v1/pedidos").json()["pedidos"]
     assert [p["estado"] for p in cola] == ["entregado"]
 
 
 def test_un_establecimiento_sin_pedidos_devuelve_lista_vacia_y_no_404():
     """No tener pedidos no es un error: es el estado normal fuera de hora pico."""
-    respuesta = client.get("/v1/pedidos", params={"establecimiento_id": 2})
+    respuesta = client.get("/v1/pedidos")
 
     assert respuesta.status_code == 200
     assert respuesta.json()["pedidos"] == []

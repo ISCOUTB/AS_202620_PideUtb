@@ -19,6 +19,7 @@ from app.menu.router import router as menu_router
 from app.observabilidad import LATENCIAS, TAMANO_VENTANA, RegistroDePeticiones, configurar_logs
 from app.pagos.router import router as pagos_router
 from app.pedidos.router import router as pedidos_router
+from app.usuarios.router import router as sesiones_router
 
 #: Orígenes autorizados a llamar a la API desde un navegador.
 #:
@@ -28,9 +29,10 @@ from app.pedidos.router import router as pedidos_router
 #:   PIDEUTB_ORIGENES_PERMITIDOS=https://pideutb-sitio.onrender.com
 #:
 #: **Nunca `*`.** Un comodín permitiría que cualquier página de Internet
-#: llamara a esta API con el navegador de un usuario. Como todavía no hay
-#: sesiones ni cookies el daño sería limitado, pero la autenticación es la
-#: siguiente entrega y dejar el comodín puesto sería heredar el agujero.
+#: llamara a esta API con el navegador de un usuario. Desde la 2.0.0 eso ya no
+#: es un riesgo hipotético: hay sesiones, y una página cualquiera podría pedirle
+#: al navegador que llame aquí. Lo que no puede hacer es leer el token, porque
+#: vive en `sessionStorage` del origen del sitio y no viaja solo.
 _ORIGENES_POR_DEFECTO = "http://localhost:5500,http://127.0.0.1:5500"
 
 ORIGENES_PERMITIDOS = [
@@ -60,7 +62,7 @@ async def ciclo_de_vida(_: FastAPI):
 app = FastAPI(
     lifespan=ciclo_de_vida,
     title="PideUTB API",
-    version="1.2.0",
+    version="2.0.0",
     description=(
         "Pedidos de comida dentro del campus universitario. El contrato "
         "versionado que esta aplicación implementa está en "
@@ -80,8 +82,23 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ORIGENES_PERMITIDOS,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    # `DELETE` entra en la 2.0.0 por `DELETE /v1/sesiones`. Se enumeran los
+    # métodos en vez de poner `*` por el mismo motivo que los orígenes: la
+    # lista dice qué hace esta API, y un método que aparezca aquí sin ruta que
+    # lo use se nota al leerla.
+    allow_methods=["GET", "POST", "DELETE"],
+    # `Authorization` también. Sin ella, el navegador rechaza en el preflight
+    # **toda** petición autenticada del panel, y el error que se ve es un
+    # genérico «Failed to fetch» que no menciona CORS por ninguna parte.
+    #
+    # Esto no lo habría encontrado ninguna prueba con `TestClient`: el cliente
+    # de pruebas no hace preflight, así que la suite entera pasaba en verde con
+    # el panel roto en un navegador de verdad. Lo encontró abrir la página.
+    allow_headers=["Content-Type", "Authorization"],
+    # Sigue en `False`, y ahora significa más que antes: el token va en una
+    # cabecera que el panel pone a mano, no en una cookie. Ponerlo en `True`
+    # haría que el navegador adjuntara cookies automáticamente desde cualquier
+    # pestaña, que es la puerta del CSRF que este diseño evita (ADR-0007).
     allow_credentials=False,
 )
 
@@ -96,12 +113,18 @@ configurar_logs(os.getenv("PIDEUTB_NIVEL_LOG", "INFO"))
 app.include_router(menu_router)
 app.include_router(pedidos_router)
 app.include_router(pagos_router)
-# app.include_router(usuarios_router)   # pendiente — autenticación y roles
+app.include_router(sesiones_router)
 
 
 @app.get(
     "/health",
     tags=["operacion"],
+    # El único `response_model` que queda en todo el backend, y no es
+    # duplicación: la anotación de retorno es `EstadoServicio | JSONResponse`,
+    # porque el camino de fallo devuelve una respuesta con código 503 ya
+    # construida. Sin esto, FastAPI tomaría la unión entera como esquema
+    # publicado y `JSONResponse` no es un modelo. Las demás operaciones lo
+    # declaran solo con la anotación.
     response_model=EstadoServicio,
     summary="Comprueba que el servicio y sus dependencias responden.",
     responses={503: {"model": ServicioNoDisponible, "description": "Alguna dependencia no responde."}},
@@ -137,7 +160,6 @@ def health() -> EstadoServicio | JSONResponse:
 @app.get(
     "/metricas",
     tags=["operacion"],
-    response_model=Metricas,
     summary="Latencias observadas por operación.",
 )
 def metricas() -> Metricas:

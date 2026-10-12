@@ -217,3 +217,83 @@ rojo señala algo introducido en el último cambio, y el orden de actuación es:
    indistinguible de un defecto ignorado.
 4. No bajar el umbral del gate para que pase. Un gate ajustado a lo que el
    código ya cumple deja de ser una puerta.
+
+---
+
+## 6. Lo que el gate señaló en la semana 10, y qué se hizo con cada cosa
+
+El gate salió **en rojo una vez** y luego en verde con seis avisos no
+bloqueantes. Queda aquí el detalle porque un aviso al que nadie respondió por
+escrito se convierte en un aviso que el siguiente vuelve a discutir desde cero.
+
+### El que tumbó el gate
+
+| Regla | Dónde | Qué se hizo |
+|---|---|---|
+| `python:S5863` — aserción que compara la misma expresión consigo misma | `test_autenticacion.py` | **Retirada.** Pretendía comprobar que `hash_de_token` es determinista y no añadía nada: la línea anterior ya compara contra el hash que `nuevo_token` calculó por dentro, así que esa comparación ya son dos cómputos independientes. Se quitó en vez de reescribirla con variables intermedias, que habría silenciado la regla sin atender lo que señalaba |
+
+### Los seis que no bloqueaban
+
+Pasaron el gate igual. Tres se corrigieron porque eran defectos reales, y los
+otros tres se dejan con motivo.
+
+| Regla | Dónde | Decisión |
+|---|---|---|
+| `python:S3457` — f-string sin campos de reemplazo | `usuarios/repository.py` | **Corregido**, y es el que más importa de los seis. Era el único `f"SELECT ..."` del backend sin interpolar nada: un prefijo suelto. No era inocuo — un `f` delante de una cadena SQL invita a que el siguiente escriba `{algo}` dentro sin notar que acaba de abrir una inyección. Las demás consultas sí lo llevan, y sí interpolan `{_COLUMNAS}` |
+| `javascript:S7744` — objeto vacío inútil | `panel.js` | **Corregido.** `...(opciones.headers \|\| {})`: esparcir `undefined` en un objeto literal ya no hace nada, así que el `\|\| {}` era código muerto con aspecto defensivo |
+| `javascript:S6582` — preferir encadenamiento opcional | `panel.js` | **Corregido.** `guardada?.token && guardada?.usuario` |
+| `python:S8409` — `response_model` duplica la anotación de retorno | `usuarios/router.py` | **Corregido después, en todo el backend.** Ver abajo |
+| `python:S8410` — usar `Annotated` en las dependencias (×2) | `usuarios/router.py` | **Corregido después, en todo el backend.** Ver abajo |
+
+### Los dos que se dejaron, y por qué se hicieron igual
+
+La decisión inicial fue **no tocarlos**, con este argumento: los cuatro routers
+usaban el estilo antiguo, así que cambiar solo `usuarios/router.py` lo volvería
+el raro del conjunto, y la regla señalaría igualmente a los otros tres en cuanto
+alguien los tocara.
+
+Ese argumento era correcto en su premisa y equivocado en su conclusión. Si el
+problema es que cambiar **uno** crea inconsistencia, la respuesta no es dejar el
+aviso abierto: es cambiar **los cuatro**. Lo que lo justificaba de verdad era el
+alcance —no meter un cambio de convención dentro de una entrega sobre
+autenticación—, y eso se resuelve con una rama aparte, no renunciando al cambio.
+
+Hecho así: `response_model` retirado de las **diez** operaciones donde duplicaba
+la anotación de retorno, y `Annotated` en las **siete** declaraciones de
+parámetro del backend (cuatro `Depends`, dos `Query`, un `Header`), más la
+dependencia de `app/autenticacion.py` que Sonar no señalaba porque no está en un
+router.
+
+**Queda un `response_model`, y no es un olvido.** `GET /health` se anota
+`-> EstadoServicio | JSONResponse`, porque el camino de fallo devuelve una
+respuesta 503 ya construida. Ahí la anotación y el modelo publicado **no** son
+lo mismo, así que retirarlo haría que FastAPI tomara la unión entera como
+esquema. Lleva su comentario en el decorador.
+
+**Lo que da confianza en que el refactor no cambió nada:**
+`test_contrato_api.py` compara el OpenAPI que genera la aplicación contra
+`docs/api/openapi.yaml`, campo a campo y en las dos direcciones. Si retirar
+`response_model` hubiera alterado un solo esquema publicado, esa prueba lo
+habría dicho. Pasó sin tocar el contrato, que es exactamente la prueba de que
+los dos declaraban lo mismo.
+
+**La regla que se sigue aquí:** un aviso se corrige cuando señala un defecto, y
+se deja escrito cuando lo que señala es una convención del proyecto. Lo que no
+se hace es marcarlo como *Won't fix* en SonarCloud sin que el motivo esté en el
+repositorio: el panel de una herramienta externa no es donde se leen las
+decisiones de arquitectura de este proyecto.
+
+### Y lo que sigue sin resolverse: `0.0% Coverage on New Code`
+
+El comentario del gate reporta **0 % de cobertura sobre código nuevo**, con la
+suite midiendo **96,41 %** en local y en el job `pruebas`. No es una
+contradicción: es exactamente la limitación de §1. Mientras el análisis sea el
+**automático**, SonarCloud no ejecuta las pruebas y por tanto no puede ingerir
+`coverage.xml`.
+
+Esta semana **no se cambia**, y la decisión es deliberada: cambiar de modo exige
+tocar la configuración del proyecto en SonarCloud, que es una acción fuera del
+repositorio, y conviene hacerla a la vista y no de pasada dentro de una entrega
+sobre otra cosa. Lo que sí se hace es no dejar que el 0 % se lea como un dato
+sobre el código: la cobertura real está medida, el comando para reproducirla
+está en §4, y el pipeline la exige con `--cov-fail-under=85`.

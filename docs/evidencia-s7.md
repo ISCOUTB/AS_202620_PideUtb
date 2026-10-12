@@ -24,38 +24,56 @@ con límite. Este archivo cabe entero.
 
 ## 1. Correspondencia contrato ↔ código
 
-Las ocho operaciones del contrato y la línea exacta que las implementa. La ruta
+Las operaciones del contrato y la línea exacta que las implementa. La ruta
 efectiva es `prefix` del router más el path del decorador.
+
+> **La tabla se mantiene al día, no congelada.** Cada número de línea de aquí lo
+> verifica `backend/tests/test_evidencia.py` en cada push, así que cuando el
+> contrato crece hay que volver a esta tabla o la construcción falla. Las filas
+> añadidas después de la semana 7 llevan la versión en la que aparecieron. Lo
+> que no se puede hacer es dejar que los números envejezcan en silencio: una
+> cita caducada afirma algo falso con apariencia de precisión.
 
 | Path en `openapi.yaml` | Prefijo del router | Path del decorador | Ruta resultante |
 |---|---|---|---|
-| `/health` · L77 | — | `main.py:81-82` `@app.get("/health")` | `/health` ✔ |
-| `/metricas` · L110 | — | `main.py:116-117` `@app.get("/metricas")` | `/metricas` ✔ |
-| `/v1/menu/items/{item_id}` · L136 | `menu/router.py:18` `/v1/menu` | `:21-22` `"/items/{item_id}"` | ✔ |
-| `/v1/menu/establecimientos/{establecimiento_id}/items` · L160 | `menu/router.py:18` `/v1/menu` | `:34-35` `"/establecimientos/{establecimiento_id}/items"` | ✔ |
-| `/v1/pedidos` (POST) · L194 | `pedidos/router.py:18` `/v1/pedidos` | `:21-22` `""` | ✔ |
-| `/v1/pedidos` (GET) · L194 | `pedidos/router.py:18` `/v1/pedidos` | `:54-55` `""` | ✔ |
-| `/v1/pedidos/{pedido_id}/estado` · L263 | `pedidos/router.py:18` `/v1/pedidos` | `:77-78` `"/{pedido_id}/estado"` | ✔ |
-| `/v1/pedidos/{pedido_id}` · L324 | `pedidos/router.py:18` `/v1/pedidos` | `:41-42` `"/{pedido_id}"` | ✔ |
-| `/v1/pagos/intentos` · L348 | `pagos/router.py:18` `/v1/pagos` | `:21-22` `"/intentos"` | ✔ |
-| `/v1/pagos/eventos` · L381 | `pagos/router.py:18` `/v1/pagos` | `:39-40` `"/eventos"` | ✔ |
+| `/health` · L82 | — | `main.py:119-120` `@app.get("/health")` | `/health` ✔ |
+| `/metricas` · L115 | — | `main.py:160-161` `@app.get("/metricas")` | `/metricas` ✔ |
+| `/v1/menu/items/{item_id}` · L141 | `menu/router.py:20` `/v1/menu` | `:23-24` `"/items/{item_id}"` | ✔ |
+| `/v1/menu/establecimientos/{establecimiento_id}/items` · L165 | `menu/router.py:20` `/v1/menu` | `:35-36` `"/establecimientos/{establecimiento_id}/items"` | ✔ |
+| `/v1/sesiones` (POST) · L199 — *2.0.0* | `usuarios/router.py:16` `/v1/sesiones` | `:19-20` `""` | ✔ |
+| `/v1/sesiones` (DELETE) · L199 — *2.0.0* | `usuarios/router.py:16` `/v1/sesiones` | `:45-46` `""` | ✔ |
+| `/v1/pedidos` (POST) · L259 | `pedidos/router.py:23` `/v1/pedidos` | `:26-27` `""` | ✔ |
+| `/v1/pedidos` (GET) · L259 | `pedidos/router.py:23` `/v1/pedidos` | `:57-58` `""` | ✔ |
+| `/v1/pedidos/{pedido_id}/estado` · L351 | `pedidos/router.py:23` `/v1/pedidos` | `:95-96` `"/{pedido_id}/estado"` | ✔ |
+| `/v1/pedidos/{pedido_id}` · L435 | `pedidos/router.py:23` `/v1/pedidos` | `:45-46` `"/{pedido_id}"` | ✔ |
+| `/v1/pagos/intentos` · L459 | `pagos/router.py:20` `/v1/pagos` | `:23-24` `"/intentos"` | ✔ |
+| `/v1/pagos/eventos` · L492 | `pagos/router.py:20` `/v1/pagos` | `:40-41` `"/eventos"` | ✔ |
 
-**9 paths declarados, 10 operaciones implementadas, ninguna de más.** `/v1/pedidos`
-aparece dos veces porque tiene dos métodos: `POST` crea y `GET` lista.
+**10 paths declarados, 12 operaciones implementadas, ninguna de más.**
+`/v1/pedidos` y `/v1/sesiones` aparecen dos veces cada uno porque tienen dos
+métodos: en pedidos, `POST` crea y `GET` lista; en sesiones, `POST` abre y
+`DELETE` cierra.
 
-Dos saltos de versión, los dos **compatibles** y por eso en el segundo número
-(`politica-versionado.md` §2):
+Tres saltos de versión. Los dos primeros, **compatibles** y por eso en el
+segundo número (`politica-versionado.md` §2); el tercero, **incompatible** y por
+eso en el primero:
 
 - **1.1.0** — `/metricas` y el chequeo de salud real.
 - **1.2.0** — la cola del mostrador y la máquina de estados, que cierran
   [ESC-03](arc42/arc42.md#esc-03).
+- **2.0.0** — las sesiones del panel, y con ellas la credencial que las dos
+  operaciones del mostrador pasaron a exigir. Es un salto de MAYOR por la regla
+  **I-12**: pedir una cabecera que antes no se pedía rompe a todo consumidor que
+  no la manda, y los dos que había —el panel y las pruebas— no la mandaban.
+  Cierra [V-10](violaciones.md) y [ESC-04](arc42/arc42.md#esc-04).
 
 Los prefijos, literales:
 
 ```python
-backend/app/menu/router.py:18     router = APIRouter(prefix="/v1/menu",    tags=["menu"])
-backend/app/pedidos/router.py:18  router = APIRouter(prefix="/v1/pedidos", tags=["pedidos"])
-backend/app/pagos/router.py:18    router = APIRouter(prefix="/v1/pagos",   tags=["pagos"])
+backend/app/menu/router.py:20      router = APIRouter(prefix="/v1/menu",     tags=["menu"])
+backend/app/pedidos/router.py:23   router = APIRouter(prefix="/v1/pedidos",  tags=["pedidos"])
+backend/app/pagos/router.py:20     router = APIRouter(prefix="/v1/pagos",    tags=["pagos"])
+backend/app/usuarios/router.py:16  router = APIRouter(prefix="/v1/sesiones", tags=["sesiones"])
 ```
 
 ### La correspondencia no se afirma: se verifica en cada push
@@ -96,22 +114,37 @@ ci.yml:113        run: pytest -v --junitxml=reporte-pruebas.xml
 ### Job `contrato` — herramientas externas
 
 ```yaml
-ci.yml:181     - name: Validar la forma de los contratos (Spectral)
-ci.yml:183         ./node_modules/.bin/spectral lint \
-ci.yml:103           docs/api/openapi.yaml \
-ci.yml:104           docs/api/asyncapi.yaml \
-ci.yml:105           --ruleset .spectral.yaml \
-ci.yml:106           --fail-severity=warn
+ci.yml:185     - name: Validar la forma de los contratos (Spectral)
+ci.yml:187         ./node_modules/.bin/spectral lint \
+ci.yml:184           docs/api/openapi.yaml \
+ci.yml:185           docs/api/asyncapi.yaml \
+ci.yml:186           --ruleset .spectral.yaml \
+ci.yml:187           --fail-severity=warn
 
-ci.yml:196     - name: Detectar cambios incompatibles (oasdiff)
-ci.yml:198         docker run --rm -v "${{ github.workspace }}:/specs" tufin/oasdiff breaking \
-ci.yml:118           /specs/docs/api/historial/openapi-1.0.0.yaml \
-ci.yml:119           /specs/docs/api/openapi.yaml \
-ci.yml:201           --fail-on ERR
+ci.yml:203     - name: Resolver la línea base del contrato
+ci.yml:203         base="docs/api/historial/openapi-${mayor}.0.0.yaml"
+ci.yml:204         if [ ! -f "$base" ]; then
+ci.yml:206           exit 1
+
+ci.yml:215     - name: Detectar cambios incompatibles (oasdiff)
+ci.yml:217         docker run --rm -v "${{ github.workspace }}:/specs" tufin/oasdiff breaking \
+ci.yml:214           "/specs/${{ steps.linea_base.outputs.ruta }}" \
+ci.yml:215           /specs/docs/api/openapi.yaml \
+ci.yml:220           --fail-on ERR
 ```
 
-Ningún paso lleva `continue-on-error`: si cualquiera de los dos falla, el job
-falla y el run queda en rojo.
+Ningún paso lleva `continue-on-error`: si cualquiera falla, el job falla y el
+run queda en rojo.
+
+**La línea base no es un literal.** Hasta la semana 10 este paso comparaba
+contra `openapi-1.0.0.yaml`, y el comparador propio
+(`test_compatibilidad_contrato.py`) se **saltaba** cuando la MAYOR subía. Con
+esos dos detalles juntos, el salto a 2.0.0 habría apagado la comparación para
+siempre: todo cambio posterior dentro de la 2.x pasaría sin medirse, y la
+prueba seguiría apareciendo como «omitida», que en un resumen de pytest se lee
+casi igual que «pasó». Ahora la base se resuelve desde `info.version` del propio
+contrato, así que un salto de MAYOR no apaga el portón: lo reapunta, y obliga a
+congelar la nueva base en el mismo commit o el job falla.
 
 ### Runs
 
@@ -157,16 +190,16 @@ La rama se borró; el run permanece en el historial.
 
 ## 4. arc42 §6 — Vista de ejecución
 
-Ubicación: [`docs/arc42/arc42.md`](arc42/arc42.md) **líneas 424 a 677**.
+Ubicación: [`docs/arc42/arc42.md`](arc42/arc42.md) **líneas 435 a 688**.
 
 | Subsección | Línea | Contenido |
 |---|---|---|
-| 6.1 Resumen de los flujos y sus fronteras | 439 | Tabla de 6 flujos con protocolo, formato, modo y qué pasa si el otro lado no responde |
-| 6.2 Crear un pedido | 460 | Diagrama de secuencia — síncrono, en proceso |
-| 6.3 Pagar un pedido | 525 | Diagrama de secuencia — dos fases, cruza la frontera asíncrona |
-| 6.4 Consultar el estado | 607 | Diagrama de secuencia — cómo se entera el usuario |
-| 6.5 Modos de fallo | 640 | 9 modos de fallo, cada uno con la prueba que lo cubre |
-| 6.6 Deuda conocida | 664 | Limitaciones del transporte en proceso |
+| 6.1 Resumen de los flujos y sus fronteras | 450 | Tabla de 6 flujos con protocolo, formato, modo y qué pasa si el otro lado no responde |
+| 6.2 Crear un pedido | 471 | Diagrama de secuencia — síncrono, en proceso |
+| 6.3 Pagar un pedido | 536 | Diagrama de secuencia — dos fases, cruza la frontera asíncrona |
+| 6.4 Consultar el estado | 618 | Diagrama de secuencia — cómo se entera el usuario |
+| 6.5 Modos de fallo | 651 | 9 modos de fallo, cada uno con la prueba que lo cubre |
+| 6.6 Deuda conocida | 675 | Limitaciones del transporte en proceso |
 
 La tabla de §6.1, reproducida:
 
@@ -246,12 +279,12 @@ sonar.python.coverage.reportPaths=backend/coverage.xml
 ### Líneas del workflow
 
 ```yaml
-ci.yml:255     - name: Medir cobertura
-ci.yml:258       run: pytest --cov=app --cov-report=xml:coverage.xml
-ci.yml:263     - name: Analizar con SonarCloud
-ci.yml:265       uses: SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4  # v8.2.2
-ci.yml:272     - name: Esperar el veredicto del Quality Gate
-ci.yml:274       uses: SonarSource/sonarqube-quality-gate-action@7a5fffe8e523c40e0c740b6bc2712ab503e52efa  # v1.2.1
+ci.yml:274     - name: Medir cobertura
+ci.yml:277       run: pytest --cov=app --cov-report=xml:coverage.xml
+ci.yml:282     - name: Analizar con SonarCloud
+ci.yml:284       uses: SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4  # v8.2.2
+ci.yml:291     - name: Esperar el veredicto del Quality Gate
+ci.yml:293       uses: SonarSource/sonarqube-quality-gate-action@7a5fffe8e523c40e0c740b6bc2712ab503e52efa  # v1.2.1
 ```
 
 ### URL pública y estado

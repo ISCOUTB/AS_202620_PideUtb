@@ -26,8 +26,12 @@ from app.pedidos.contracts import EstadoPedido, PedidoPublicado
 
 #: Secreto compartido con la pasarela. **Sin valor por defecto, a propósito.**
 #:
-#: Antes había uno —`"secreto-de-desarrollo"`— para que el repositorio fuera
-#: ejecutable sin credenciales. La consecuencia, descubierta en la auditoría de
+#: Antes había uno, para que el repositorio fuera ejecutable sin credenciales.
+#: El valor no se reproduce aquí a propósito: está en el historial de git y no
+#: se puede borrar de ahí, pero repetirlo en el código vigente lo deja al
+#: alcance de un `grep` y no añade nada que no diga esta explicación.
+#:
+#: La consecuencia de aquel valor por defecto, descubierta en la auditoría de
 #: la semana 9, es que el despliegue nunca definió la variable y quedó
 #: verificando las firmas contra una cadena que **está en un repositorio
 #: público**: cualquiera podía firmar un evento válido y obtener un código de

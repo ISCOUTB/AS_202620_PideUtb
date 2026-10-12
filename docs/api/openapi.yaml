@@ -14,7 +14,7 @@ openapi: 3.1.0
 
 info:
   title: PideUTB API
-  version: 1.2.0
+  version: 2.0.0
   summary: Pedidos de comida dentro del campus universitario.
   description: |
     Superficie **síncrona** de PideUTB: consulta de menú, creación y consulta
@@ -72,6 +72,11 @@ tags:
     description: |
       Contexto Pagos — inicio del cobro y recepción del evento de la pasarela.
       El primero es síncrono; el segundo es el punto de entrada asíncrono.
+  - name: sesiones
+    description: |
+      Contexto Cuentas — abrir y cerrar la sesión con la que se opera el panel
+      del mostrador. Nuevo en la 2.0.0, y la razón del salto de MAYOR: las dos
+      operaciones del panel pasaron a exigir la credencial que se obtiene aquí.
 
 paths:
   /health:
@@ -191,6 +196,66 @@ paths:
         "422":
           $ref: "#/components/responses/ErrorDeValidacion"
 
+  /v1/sesiones:
+    post:
+      operationId: iniciarSesion
+      tags: [sesiones]
+      summary: Abre una sesión.
+      description: |
+        Comprueba las credenciales del personal del establecimiento y devuelve
+        el token con el que se opera el panel.
+
+        Responde `401` **tanto si el correo no existe como si la contraseña es
+        incorrecta**, con el mismo mensaje. Distinguirlos permitiría averiguar
+        qué correos están registrados probándolos uno a uno.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IniciarSesionRequest"
+      responses:
+        "201":
+          description: Sesión abierta.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sesion"
+        "401":
+          description: Credenciales incorrectas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDeNegocio"
+        "422":
+          $ref: "#/components/responses/ErrorDeValidacion"
+
+    delete:
+      operationId: cerrarSesion
+      tags: [sesiones]
+      summary: Cierra la sesión actual.
+      description: |
+        Borra **la** sesión con la que se llama, no todas las del usuario: quien
+        entra desde dos navegadores y sale en uno espera seguir dentro en el
+        otro.
+      security:
+        - SesionDeMostrador: []
+      responses:
+        "204":
+          description: Sesión cerrada.
+        "401":
+          description: |
+            No hay sesión válida que cerrar.
+
+            Una cabecera `Authorization` malformada también cae aquí, y no en un
+            `422`: una credencial que no se entiende es una petición no
+            autenticada, no un error de forma.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDeNegocio"
+
   /v1/pedidos:
     post:
       operationId: crearPedido
@@ -228,6 +293,8 @@ paths:
 
     get:
       operationId: listarPedidosDeEstablecimiento
+      security:
+        - SesionDeMostrador: []
       tags: [pedidos]
       summary: Lista los pedidos de un establecimiento.
       description: |
@@ -257,12 +324,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ListaDePedidos"
+        "401":
+          description: |
+            Falta la sesión o ya no es válida. Es la regla **I-12** de
+            [`politica-versionado.md`](politica-versionado.md) en acción: estas
+            operaciones no pedían credencial hasta la versión 2.0.0.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDeNegocio"
+        "403":
+          description: |
+            La sesión es válida pero no alcanza para esta operación: personal
+            pidiendo un establecimiento que no es el suyo, o un rol sin permiso.
+
+            Nótese que un **pedido** de otro establecimiento responde `404`, no
+            `403`: confirmar que existe permitiría enumerarlos probando
+            identificadores.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDeNegocio"
         "422":
           $ref: "#/components/responses/ErrorDeValidacion"
 
   /v1/pedidos/{pedido_id}/estado:
     post:
       operationId: cambiarEstadoDePedido
+      security:
+        - SesionDeMostrador: []
       tags: [pedidos]
       summary: Avanza el estado de un pedido.
       description: |
@@ -307,6 +397,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Pedido"
+        "401":
+          description: |
+            Falta la sesión o ya no es válida. Es la regla **I-12** de
+            [`politica-versionado.md`](politica-versionado.md) en acción: estas
+            operaciones no pedían credencial hasta la versión 2.0.0.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDeNegocio"
+        "403":
+          description: |
+            La sesión es válida pero no alcanza para esta operación: personal
+            pidiendo un establecimiento que no es el suyo, o un rol sin permiso.
+
+            Nótese que un **pedido** de otro establecimiento responde `404`, no
+            `403`: confirmar que existe permitiría enumerarlos probando
+            identificadores.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDeNegocio"
         "404":
           $ref: "#/components/responses/NoEncontrado"
         "409":
@@ -427,6 +538,20 @@ paths:
 
 components:
   securitySchemes:
+    SesionDeMostrador:
+      type: http
+      scheme: bearer
+      description: |
+        Token de sesión obtenido en `POST /v1/sesiones`. Se entrega **una sola
+        vez**: el servidor guarda su hash, no el token, así que no hay forma de
+        volver a consultarlo.
+
+        Viaja en la cabecera `Authorization` y no en una cookie: el sitio es
+        estático y vive en otro origen, de modo que una cookie exigiría
+        `SameSite=None` y protección contra CSRF. Con un token explícito no hay
+        envío automático desde otro sitio, y el CSRF deja de existir como clase
+        de problema.
+
     FirmaPasarela:
       type: apiKey
       in: header
@@ -708,6 +833,61 @@ components:
         - entregado
         - cancelado
 
+    IniciarSesionRequest:
+      type: object
+      description: |
+        Credenciales de ingreso.
+
+        La longitud **mínima** de contraseña no se declara a propósito: una
+        contraseña corta tiene que responder `401` como cualquier credencial
+        equivocada. Con un `422`, quien prueba sabría que acertó el formato y
+        falló el valor.
+      required: [correo, contrasena]
+      properties:
+        correo:
+          type: string
+          minLength: 3
+          maxLength: 254
+        contrasena:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: |
+            El máximo no es capricho: la derivación tarda en proporción a lo que
+            recibe, así que sin tope alguien podría enviar un megabyte y ocupar
+            un trabajador del servidor durante segundos.
+
+    UsuarioAutenticado:
+      type: object
+      description: |
+        Quién está haciendo la petición. **No lleva el token ni la derivación de
+        la contraseña**: lo que no se publica no se puede filtrar por descuido.
+      required: [usuario_id, correo, rol, establecimiento_id]
+      properties:
+        usuario_id:
+          type: integer
+          minimum: 1
+        correo:
+          type: string
+        rol:
+          type: string
+          enum: [personal_establecimiento, administrador]
+        establecimiento_id:
+          type: [integer, "null"]
+          description: Nulo para un administrador, que no pertenece a ninguno.
+
+    Sesion:
+      type: object
+      required: [token, usuario]
+      properties:
+        token:
+          type: string
+          description: |
+            Se entrega **una sola vez**. El servidor almacena su hash, así que
+            si se pierde hay que abrir otra sesión.
+        usuario:
+          $ref: "#/components/schemas/UsuarioAutenticado"
+
     CambiarEstadoRequest:
       type: object
       description: |
@@ -721,8 +901,23 @@ components:
       properties:
         estado:
           $ref: "#/components/schemas/EstadoSolicitable"
+        codigo_canje:
+          type: [string, "null"]
+          maxLength: 16
+          description: |
+            Obligatorio **solo** al pasar a `entregado`, y por eso opcional
+            aquí: que falte en una transición que no lo necesita no es un error
+            de forma. Que falte al entregar sí lo es, y lo rechaza la lógica de
+            negocio con `409`.
+
+            Es lo que cierra [ESC-04](../arc42/arc42.md#esc-04). El rechazo del
+            100 % de las reutilizaciones no necesita comprobación propia: sale
+            de que `entregado` sea un estado final, así que el segundo intento
+            no falla por el código sino porque ya no hay transición desde ahí.
       examples:
         - estado: en_preparacion
+        - estado: entregado
+          codigo_canje: H5THVC
 
     ListaDePedidos:
       type: object
