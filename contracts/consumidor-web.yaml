@@ -24,10 +24,16 @@ descripcion: >
   diagrama C4 de nivel 2.
 
 # Rango de versiones del contrato con el que este consumidor sabe hablar.
-# Que sea `1.x` y no `1.0.0` es la consecuencia práctica de la política de
+# Que sea `2.x` y no `2.0.0` es la consecuencia práctica de la política de
 # versionado: los cambios MENOR son compatibles por definición, así que el
-# consumidor no necesita tocarse. Un salto a `2.x` sí exige trabajo aquí.
-version_contrato_requerida: "1.x"
+# consumidor no necesita tocarse. Un salto a `3.x` sí exigiría trabajo aquí.
+#
+# El salto de `1.x` a `2.x` es exactamente el trabajo que la política anuncia:
+# el panel pasó a necesitar una sesión, y un consumidor de la 1.x deja de
+# funcionar contra la 2.0.0. Lo comprueba
+# `test_el_consumidor_declara_la_version_mayor_que_publica_el_contrato`, así que
+# este campo ya no es decoración.
+version_contrato_requerida: "2.x"
 
 operaciones:
   consultarSalud:
@@ -76,13 +82,33 @@ operaciones:
     campos_leidos: [pedido_id, estado, codigo_canje, total_centavos]
     codigos_manejados: ["200", "404"]
 
+  # --- Sesiones del panel (contrato 2.0.0) ------------------------------------
+  iniciarSesion:
+    proposito: >
+      Cambiar correo y contraseña por el token con el que se opera el panel.
+      Es nueva en la 2.0.0 y es la razón del salto de MAYOR.
+    campos_enviados: [correo, contrasena]
+    campos_leidos: [token, usuario.rol, usuario.establecimiento_id]
+    # El `401` no se trata como error genérico: es el caso normal de quien
+    # escribe mal la contraseña, y la respuesta es volver a pedirla con un
+    # mensaje que **no** distinga entre correo desconocido y clave incorrecta.
+    # Un mensaje más útil aquí sería un oráculo de qué correos existen.
+    codigos_manejados: ["201", "401", "422"]
+
+  cerrarSesion:
+    proposito: Soltar el token al salir, para que no siga sirviendo ocho horas.
+    codigos_manejados: ["204", "401"]
+
   # --- Panel del mostrador (sitio/panel.html) ---------------------------------
   # Mismo consumidor: es el mismo desplegable sirviendo a otro de los tres roles
   # que declara la descripción de arriba.
 
   listarPedidosDeEstablecimiento:
     proposito: Pintar la cola de pedidos que el mostrador tiene que atender.
-    campos_enviados: [establecimiento_id]
+    # Ya no se envía `establecimiento_id`: sale de la sesión. El parámetro sigue
+    # existiendo en el contrato para los administradores, pero este consumidor
+    # dejó de usarlo, y ese borrado es lo que le daría permiso al proveedor para
+    # retirarlo si los administradores dejaran de necesitarlo.
     campos_leidos:
       - establecimiento_id
       - pedidos[].pedido_id
@@ -91,17 +117,29 @@ operaciones:
       - pedidos[].total_centavos
       - pedidos[].estado
       - pedidos[].codigo_canje
-    codigos_manejados: ["200", "422"]
+    # El `401` se maneja como «la sesión caducó»: vuelve a la pantalla de
+    # ingreso en vez de mostrar una cola vacía, que es lo que haría creer al
+    # mostrador que no hay pedidos. El `403` no debería ocurrirle a este
+    # consumidor —no pide otro establecimiento— pero se declara igual: si
+    # ocurriera, significa que el token es de otro rol, y la respuesta correcta
+    # también es volver a ingresar.
+    codigos_manejados: ["200", "401", "403", "422"]
 
   cambiarEstadoDePedido:
     proposito: >
       Avanzar el pedido por la máquina de estados del mostrador. El `409` se
       maneja explícitamente y no como error genérico: significa que otra
-      persona ya movió el pedido, y la respuesta del panel es refrescar la
-      lista en vez de insistir.
-    campos_enviados: [estado]
+      persona ya movió el pedido, o que el código de canje no es el de ese
+      pedido, y la respuesta del panel es refrescar la lista en vez de insistir.
+
+      Desde la 2.0.0, pasar a `entregado` exige el código que el estudiante
+      presenta en el mostrador. Es lo que cierra ESC-04.
+    campos_enviados: [estado, codigo_canje]
     campos_leidos: [pedido_id, estado, codigo_canje]
-    codigos_manejados: ["200", "404", "409", "422"]
+    # El `409` cubre dos causas distintas que el panel trata igual: la
+    # transición no corresponde, o el código de canje no coincide. En los dos
+    # casos la acción es refrescar la cola y leer el mensaje, no reintentar.
+    codigos_manejados: ["200", "401", "403", "404", "409", "422"]
 
 # Valores de `EstadoPedido` que este consumidor sabe interpretar, con lo que
 # hace ante cada uno. La lista debe ser EXHAUSTIVA respecto del enum del

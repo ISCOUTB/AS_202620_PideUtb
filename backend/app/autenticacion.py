@@ -21,7 +21,7 @@ Queda anotado en [V-12](../../docs/violaciones.md).
 """
 from __future__ import annotations
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, HTTPException, Request
 
 from app.usuarios import service as cuentas_service
 from app.usuarios.contracts import RolUsuario, UsuarioAutenticado
@@ -42,26 +42,38 @@ def _token_de(authorization: str | None) -> str:
     return partes[1].strip()
 
 
-def token_de_sesion(authorization: str | None = Header(default=None)) -> str:
+def token_de_sesion(peticion: Request) -> str:
     """El token tal cual viaja, para operaciones que actúan sobre la sesión misma.
 
     Existe porque cerrar sesión no es una operación sobre el usuario sino sobre
     **una** de sus sesiones: alguien que entra desde dos navegadores y sale en
     uno espera seguir dentro en el otro.
     """
-    return _token_de(authorization)
+    return _token_de(peticion.headers.get("authorization"))
 
 
-def usuario_actual(
-    authorization: str | None = Header(default=None),
-) -> UsuarioAutenticado:
+def usuario_actual(peticion: Request) -> UsuarioAutenticado:
     """Exige una sesión válida. Responde `401` si no la hay.
 
     La cabecera `WWW-Authenticate` acompaña al `401` porque la especificación de
     HTTP la exige: sin ella, un cliente que recibe `401` no sabe qué tipo de
     credencial se le está pidiendo.
+
+    La cabecera se lee de `Request` y **no** se declara como parámetro con
+    `Header(...)`, por dos razones:
+
+    - Un parámetro declarado hace que FastAPI añada un `422` a toda operación
+      que dependa de esto, y en `DELETE /v1/sesiones` ese `422` no puede
+      ocurrir: la cabecera es opcional y nunca falla la validación. Un contrato
+      que promete una respuesta imposible es un contrato que nadie puede creer.
+    - En OpenAPI, una credencial `bearer` se describe con `securitySchemes` y
+      `security`, que es lo que hace el contrato. Declararla además como
+      parámetro de cabecera la documentaría dos veces y en dos lugares que
+      pueden contradecirse.
     """
-    usuario = cuentas_service.usuario_de_sesion(_token_de(authorization))
+    usuario = cuentas_service.usuario_de_sesion(
+        _token_de(peticion.headers.get("authorization"))
+    )
 
     if usuario is None:
         raise HTTPException(

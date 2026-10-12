@@ -26,41 +26,47 @@ DOSSIER = RAIZ / "docs" / "evidencia-s7.md"
 #: cambiar las dos: la del código y la del documento.
 CITAS = [
     # §1 — Correspondencia contrato ↔ código: prefijos de los routers
-    ("backend/app/main.py", 103, '"/health"'),
+    ("backend/app/main.py", 104, '"/health"'),
+    ("backend/app/main.py", 139, '"/metricas"'),
     ("backend/app/menu/router.py", 18, 'prefix="/v1/menu"'),
     ("backend/app/menu/router.py", 22, '"/items/{item_id}"'),
     ("backend/app/menu/router.py", 35, '"/establecimientos/{establecimiento_id}/items"'),
-    ("backend/app/pedidos/router.py", 18, 'prefix="/v1/pedidos"'),
-    ("backend/app/pedidos/router.py", 42, '"/{pedido_id}"'),
+    ("backend/app/pedidos/router.py", 21, 'prefix="/v1/pedidos"'),
+    ("backend/app/pedidos/router.py", 45, '"/{pedido_id}"'),
+    ("backend/app/pedidos/router.py", 95, '"/{pedido_id}/estado"'),
+    ("backend/app/usuarios/router.py", 14, 'prefix="/v1/sesiones"'),
     ("backend/app/pagos/router.py", 18, 'prefix="/v1/pagos"'),
     ("backend/app/pagos/router.py", 22, '"/intentos"'),
     ("backend/app/pagos/router.py", 40, '"/eventos"'),
 
-    # §1 — Los siete paths del contrato
+    # §1 — Los paths del contrato
     ("docs/api/openapi.yaml", 77, "/health:"),
     ("docs/api/openapi.yaml", 136, "/v1/menu/items/{item_id}:"),
     ("docs/api/openapi.yaml", 160, "/v1/menu/establecimientos/{establecimiento_id}/items:"),
-    ("docs/api/openapi.yaml", 194, "/v1/pedidos:"),
-    ("docs/api/openapi.yaml", 324, "/v1/pedidos/{pedido_id}:"),
-    ("docs/api/openapi.yaml", 348, "/v1/pagos/intentos:"),
-    ("docs/api/openapi.yaml", 381, "/v1/pagos/eventos:"),
+    ("docs/api/openapi.yaml", 194, "/v1/sesiones:"),
+    ("docs/api/openapi.yaml", 254, "/v1/pedidos:"),
+    ("docs/api/openapi.yaml", 346, "/v1/pedidos/{pedido_id}/estado:"),
+    ("docs/api/openapi.yaml", 430, "/v1/pedidos/{pedido_id}:"),
+    ("docs/api/openapi.yaml", 454, "/v1/pagos/intentos:"),
+    ("docs/api/openapi.yaml", 487, "/v1/pagos/eventos:"),
 
     # §2 — El pipeline ejecuta la prueba de contrato
     (".github/workflows/ci.yml", 109, "Ejecutar pruebas"),
     (".github/workflows/ci.yml", 113, "pytest -v --junitxml"),
     (".github/workflows/ci.yml", 181, "Validar la forma de los contratos (Spectral)"),
     (".github/workflows/ci.yml", 183, "./node_modules/.bin/spectral lint"),
-    (".github/workflows/ci.yml", 196, "Detectar cambios incompatibles (oasdiff)"),
-    (".github/workflows/ci.yml", 198, "tufin/oasdiff breaking"),
-    (".github/workflows/ci.yml", 201, "--fail-on ERR"),
+    (".github/workflows/ci.yml", 199, "Resolver la línea base del contrato"),
+    (".github/workflows/ci.yml", 211, "Detectar cambios incompatibles (oasdiff)"),
+    (".github/workflows/ci.yml", 213, "tufin/oasdiff breaking"),
+    (".github/workflows/ci.yml", 216, "--fail-on ERR"),
 
     # §7 — SonarCloud en el pipeline
-    (".github/workflows/ci.yml", 255, "Medir cobertura"),
-    (".github/workflows/ci.yml", 258, "pytest --cov=app"),
-    (".github/workflows/ci.yml", 263, "Analizar con SonarCloud"),
-    (".github/workflows/ci.yml", 265, "sonarqube-scan-action@ba9859ea"),
-    (".github/workflows/ci.yml", 272, "Esperar el veredicto del Quality Gate"),
-    (".github/workflows/ci.yml", 274, "sonarqube-quality-gate-action@7a5fffe8"),
+    (".github/workflows/ci.yml", 270, "Medir cobertura"),
+    (".github/workflows/ci.yml", 273, "pytest --cov=app"),
+    (".github/workflows/ci.yml", 278, "Analizar con SonarCloud"),
+    (".github/workflows/ci.yml", 280, "sonarqube-scan-action@ba9859ea"),
+    (".github/workflows/ci.yml", 287, "Esperar el veredicto del Quality Gate"),
+    (".github/workflows/ci.yml", 289, "sonarqube-quality-gate-action@7a5fffe8"),
 
     # §5 — C4 nivel 2: cada flecha con protocolo, formato y modo
     ("docs/c4/nivel2-contenedores.md", 31, "HTTPS · JSON (REST) · síncrono"),

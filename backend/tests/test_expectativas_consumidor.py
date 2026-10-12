@@ -102,6 +102,32 @@ def _existe_campo(contrato: dict, esquema: dict | None, ruta: str) -> bool:
 # Lo que el pipeline del proveedor comprueba en cada push
 # --------------------------------------------------------------------------
 
+def test_el_consumidor_declara_la_version_mayor_que_publica_el_contrato(
+    contrato, expectativas
+):
+    """`version_contrato_requerida` tiene que decir la verdad.
+
+    Hasta la semana 10 ese campo era un comentario con formato de dato: nadie lo
+    comprobaba, así que el contrato podía saltar a `2.0.0` y el archivo seguiría
+    diciendo `1.x` sin que nada se quejara. Un consumidor que declara hablar una
+    versión MAYOR que ya no existe es peor que uno que no declara nada, porque
+    invita a confiar en la declaración.
+
+    Solo se compara la MAYOR: la política de versionado define los cambios MENOR
+    y PARCHE como compatibles, y exigir que el consumidor se actualizara con cada
+    uno convertiría la compatibilidad en papel mojado.
+    """
+    declarada = str(expectativas["version_contrato_requerida"])
+    publicada = str(contrato["info"]["version"])
+
+    assert declarada.split(".")[0] == publicada.split(".")[0], (
+        f"El consumidor '{expectativas['consumidor']}' declara hablar "
+        f"{declarada!r} y el contrato publica {publicada!r}. Un salto de MAYOR "
+        "es, por definición de `politica-versionado.md`, trabajo para el "
+        "consumidor: revisá qué rompió y actualizá este archivo."
+    )
+
+
 def test_toda_operacion_que_el_consumidor_usa_sigue_existiendo(contrato, expectativas):
     del_contrato = _por_operation_id(contrato)
     usadas = set(expectativas["operaciones"])
