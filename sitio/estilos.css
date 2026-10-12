@@ -160,23 +160,13 @@ footer a { color: var(--acento); }
    desplegada, y dos hojas separadas harían que los colores se separaran al
    primer cambio. */
 
-.aviso {
-  margin: 20px 0;
-  padding: 12px 16px;
-  border: 1px solid var(--aviso);
-  border-left-width: 4px;
-  border-radius: var(--radio);
-  background: color-mix(in srgb, var(--aviso) 10%, transparent);
-  font-size: 0.92rem;
-}
-
 .barra {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   margin: 20px 0 16px;
 }
 .barra label { color: var(--tenue); font-size: 0.92rem; }
 .barra input {
-  font: inherit; width: 5.5rem; padding: 8px 10px;
+  font: inherit; padding: 8px 10px;
   color: var(--texto); background: var(--superficie);
   border: 1px solid var(--borde); border-radius: var(--radio);
 }
@@ -196,4 +186,64 @@ footer a { color: var(--acento); }
 @media (max-width: 520px) {
   .acciones { width: 100%; }
   .acciones button { flex: 1; }
+}
+
+/* --- Ingreso al panel ----------------------------------------------------
+   El formulario reutiliza `.barra` porque es la misma fila de controles que
+   ya había; lo único propio es que cada campo lleva su etiqueta encima, para
+   que en móvil no se amontonen en una sola línea. */
+
+.campo { display: flex; flex-direction: column; gap: 4px; }
+.campo label { color: var(--tenue); font-size: 0.92rem; }
+.campo input {
+  font: inherit; padding: 8px 10px; min-width: 14rem;
+  color: var(--texto); background: var(--superficie);
+  border: 1px solid var(--borde); border-radius: var(--radio);
+}
+
+.barra-ingreso { align-items: flex-end; }
+.barra-ingreso button { margin-top: 0; }
+
+/* El formulario de ingreso no lleva la hora de última carga, así que la regla
+   que empuja `.nota` a la derecha estorbaría: aquí el texto va debajo. */
+.barra-ingreso .nota { margin-left: 0; }
+
+/* --- Diálogo del código de recogida -------------------------------------- */
+
+dialog {
+  color: var(--texto); background: var(--superficie);
+  border: 1px solid var(--borde); border-radius: var(--radio);
+  padding: 24px; max-width: 24rem; width: calc(100% - 32px);
+}
+
+/* Sin esto el fondo queda blanco en el tema oscuro: `::backdrop` no hereda
+   del documento. */
+dialog::backdrop { background: rgb(0 0 0 / 55%); }
+
+dialog h2 { margin: 0 0 8px; font-size: 1.15rem; }
+dialog .campo { margin: 16px 0; }
+dialog .acciones { margin-top: 20px; }
+
+/* El código se escribe en mayúsculas y espaciado: se dicta en voz alta, y a
+   esa letra se la confunde menos. La conversión es visual — el servidor
+   compara sin distinguir la caja — así que no cambia lo que se envía. */
+input.codigo-canje {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 1.5rem; letter-spacing: 0.18em; text-transform: uppercase;
+  text-align: center; padding: 12px;
+}
+
+/* El ingreso se apila en pantallas estrechas: cada campo ocupa el ancho y
+   «Entrar» queda debajo, en vez de encogido junto a la contraseña. Es la
+   primera pantalla de un turno y se escribe con una mano.
+
+   Va al final del archivo a propósito. Estas reglas tienen la misma
+   especificidad que las de `.barra-ingreso` de arriba, así que estando antes
+   perdían por orden de cascada **aunque la consulta de medios coincidiera**:
+   el formulario seguía en fila a 375 px de ancho. Una media query no sube la
+   especificidad; solo decide si la regla participa. */
+@media (max-width: 520px) {
+  .barra-ingreso { flex-direction: column; align-items: stretch; }
+  .campo input { min-width: 0; width: 100%; }
+  .barra-ingreso button { width: 100%; }
 }

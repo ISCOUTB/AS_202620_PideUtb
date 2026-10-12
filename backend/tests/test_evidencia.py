@@ -26,8 +26,8 @@ DOSSIER = RAIZ / "docs" / "evidencia-s7.md"
 #: cambiar las dos: la del código y la del documento.
 CITAS = [
     # §1 — Correspondencia contrato ↔ código: prefijos de los routers
-    ("backend/app/main.py", 104, '"/health"'),
-    ("backend/app/main.py", 139, '"/metricas"'),
+    ("backend/app/main.py", 120, '"/health"'),
+    ("backend/app/main.py", 155, '"/metricas"'),
     ("backend/app/menu/router.py", 18, 'prefix="/v1/menu"'),
     ("backend/app/menu/router.py", 22, '"/items/{item_id}"'),
     ("backend/app/menu/router.py", 35, '"/establecimientos/{establecimiento_id}/items"'),

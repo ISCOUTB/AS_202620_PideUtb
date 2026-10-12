@@ -18,28 +18,90 @@
 
 <main>
 
-  <!-- Aviso de que esto no está protegido.
-       Va en la pantalla y no solo en la documentación a propósito: quien lo
-       usa tiene que saber que cualquiera con el enlace puede mover sus
-       pedidos. Ver docs/violaciones.md, V-10. -->
-  <div class="aviso" role="note">
-    <strong>Sin autenticación.</strong> Cualquiera con este enlace puede cambiar
-    el estado de los pedidos. La autenticación llega en la siguiente entrega.
-  </div>
+  <!-- ====================================================================
+       Ingreso.
+       Es lo primero porque hasta la semana 10 esta pantalla no pedía nada y
+       cualquiera con el enlace podía mover los pedidos de cualquier
+       establecimiento (docs/violaciones.md, V-10). Ahora la cola no existe
+       hasta que hay sesión: `panel.js` decide cuál de las dos secciones se
+       muestra, y nunca las dos.
+       ==================================================================== -->
+  <section id="ingreso" class="oculto">
+    <form id="formulario-ingreso" class="barra barra-ingreso" autocomplete="on">
+      <div class="campo">
+        <label for="correo">Correo</label>
+        <!-- `type="email"` para que el teclado del móvil traiga la arroba, y
+             `autocomplete` para que el gestor de contraseñas reconozca el
+             formulario: si no lo reconoce, la gente elige claves que pueda
+             recordar. -->
+        <input id="correo" name="correo" type="email" autocomplete="username"
+               required maxlength="254" placeholder="mostrador@utb.edu.co">
+      </div>
+      <div class="campo">
+        <label for="contrasena">Contraseña</label>
+        <input id="contrasena" name="contrasena" type="password"
+               autocomplete="current-password" required maxlength="256">
+      </div>
+      <button id="entrar" type="submit">Entrar</button>
+    </form>
 
-  <div class="barra">
-    <label for="establecimiento">Establecimiento</label>
-    <input id="establecimiento" type="number" min="1" value="1" inputmode="numeric">
-    <button id="refrescar" class="secundario">Refrescar</button>
-    <span id="ultima-carga" class="nota"></span>
-  </div>
+    <!-- El turno dura ocho horas, y conviene decirlo antes y no al caducar. -->
+    <p class="nota">
+      La sesión dura un turno de 8 horas y se cierra al salir de esta pestaña.
+    </p>
+  </section>
 
-  <!-- Estado vacío: no tener pedidos es lo normal fuera de hora pico, no un error. -->
-  <p id="cola-vacia" class="nota oculto">No hay pedidos en este establecimiento.</p>
+  <!-- ====================================================================
+       La cola. Solo con sesión.
+       ==================================================================== -->
+  <section id="operacion" class="oculto">
 
-  <ul id="cola" class="items"></ul>
+    <div class="barra">
+      <span id="quien" class="nota"></span>
+      <button id="refrescar" class="secundario">Refrescar</button>
+      <button id="salir" class="secundario">Salir</button>
+      <span id="ultima-carga" class="nota"></span>
+    </div>
+
+    <!-- Estado vacío: no tener pedidos es lo normal fuera de hora pico, no un error. -->
+    <p id="cola-vacia" class="nota oculto">No hay pedidos en este establecimiento.</p>
+
+    <ul id="cola" class="items"></ul>
+  </section>
 
   <div id="error" class="error oculto" role="alert"></div>
+
+  <!-- ====================================================================
+       Pedir el código de canje al entregar.
+       Es un diálogo y no un `prompt()` porque `prompt()` bloquea el hilo, se
+       ve distinto en cada navegador y no se puede etiquetar para un lector de
+       pantalla. Va aquí, en el HTML, en vez de construirse desde JavaScript,
+       para que exista aunque el script falle.
+       ==================================================================== -->
+  <dialog id="dialogo-canje">
+    <form id="formulario-canje" method="dialog">
+      <h2 id="titulo-canje">Código de recogida</h2>
+      <p class="nota">
+        Pedile al cliente el código que aparece en su pantalla. No distingue
+        mayúsculas.
+      </p>
+      <div class="campo">
+        <label for="codigo-canje">Código</label>
+        <!-- `autocapitalize` y el estilo en mayúsculas porque el código se
+             dicta en voz alta, y quien lo teclea no debería tener que pensar
+             en la caja de las letras. -->
+        <input id="codigo-canje" name="codigo" type="text" required
+               maxlength="16" autocapitalize="characters" spellcheck="false"
+               class="codigo-canje" inputmode="text">
+      </div>
+      <div class="acciones">
+        <button id="confirmar-canje" value="confirmar">Entregar</button>
+        <button id="cancelar-canje" value="cancelar" class="secundario" type="button">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  </dialog>
 
 </main>
 
