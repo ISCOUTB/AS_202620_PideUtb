@@ -189,9 +189,11 @@ ignorado.
 
 **Pero había un secreto en el código**, y estaba en uso:
 
-`app/pagos/service.py` traía `os.getenv("PIDEUTB_SECRETO_PASARELA",
-"secreto-de-desarrollo")` — un valor por defecto para que el repositorio fuera
-ejecutable sin credenciales.
+`app/pagos/service.py` llamaba a `os.getenv("PIDEUTB_SECRETO_PASARELA", ...)`
+con un **valor por defecto**, para que el repositorio fuera ejecutable sin
+credenciales. El valor concreto no se reproduce en este documento: sigue en el
+historial de git, de donde no se puede quitar, pero repetirlo en los archivos
+vigentes lo deja al alcance de un `grep` y no aporta nada al relato.
 
 La consulta a la API de Render confirmó que **la variable real nunca se
 definió**: el servicio solo tenía `PIDEUTB_DATABASE_URL` y
@@ -210,9 +212,18 @@ evento. Un sistema sin su secreto deja de aceptar pagos: molesto y visible. Con
 un secreto público aceptaba pagos falsos: peor y silencioso. Registrado como
 [V-11](violaciones.md).
 
-Cinco pruebas en [`test_secreto_pasarela.py`](../backend/tests/test_secreto_pasarela.py),
+Siete pruebas en [`test_secreto_pasarela.py`](../backend/tests/test_secreto_pasarela.py),
 incluida `test_el_secreto_no_aparece_en_el_codigo_fuente`, que impide que vuelva
-a entrar uno.
+a entrar uno. En la semana 10 se le sumó
+`test_ningun_secreto_vuelve_a_tener_valor_por_defecto`, que persigue la **forma**
+del defecto y no su valor, con su propio caso negativo.
+
+**La corrección quedó acreditada contra el despliegue.** Quitar el valor por
+defecto no cierra V-11 por sí solo: mientras el secreto no se rotara y el
+servicio vivo no corriera la versión que falla en cerrado, la puerta seguía
+abierta. La comprobación —variable presente, longitud de valor rotado, commit
+`7e973faf` vivo con `ad0b9b1` como ancestro— está en la tabla de acreditación de
+[V-11](violaciones.md#v-11).
 
 ### 3.3 Que las pruebas fallen de verdad
 
@@ -220,7 +231,7 @@ El enunciado lo pide, y se comprobó donde importaba:
 
 | Prueba | Cómo se verificó |
 |---|---|
-| `test_el_secreto_que_estuvo_publicado_ya_no_sirve` | Firma un evento con el secreto filtrado y exige `401` |
+| `test_una_firma_hecha_con_otro_secreto_no_sirve` | Firma un evento con una cadena que no es la configurada y exige `401` |
 | Las dos de `test_modularidad.py` | Restaurando el punto ciego: **fallan** |
 | `test_el_mostrador_no_puede_marcar_un_pedido_como_pagado` | Pide la transición prohibida y exige `422` |
 

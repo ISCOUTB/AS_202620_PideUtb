@@ -347,8 +347,8 @@ secreto porque no lo parecía. Corregido, y con una prueba que impide que vuelva
 
 - Restaurando temporalmente el punto ciego de `test_modularidad.py`, las dos
   pruebas nuevas **fallan**.
-- `test_el_secreto_que_estuvo_publicado_ya_no_sirve` firma un evento con el
-  secreto filtrado y espera `401`.
+- `test_una_firma_hecha_con_otro_secreto_no_sirve` firma un evento con una
+  cadena que no es la configurada y espera `401`.
 
 ### Lo que esta semana enseñó sobre el propio registro
 

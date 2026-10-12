@@ -410,8 +410,14 @@ establecimiento de quien lo pide. **Antes de cualquier uso real con dinero.**
 la firma de los avisos de la pasarela:
 
 ```python
-_SECRETO_PASARELA = os.getenv("PIDEUTB_SECRETO_PASARELA", "secreto-de-desarrollo")
+_SECRETO_PASARELA = os.getenv("PIDEUTB_SECRETO_PASARELA", "<cadena fija en el código>")
 ```
+
+El valor que ocupaba ese lugar no se reproduce. Está en el historial de git y de
+ahí no se puede quitar, pero mantenerlo escrito en los archivos vigentes lo deja
+al alcance de un `grep` y no aporta nada: lo que hay que entender de V-11 es que
+**había** un valor por defecto, no cuál era. Fue rotado al corregirla, y la
+acreditación de esa rotación está más abajo.
 
 La intención era buena: que el repositorio fuera ejecutable sin credenciales.
 **Esa comodidad es justamente lo que lo volvió peligroso**, porque nadie lo
@@ -438,15 +444,55 @@ herramienta lo marca, porque desde fuera parece una decisión.
 Un sistema sin su secreto deja de aceptar confirmaciones de pago: molesto y
 visible. Con un secreto público aceptaba pagos falsos: peor y silencioso.
 
-Cinco pruebas lo cubren, y dos merecen mención:
+Siete pruebas lo cubren, y tres merecen mención:
 
-- `test_el_secreto_que_estuvo_publicado_ya_no_sirve` **reproduce el ataque**: un
-  evento firmado con el secreto filtrado devuelve `401`.
+- `test_una_firma_hecha_con_otro_secreto_no_sirve` **reproduce el ataque**: un
+  evento firmado con una cadena que no es la configurada devuelve `401`.
 - `test_el_secreto_no_aparece_en_el_codigo_fuente` comprueba que ningún archivo
   de `app/` vuelva a traer uno escrito. Es la prueba que lo habría evitado desde
   el principio: no verifica un comportamiento, verifica la ausencia de la causa.
+- `test_ningun_secreto_vuelve_a_tener_valor_por_defecto` persigue **la forma**
+  del defecto, no su valor: cualquier `os.getenv` de una variable con pinta de
+  credencial que lleve un valor por defecto no vacío. Buscar el valor histórico
+  solo habría protegido contra repetir aquel error exacto; buscar la forma
+  protege contra el error. Viene con su propio caso negativo —
+  `test_el_guardia_de_secretos_detecta_lo_que_dice_detectar`— porque un
+  detector al que solo se le dan archivos correctos pasa igual si funciona y si
+  está roto.
+
+### Acreditación: rotado y desplegado
+
+Corregir el código no cierra esta violación. El secreto siguió publicado en el
+historial de git después del commit que lo quitó, así que mientras no se rotara
+y el despliegue no corriera la versión que falla en cerrado, la puerta seguía
+abierta. Lo comprobado, el **2026-10-12**:
+
+| Qué | Cómo se comprobó | Resultado |
+|---|---|---|
+| La variable existe en producción | API de Render, `GET /v1/services/srv-dasroip7lnhs73ahd4c0/env-vars` | `PIDEUTB_SECRETO_PASARELA` presente, **43 caracteres** |
+| Es un valor rotado, no el histórico | Longitud frente a la del valor que estuvo publicado | Distinta. 43 caracteres es lo que devuelve `secrets.token_urlsafe(32)`: entropía generada, no una palabra |
+| El despliegue vivo incluye la corrección | `git merge-base --is-ancestor ad0b9b1 7e973faf` | Cierto. `ad0b9b1` es el commit que quita el valor por defecto |
+| Qué commit está sirviendo | API de Render, `GET .../deploys` | `7e973faf`, estado `live`, terminado el 2026-10-04T17:48:39Z |
+| Los servicios responden | `GET /health` y `GET /panel.html` | `200` los dos |
+
+El valor del secreto **no se leyó**, solo su longitud. Es deliberado: una
+acreditación que para demostrar la rotación tuviera que mirar el secreto deja
+el secreto en el historial de la sesión que la escribió, y entonces la
+acreditación es la nueva fuga. La longitud basta para distinguir una cadena
+generada de una palabra escrita a mano, que es exactamente la pregunta.
+
+Tampoco se explotó contra producción, ni antes ni ahora: el código leía el
+valor por defecto y la variable no existía, de modo que la deducción es
+concluyente sin hacerlo, y hacerlo habría sido emitir un pago falso contra un
+servicio en marcha.
 
 **Lo que dejó para la próxima vez.** Las pruebas declaran ahora el secreto
 explícitamente en `conftest.py`. Que haya que declararlo es el punto, no una
 molestia: un secreto que se puede omitir termina omitido, y la omisión no se
 nota porque todo sigue funcionando.
+
+Y la lección que se generaliza: **corregir el código es la mitad del trabajo.**
+La otra mitad es rotar lo que estuvo expuesto y comprobar que lo desplegado es
+lo corregido. Un repositorio puede estar impecable mientras producción sigue
+sirviendo la versión vulnerable, y el repositorio no tiene forma de saberlo. Por
+eso esta acreditación nombra el commit que está vivo y no solo el que arregla.
