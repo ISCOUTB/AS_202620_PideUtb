@@ -42,6 +42,16 @@ def _token_de(authorization: str | None) -> str:
     return partes[1].strip()
 
 
+def token_de_sesion(authorization: str | None = Header(default=None)) -> str:
+    """El token tal cual viaja, para operaciones que actúan sobre la sesión misma.
+
+    Existe porque cerrar sesión no es una operación sobre el usuario sino sobre
+    **una** de sus sesiones: alguien que entra desde dos navegadores y sale en
+    uno espera seguir dentro en el otro.
+    """
+    return _token_de(authorization)
+
+
 def usuario_actual(
     authorization: str | None = Header(default=None),
 ) -> UsuarioAutenticado:

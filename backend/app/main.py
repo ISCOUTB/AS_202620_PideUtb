@@ -19,6 +19,7 @@ from app.menu.router import router as menu_router
 from app.observabilidad import LATENCIAS, TAMANO_VENTANA, RegistroDePeticiones, configurar_logs
 from app.pagos.router import router as pagos_router
 from app.pedidos.router import router as pedidos_router
+from app.usuarios.router import router as sesiones_router
 
 #: Orígenes autorizados a llamar a la API desde un navegador.
 #:
@@ -96,7 +97,7 @@ configurar_logs(os.getenv("PIDEUTB_NIVEL_LOG", "INFO"))
 app.include_router(menu_router)
 app.include_router(pedidos_router)
 app.include_router(pagos_router)
-# app.include_router(usuarios_router)   # pendiente — autenticación y roles
+app.include_router(sesiones_router)
 
 
 @app.get(

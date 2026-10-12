@@ -66,6 +66,15 @@ class CambiarEstadoRequest(BaseModel):
 
     estado: EstadoSolicitable
 
+    #: Obligatorio **solo** al entregar, y por eso declarado opcional aquí: que
+    #: falte en una transición que no lo necesita no es un error de forma. Que
+    #: falte al entregar sí lo es, y lo rechaza la lógica de negocio con `409`.
+    #:
+    #: Declararlo requerido habría obligado a mandar un valor vacío en las otras
+    #: tres transiciones, y un campo que a veces se rellena con nada es un campo
+    #: que nadie sabe cuándo importa.
+    codigo_canje: str | None = Field(default=None, max_length=16)
+
 
 class ListaDePedidosResponse(BaseModel):
     """Pedidos de un establecimiento.
