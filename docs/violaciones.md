@@ -27,21 +27,29 @@ la auditoría.
 | [V-07](#v-07) | El dinero se representa con `float` | Modelado | 🟠 Media | ✅ Corregida (S7) |
 | [V-08](#v-08) | `estado` del pedido es texto libre | Modelado | 🟠 Media | ✅ Corregida (S7) |
 | [V-09](#v-09) | El estado vive en memoria del proceso | Arquitectura | 🟡 Conocida | ✅ Corregida (S8) |
-| [V-10](#v-10) | El panel del mostrador no está autenticado | Autenticación | 🔴 Alta | ⏳ Con plazo |
+| [V-10](#v-10) | El panel del mostrador no está autenticado | Autenticación | 🔴 Alta | ✅ Corregida (S10) |
 | [V-11](#v-11) | El secreto del webhook estaba escrito en el código | Secretos | 🔴 Alta | ✅ Corregida (S9) |
+| [V-12](#v-12) | El token de sesión vive en `sessionStorage` | Autenticación | 🟡 Conocida | ⏳ Aceptada, con condición |
 
 Seis se corrigieron en S6 y **dos más en S7** —V-07 y V-08—, cada una con su
-prueba. **V-09 se cerró en S8** con la migración a PostgreSQL y **V-11 en S9**. Queda
-**una**, V-10, con plazo y motivo: el panel del mostrador sin autenticar, que
-espera sesiones y roles.
+prueba. **V-09 se cerró en S8** con la migración a PostgreSQL, **V-11 en S9** y
+**V-10 en S10** con sesiones y roles propios
+([ADR-0007](adr/0007-autenticacion-del-panel.md)).
+
+Cerrar V-10 abrió V-12, y eso no es un fracaso: es lo que pasa cuando una
+protección se construye de verdad en vez de dejarla anotada. Mientras el panel
+no tenía sesión no había token que robar. Ahora hay uno, vive en el navegador y
+hay que decir dónde y qué lo expondría. Una violación nueva que nace **descrita
+y acotada** vale más que una ausencia de la que nadie habla.
 
 V-11 merece una línea aparte porque no se descubrió construyendo sino
 **auditando**: estuvo activa en producción tres entregas, con el pipeline en
 verde todo ese tiempo.
 
-No se descubrió tarde. Es consecuencia de una decisión tomada con los ojos
-abiertos, y el sistema la declara por su cuenta: el panel avisa en pantalla de
-que no está protegido, en vez de dejarlo solo en este documento.
+V-10 tampoco se descubrió tarde. Fue consecuencia de una decisión tomada con los
+ojos abiertos, y durante las tres entregas que estuvo abierta el sistema la
+declaró por su cuenta: el panel avisaba en pantalla de que no estaba protegido,
+en vez de dejarlo solo en este documento.
 
 Las dos de S7 no se cerraron por iniciativa propia sino porque **el contrato de
 API obligó a decidir**: escribir `openapi.yaml` antes que el código forzaba a
@@ -352,14 +360,16 @@ escenario asociado queda cubierto.
 
 ## V-10 · El panel del mostrador no está autenticado
 
-**Estado:** 🔴 abierta, con plazo. **Archivos:** `sitio/panel.html`,
-`sitio/panel.js`, `app/pedidos/router.py`
+**Estado:** ✅ corregida en S10. **Archivos:** `sitio/panel.html`,
+`sitio/panel.js`, `app/pedidos/router.py`, `app/autenticacion.py`,
+`app/usuarios/`
 
-Cualquiera que conozca la URL del panel puede listar los pedidos de cualquier
-establecimiento y avanzar su estado. No hay sesión, ni rol, ni comprobación de
-que quien pide el cambio trabaje en ese establecimiento.
+Cualquiera que conociera la URL del panel podía listar los pedidos de cualquier
+establecimiento y avanzar su estado. No había sesión, ni rol, ni comprobación de
+que quien pedía el cambio trabajara en ese establecimiento.
 
-**Reproducción.** Sin ninguna credencial, contra el entorno desplegado:
+**Reproducción (hasta S10).** Sin ninguna credencial, contra el entorno
+desplegado:
 
 ```bash
 curl -s "https://pideutb-api.onrender.com/v1/pedidos?establecimiento_id=1"
@@ -385,7 +395,7 @@ por confianza:
 | **No se puede revertir un pago** | `pendiente_pago` tampoco es solicitable |
 | **No se pueden saltar estados** | `TRANSICIONES_DEL_MOSTRADOR` solo admite el recorrido legítimo |
 | **Los estados finales son finales** | Desde `entregado` o `cancelado` no se sale |
-| **La cola exige un establecimiento** | `establecimiento_id` es obligatorio: sin él la ruta habría devuelto los pedidos de todo el campus |
+| **La cola exigía un establecimiento** | `establecimiento_id` era obligatorio: sin él la ruta habría devuelto los pedidos de todo el campus. En S10 dejó de ser obligatorio **y de ser una contención**, porque el establecimiento pasó a salir de la sesión |
 | **Se avisa en la propia pantalla** | El panel dice que no está protegido, en vez de dejarlo solo en este documento |
 
 Sin la primera, cualquiera con un navegador podría marcar su propio pedido como
@@ -393,9 +403,40 @@ pagado y retirar comida sin pagarla. Es la contención que importa, y está
 cubierta por
 `tests/test_panel_mostrador.py::test_el_mostrador_no_puede_marcar_un_pedido_como_pagado`.
 
-**Plan.** Autenticación y roles en la entrega siguiente: sesión para el personal
-del establecimiento y comprobación de que el pedido que se modifica pertenece al
-establecimiento de quien lo pide. **Antes de cualquier uso real con dinero.**
+**Corrección (S10): el establecimiento sale de la sesión, no del parámetro.**
+
+El plan decía «sesión para el personal y comprobación de que el pedido
+pertenece a su establecimiento». Es lo que se hizo, con una diferencia que
+conviene subrayar: el `establecimiento_id` no se *valida*, se **ignora** como
+fuente de autoridad. Validarlo habría dejado la decisión en manos de quien
+pregunta; ahora la respuesta se construye desde la sesión y el parámetro solo
+existe para que un administrador elija.
+
+| Qué | Dónde | Prueba |
+|---|---|---|
+| Sin sesión no se puede ni mirar la cola | `app/autenticacion.py::usuario_actual` → `401` + `WWW-Authenticate: Bearer` | `test_sin_sesion_no_se_puede_ni_mirar` |
+| El establecimiento lo fija la sesión | `establecimiento_que_puede_ver` | `test_el_establecimiento_sale_de_la_sesion_y_no_del_parametro` |
+| Pedir el de otro no se ignora en silencio: da `403` | idem | `test_pedir_el_establecimiento_de_otro_da_403` |
+| Un pedido de otro establecimiento responde `404`, no `403` | `pedidos.service.avanzar_estado` | `test_avanzar_el_pedido_de_otro_establecimiento_da_404` |
+| Entregar exige el código de canje | idem, transición a `entregado` | `test_entregar_sin_el_codigo_no_se_puede` |
+
+**Por qué `404` y no `403` para un pedido ajeno.** Un `403` confirma que el
+pedido existe. Con eso se enumeran los pedidos del campus probando
+identificadores, que es una fuga distinta y más silenciosa que la que se estaba
+cerrando. En cambio, pedir el **establecimiento** de otro sí responde `403`:
+ahí no hay nada que enumerar, porque los establecimientos son públicos y están
+en el menú.
+
+**Lo que esto costó.** El contrato subió a **2.0.0**: exigir una credencial que
+antes no se pedía rompe a todo cliente existente (regla **I-12** de
+[`politica-versionado.md`](api/politica-versionado.md)). El prefijo de ruta no
+cambió a `/v2`, y eso es deliberado: §5 bis de la política lo prohíbe cuando lo
+viejo **es** el defecto. Mantener `/v1` abierto noventa días mientras `/v2`
+exige sesión sería dejar esta misma puerta abierta tres meses más, y el plazo
+que protege a los consumidores protegería también a quien quiera entrar.
+
+**Lo que esto abrió.** [V-12](#v-12): ahora hay un token, y vive en el
+navegador.
 
 ---
 
@@ -496,3 +537,58 @@ La otra mitad es rotar lo que estuvo expuesto y comprobar que lo desplegado es
 lo corregido. Un repositorio puede estar impecable mientras producción sigue
 sirviendo la versión vulnerable, y el repositorio no tiene forma de saberlo. Por
 eso esta acreditación nombra el commit que está vivo y no solo el que arregla.
+
+---
+
+<a id="v-12"></a>
+
+## V-12 · El token de sesión vive en `sessionStorage`
+
+**Estado:** ⏳ aceptada, con condición explícita. **Archivos:** `sitio/panel.js`,
+`app/autenticacion.py`
+
+El panel guarda el token de sesión en `sessionStorage`. Un fallo de XSS en el
+sitio permitiría leerlo con una línea de JavaScript y operar el mostrador
+durante las ocho horas que dura la sesión.
+
+**Por qué no es una cookie `HttpOnly`,** que es la respuesta de manual. El sitio
+es estático y vive en un origen distinto del de la API
+([`pideutb-sitio.onrender.com`](https://pideutb-sitio.onrender.com) frente a
+`pideutb-api.onrender.com`). Una cookie que cruce esos dos orígenes necesita
+`SameSite=None`, `Secure`, CORS con credenciales y, a partir de ahí,
+**protección contra CSRF**, porque el navegador la enviaría sola desde cualquier
+sitio.
+
+El intercambio, dicho entero:
+
+| | Token en `sessionStorage` | Cookie `HttpOnly` entre orígenes |
+|---|---|---|
+| Expuesto a XSS | **Sí** | No |
+| Expuesto a CSRF | No: nada se envía solo | **Sí**, salvo que se añada defensa explícita |
+| Piezas nuevas que hay que mantener correctas | Ninguna | `SameSite=None`, CORS con credenciales, tokens anti-CSRF |
+
+No se eligió la opción «segura» sino la que **deja menos cosas que mantener
+correctas**. Un CSRF mal defendido no avisa; y cada pieza de la columna derecha
+es una que puede configurarse mal en silencio, que es exactamente la forma en
+que apareció [V-11](#v-11).
+
+**Qué acota el riesgo hoy.** El panel no renderiza HTML de nadie: todo el texto
+que viene de la API se inserta con `textContent`, nunca con `innerHTML`. Eso es
+lo que hace que el XSS no sea un camino abierto, y **es una propiedad del código
+del sitio, no una garantía del mecanismo**: un solo `innerHTML` futuro la
+elimina.
+
+**Condición para reconsiderarlo.** Esta aceptación deja de valer si ocurre
+cualquiera de estas tres:
+
+1. El sitio pasa a renderizar contenido que escribe un usuario —nombres de
+   ítems editables, notas de pedido, cualquier cosa que llegue de un formulario.
+2. El sitio y la API pasan a compartir origen, con lo que la cookie deja de
+   necesitar `SameSite=None` y el intercambio cambia de signo.
+3. La sesión pasa a dar acceso a algo con dinero de verdad, y no solo a la cola
+   de un mostrador.
+
+**Lo que no se hizo y se nota.** No hay Content-Security-Policy. Sería la
+defensa en profundidad que corresponde aquí: con una CSP estricta, un XSS
+inyectado tendría mucho más difícil ejecutarse. Está sin hacer, y se dice en vez
+de omitirlo.

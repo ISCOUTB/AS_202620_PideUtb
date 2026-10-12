@@ -15,7 +15,7 @@ C4Context
     System(pideutb, "PideUTB", "Sistema web para realizar pedidos de comida dentro del campus")
 
     System_Ext(wompi, "Wompi (Sandbox)", "Pasarela de pagos utilizada para transacciones de prueba")
-    System_Ext(supabase, "Supabase", "Servicios gestionados de base de datos y autenticación")
+    System_Ext(supabase, "Supabase", "PostgreSQL gestionado. La autenticación es propia, no suya (ADR-0007)")
 
     Rel(usuario, pideutb, "Consulta menús, realiza pedidos, paga y recibe código")
     Rel(establecimiento, pideutb, "Gestiona productos y pedidos")

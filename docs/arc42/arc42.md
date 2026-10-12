@@ -246,8 +246,12 @@ con sistemas externos necesarios para su funcionamiento.
 -   El **Administrador** administra aspectos generales de la plataforma.
 -   **Wompi** interviene como pasarela de pagos durante el desarrollo
     mediante su ambiente Sandbox.
--   **Supabase** proporciona los servicios de persistencia de datos y
-    las capacidades de autenticación utilizadas por el sistema.
+-   **Supabase** proporciona el servicio de **persistencia** de datos
+    (PostgreSQL gestionado). No provee la autenticación: hasta la semana
+    10 esta sección y el diagrama C4 decían que sí, y era falso. El
+    mecanismo es propio y vive en el módulo `usuarios`; el motivo de no
+    usar Supabase Auth está en
+    [ADR-0007](../adr/0007-autenticacion-del-panel.md).
 
 <a id="c4-contexto"></a>
 
@@ -298,7 +302,7 @@ Las principales interacciones externas son:
 
 Las decisiones tecnológicas base ya fueron fijadas como restricciones en
 la sección 2: FastAPI y Python para el backend, Supabase (PostgreSQL)
-para persistencia y autenticación, Wompi en Sandbox para pagos, y un
+para persistencia, Wompi en Sandbox para pagos, y un
 frontend web con HTML/CSS/JavaScript. La estrategia de solución de esta
 sección se centra en **cómo se organiza el código dentro de esas
 restricciones**, es decir, en el estilo arquitectónico interno del
@@ -316,7 +320,7 @@ la decisión formal queda registrada en
 
 Se eligió un **monolito modular**: un único desplegable backend
 organizado internamente en módulos de dominio (pedidos, menú, pagos,
-usuarios/autenticación), cada uno con sus propias capas internas
+usuarios), cada uno con sus propias capas internas
 (rutas/API, lógica de aplicación, acceso a datos). Los módulos exponen
 una interfaz clara entre sí y evitan el acceso directo al detalle interno
 de otro módulo.
@@ -333,9 +337,9 @@ escenarios de mayor prioridad del [árbol de utilidad](#arbol-utilidad)
 | [**ESC-02**](#esc-02) — Pedido en hora pico (A/M) | < 2 min en el 90 % de los intentos | Un único desplegable elimina latencia de red entre servicios: la llamada `pedidos → menu` es una llamada en proceso, no un salto HTTP | No se puede escalar `pedidos` de forma independiente; si el umbral falla habrá que extraer el módulo |
 | [**ESC-03**](#esc-03) — Gestión del estado por el establecimiento (A/B) | ≤ 10 s y ≤ 3 interacciones | El módulo `pedidos` es dueño único del estado del pedido, así que la transición ocurre en un solo punto sin coordinación distribuida ni consistencia eventual | El panel comparte despliegue con el resto de la API |
 
-Escenarios de menor prioridad ([ESC-04](#esc-04), [ESC-05](#esc-05)) dependen
-del módulo `pagos`, todavía no implementado; la decisión los contempla al
-mantener `pagos` como módulo aislable (ver 4.4).
+Los escenarios de menor prioridad ([ESC-04](#esc-04), [ESC-05](#esc-05))
+dependen del módulo `pagos`, **implementado en S7**; la decisión los contempló
+desde el principio al mantener `pagos` como módulo aislable (ver 4.4).
 
 <a id="tacticas-por-escenario"></a>
 
@@ -345,12 +349,19 @@ mantener `pagos` como módulo aislable (ver 4.4).
 |---|---|---|---|
 | [ESC-01](#esc-01) | *Usabilidad* — separar la interfaz de usuario del modelo; soportar la iniciativa del usuario con mensajes de error específicos | `menu.service.obtener_item()` valida existencia y disponibilidad y devuelve `404`/`409` diferenciados; `pedidos.service` solo orquesta y arma el pedido | Implementada y verificada en CI |
 | [ESC-02](#esc-02) | *Rendimiento* — reducir la sobrecarga computacional y controlar la demanda de recursos | Comunicación intra-proceso entre módulos (sin salto de red); acceso a datos concentrado en `repository.py` para poder introducir caché de menú sin tocar la lógica de negocio | Base implementada; caché pendiente |
-| [ESC-03](#esc-03) | *Modificabilidad/Rendimiento* — encapsular y mantener un único dueño de los datos | El estado del pedido solo se transiciona dentro de `pedidos.service`; ningún otro módulo escribe esa tabla | Pendiente (panel del establecimiento) |
-| [ESC-04](#esc-04) | *Seguridad* — verificar la integridad y limitar el acceso; *Confiabilidad* — detectar la reutilización | Código de recogida de un solo uso, validado y marcado como canjeado en la misma operación dentro de `pagos`/`pedidos` | Pendiente (módulo `pagos`) |
-| [ESC-05](#esc-05) | *Disponibilidad* — detección de fallos y reintento sin pérdida de estado | El pedido se persiste antes de invocar la pasarela, de modo que un rechazo de Wompi no destruye el carrito | Pendiente (módulo `pagos`) |
+| [ESC-03](#esc-03) | *Modificabilidad/Rendimiento* — encapsular y mantener un único dueño de los datos | El estado del pedido solo se transiciona dentro de `pedidos.service`; ningún otro módulo escribe esa tabla | Implementada (S9) y verificada en CI. **El umbral de 10 s no se cumple con el servicio frío**: ver [`aspectos.md`](../aspectos.md) |
+| [ESC-04](#esc-04) | *Seguridad* — verificar la integridad y limitar el acceso; *Confiabilidad* — detectar la reutilización | Código de un solo uso generado con `secrets` al confirmar el pago, y **exigido en la transición a `entregado`**, comparado con `compare_digest`. La reutilización se rechaza sin código propio que la detecte: `entregado` es un estado final, así que el segundo intento falla por la transición | Implementada (S10) y verificada en CI |
+| [ESC-05](#esc-05) | *Disponibilidad* — detección de fallos y reintento sin pérdida de estado | El pedido se persiste antes de invocar la pasarela, de modo que un rechazo de Wompi no destruye el carrito | Implementada (S7) y verificada en CI |
 
 La trazabilidad de estas tácticas hasta el código y las pruebas está en
 [`docs/aspectos.md`](../aspectos.md).
+
+> **Sobre la columna «Estado».** Tres de estas filas decían «pendiente» de cosas
+> implementadas desde S7, S9 y S10. Una tabla de estado que nadie vuelve a tocar
+> no se queda neutral: afirma que falta algo que está hecho, y hace dudar del
+> resto del documento. Al revisarla aparecieron las dos cosas que ahora dice de
+> ESC-03 y ESC-04, y también el ❌ del arranque en frío, que ninguna de las dos
+> versiones anteriores mencionaba.
 
 ### 4.5 Consecuencias para la estructura del código
 
@@ -408,9 +419,9 @@ El contenedor "API PideUTB" se descompone en los cuatro módulos de dominio defi
   **pagos**                   Abrir el cobro en la pasarela y recibir su confirmación   Implementado — corte
                                asíncrona. Dueño de `IntentoPago`.                        vertical de S7.
 
-  **usuarios**                Cuentas y establecimientos. Dueño de                      Implementado (lectura de
-                               `Establecimiento`. Autenticación y roles.                  establecimientos);
-                                                                                          autenticación pendiente.
+  **usuarios**                Cuentas y establecimientos. Dueño de                      Implementado. La
+                               `Establecimiento`, `Usuario` y `Sesion`.                   autenticación entró en
+                               Autenticación y roles.                                     S10 (ADR-0007).
   -----------------------------------------------------------------------------------------------------------------
 
 > **El código de canje pertenece a `pedidos`, no a `pagos`.** Es un atributo del
@@ -920,6 +931,7 @@ arquitectura sin abrir nada.
 | [ADR-0004](../adr/0004-plataforma-de-despliegue.md) | Desplegar la API en un contenedor con proceso persistente, y no en funciones sin servidor | [ESC-02](#esc-02) | Aceptada |
 | [ADR-0005](../adr/0005-maquina-de-estados-del-mostrador.md) | Declarar las transiciones del mostrador como dato y excluir el pago de ellas | [ESC-03](#esc-03) | Aceptada |
 | [ADR-0006](../adr/0006-componente-generativo.md) | No incorporar un componente generativo, y dejar escrito qué lo cambiaría | [ESC-02](#esc-02) | Aceptada |
+| [ADR-0007](../adr/0007-autenticacion-del-panel.md) | Autenticar el panel con sesiones propias en lugar de Supabase Auth | [ESC-04](#esc-04) | Aceptada |
 
 *(Este índice se amplía en cada entrega a medida que surgen nuevas
 decisiones — por ejemplo, la forma de validar el código de canje en el punto de

@@ -56,8 +56,21 @@ separen en silencio.
 
 ### 1.3 Medición de ESC-03
 
-Tres pedidos llevados de `pagado` a `entregado` desde el navegador, cronometrando
-desde el primer clic hasta que la pantalla refleja el estado final:
+> **Corregida en S10.** La primera versión de esta sección daba una sola cifra
+> —0,20 s— con una nota al pie diciendo que no incluía red ni tiempo humano. La
+> nota era cierta y aun así el resultado engañaba, porque un ✅ junto a un
+> umbral de 10 s se lee como «el escenario se cumple», y lo que estaba medido
+> era una fracción del escenario. Al separar las capas apareció algo que la
+> cifra única tapaba por completo, y está en la capa 3.
+
+ESC-03 mide **un flujo con una persona delante, a través de la red, contra el
+servicio desplegado**. Nada de eso se puede medir de una vez, así que se mide
+por capas y se dice cuál es cuál.
+
+#### Capa 1 — El trabajo del servidor, en local
+
+Tres pedidos llevados de `pagado` a `entregado` con el cliente de pruebas,
+cronometrando desde la primera llamada hasta que el estado final está escrito:
 
 | Pedido | Interacciones | Tiempo | Sin recargar |
 |---|---|---|---|
@@ -65,17 +78,79 @@ desde el primer clic hasta que la pantalla refleja el estado final:
 | #2 | 3 | 0,20 s | sí |
 | #3 | 3 | 0,20 s | sí |
 
-| Umbral de ESC-03 | Medido | |
-|---|---|---|
-| ≤ 3 interacciones | **3** | ✅ |
-| ≤ 10 s | **0,20 s** | ✅ |
-| Sin recargar la página | sí | ✅ |
+Clics programáticos, API local, base de datos en memoria. **Mide el coste
+algorítmico y nada más**: las tres transiciones de la máquina de estados, la
+validación y el renderizado de la cola.
 
-**Lo que esta medición no dice**, y conviene decirlo: los clics son
-programáticos, así que no incluye tiempo humano, y la API era local, así que no
-incluye latencia de red. Mide **la parte que el sistema aporta** al escenario.
-Lo que demuestra es que esa parte es 0,20 s sobre un presupuesto de 10 s —
-incluso sumando red y a una persona decidiendo, el margen es amplio.
+#### Capa 2 — La misma cosa, a través de la red, contra el servicio desplegado
+
+Medido el **2026-10-12** desde una conexión doméstica contra
+`pideutb-api.onrender.com` con el servicio **ya caliente**, 12 repeticiones por
+ruta:
+
+| Operación | p50 | mín. | máx. |
+|---|---|---|---|
+| `GET /v1/pedidos` | **219,7 ms** | 190,1 ms | 448,2 ms |
+| `GET /v1/menu/establecimientos/1/items` | 222,0 ms | 202,3 ms | 441,0 ms |
+
+El servidor reporta su propia parte en `GET /metricas`: **p95 de 32,75 ms** para
+`GET /health` sobre 122 muestras de producción. La diferencia —unos 190 ms— es
+red, TLS y el salto de Render a Supabase. Es decir: **de los 220 ms de una
+petición, el código aporta el 15 %**.
+
+Las tres interacciones de ESC-03 son tres peticiones, así que el flujo completo
+en caliente cuesta del orden de **0,7 s**, contra los 0,20 s de la capa 1. Sigue
+muy por debajo de 10 s.
+
+Dos honestidades sobre esta capa:
+
+- Se midieron **lecturas**, no los dos `POST` que avanzan el estado. No se
+  escribió contra producción a propósito: habría dejado pedidos movidos en un
+  servicio en marcha para obtener una cifra que no iba a ser distinta, porque
+  el término dominante es la red y no el trabajo del servidor.
+- El servicio desplegado está en el commit `7e973faf`, **anterior** a la
+  autenticación. Esta medición no incluye, por tanto, la consulta de sesión que
+  la 2.0.0 añade a cada petición: una búsqueda indexada por `token_hash` en el
+  pool que ya está abierto. Es trabajo del servidor, que es el 15 % del total.
+
+#### Capa 3 — Y aquí está lo que la cifra única tapaba
+
+**Con el servicio frío, ESC-03 no se cumple.** El plan gratuito de Render
+suspende el servicio tras unos minutos sin tráfico, y el arranque en frío está
+medido en [`comparacion-despliegue.md`](comparacion-despliegue.md) §10: **42,4
+segundos**. El presupuesto de ESC-03 es de 10.
+
+No es un caso raro, es *el* caso: el patrón de tráfico documentado son dos picos
+de almuerzo con el resto del día casi vacío
+([`comparacion-despliegue.md`](comparacion-despliegue.md) §1). El mostrador que
+abre el panel al empezar el turno es, por construcción, el que se come el
+arranque.
+
+| Umbral de ESC-03 | Caliente | Frío |
+|---|---|---|
+| ≤ 3 interacciones | **3** ✅ | 3 ✅ |
+| ≤ 10 s | **~0,7 s** ✅ | **~43 s** ❌ |
+| Sin recargar la página | sí ✅ | sí ✅ |
+
+Esto ya estaba escrito para ESC-02, cuyo presupuesto de 120 s absorbe los 42,4 s
+«comiéndose un tercio». Nadie lo había trasladado a ESC-03, que tiene un
+presupuesto doce veces menor y por tanto **no lo absorbe**. La causa de no verlo
+no fue falta de datos: los dos números estaban en el repositorio, en documentos
+distintos, y la medición de una sola capa no obligaba a ponerlos juntos.
+
+**Qué lo resolvería**, sin inventar: Render Starter, $7/mes, que elimina el
+arranque en frío. Está evaluado y descartado en
+[ADR-0004](adr/0004-plataforma-de-despliegue.md) por la condición operativa de
+presupuesto $0, y la comparación dice textualmente que si el presupuesto
+cambiara, esa sería la elección. Lo que cambia hoy es que **ESC-03 pasa a ser
+otro argumento para ese cambio**, y no solo ESC-02.
+
+#### Capa 4 — La persona
+
+No medida. Hace falta alguien operando un mostrador real, y no lo hay. Lo que sí
+se puede decir es cuánto presupuesto le queda: con el servicio caliente, **unos
+9,3 s de los 10** quedan para las decisiones de quien atiende. Con el servicio
+frío no le queda nada, porque ya se pasó.
 
 ---
 

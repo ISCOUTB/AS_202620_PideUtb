@@ -18,22 +18,34 @@ el código que la implementa y la prueba automatizada que la verifica.
 |---|---|---|---|---|---|---|---|
 | **ESC-01** | Usabilidad *(prioritario)* | [Primer pedido de un usuario nuevo](arc42/arc42.md#esc-01) | Flujo completo en **< 3 min**, sin errores de navegación | [N3 — módulos](c4/nivel3-modulos.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md), [ADR-0002](adr/0002-propiedad-datos-establecimiento.md) | `backend/app/pedidos/router.py` (`POST /pedidos`), `pedidos/service.py`, `menu/service.py` | `tests/test_pedidos.py::test_crear_pedido_exitoso`, `::test_crear_pedido_item_no_encontrado`, `::test_crear_pedido_item_no_disponible` ✅ |
 | **ESC-02** | Disponibilidad · Rendimiento | [Pedido de un usuario recurrente en hora pico](arc42/arc42.md#esc-02) | **< 2 min** en al menos el **90 %** de los intentos | [N2 — contenedores](c4/nivel2-contenedores.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md), [**ADR-0004**](adr/0004-plataforma-de-despliegue.md) *(el arranque en frío consume ~60 de los 120 s)* | `backend/app/pedidos/` (flujo base; falta reúso de datos del usuario); `GET /metricas` publica el p95 de `POST /v1/pedidos`, que es la parte del presupuesto que controla el servidor | `tests/test_linea_base.py::test_p95_de_crear_pedido_bajo_umbral` ✅ *(línea base, no prueba de carga)* · `tests/test_observabilidad.py::test_las_metricas_reportan_la_operacion_ligada_a_esc02` ✅ |
-| **ESC-03** | Usabilidad · Rendimiento | [Gestión del estado de pedidos por el establecimiento](arc42/arc42.md#esc-03) | **≤ 10 s** y **≤ 3 interacciones**, sin recargar la página | [N3 — módulos](c4/nivel3-modulos.md) | [ADR-0002](adr/0002-propiedad-datos-establecimiento.md) | `backend/app/usuarios/service.py`, `pedidos/service.py` (`TRANSICIONES_DEL_MOSTRADOR`, `avanzar_estado`), `GET /v1/pedidos` y `POST /v1/pedidos/{id}/estado`, `sitio/panel.html` — el mostrador ve su cola y la avanza sin recargar la página. **Sin autenticar todavía** ([V-10](violaciones.md#v-10)) | `tests/test_propiedad_datos.py::test_establecimiento_se_deriva_del_item_y_no_del_cliente`, `::test_pedido_en_establecimiento_inactivo_se_rechaza` ✅ · `tests/test_panel_mostrador.py` — 15 pruebas del panel y su máquina de estados ✅ |
-| **ESC-04** | Confiabilidad · Seguridad | [Verificación del código de canje](arc42/arc42.md#esc-04) | Validación en **< 2 s**; rechazo del **100 %** de reutilizaciones | [N3 — módulos](c4/nivel3-modulos.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md), [ADR-0003](adr/0003-estrategia-integracion.md) | `backend/app/pedidos/service.py` (`confirmar_pago`, generación con `secrets`), `app/pagos/service.py` | `tests/test_pagos.py::test_el_mismo_evento_repetido_no_genera_un_segundo_codigo`, `::test_el_codigo_de_canje_no_cambia_entre_reintentos` ✅ · validación en el punto de entrega ⏳ |
+| **ESC-03** | Usabilidad · Rendimiento | [Gestión del estado de pedidos por el establecimiento](arc42/arc42.md#esc-03) | **≤ 10 s** y **≤ 3 interacciones**, sin recargar la página | [N3 — módulos](c4/nivel3-modulos.md) | [**ADR-0005**](adr/0005-maquina-de-estados-del-mostrador.md) *(transiciones como dato; el escenario que lo motiva)*, [ADR-0002](adr/0002-propiedad-datos-establecimiento.md) *(dueño del estado)*, [ADR-0007](adr/0007-autenticacion-del-panel.md) *(quién puede avanzarlo)* | `backend/app/pedidos/service.py` (`TRANSICIONES_DEL_MOSTRADOR`, `avanzar_estado`), `app/autenticacion.py` (`establecimiento_que_puede_ver`), `GET /v1/pedidos` y `POST /v1/pedidos/{id}/estado`, `sitio/panel.html` y `sitio/panel.js` — el mostrador entra con su sesión, ve **su** cola y la avanza sin recargar | `tests/test_panel_mostrador.py` — **21 pruebas** del panel, su máquina de estados y su autorización ✅ · `tests/test_propiedad_datos.py::test_establecimiento_se_deriva_del_item_y_no_del_cliente`, `::test_pedido_en_establecimiento_inactivo_se_rechaza` ✅ · **Medición por capas:** [`evidencia-s9.md` §1.3](evidencia-s9.md) — ~0,7 s en caliente ✅, **~43 s en frío** ❌ |
+| **ESC-04** | Confiabilidad · Seguridad | [Verificación del código de canje](arc42/arc42.md#esc-04) | Validación en **< 2 s**; rechazo del **100 %** de reutilizaciones | [N3 — módulos](c4/nivel3-modulos.md) | [ADR-0001](adr/0001-estilo-arquitectonico.md), [ADR-0003](adr/0003-estrategia-integracion.md), [**ADR-0007**](adr/0007-autenticacion-del-panel.md) *(sin sesión no se sabe quién entrega)* | `backend/app/pedidos/service.py` (`confirmar_pago` y generación con `secrets`; `avanzar_estado` exige el código al pasar a `entregado`, comparado con `compare_digest`), `app/pagos/service.py` | `tests/test_panel_mostrador.py::test_entregar_sin_el_codigo_no_se_puede`, `::test_el_codigo_no_se_puede_reutilizar`, `::test_el_codigo_se_acepta_en_minusculas_pero_no_con_otro_valor` ✅ · `tests/test_pagos.py::test_el_mismo_evento_repetido_no_genera_un_segundo_codigo`, `::test_el_codigo_de_canje_no_cambia_entre_reintentos` ✅ |
 | **ESC-05** | Usabilidad (manejo de errores) | [Error en el proceso de pago](arc42/arc42.md#esc-05) | Mensaje en **< 3 s**; pedido conservado en el **100 %** de los casos | [N2 — contenedores](c4/nivel2-contenedores.md) | [**ADR-0003**](adr/0003-estrategia-integracion.md) *(escenario que lo motiva)* | `backend/app/pagos/` completo, `app/eventos.py`, `GET /v1/pedidos/{id}` | `tests/test_pagos.py::test_un_pago_rechazado_conserva_el_pedido`, `::test_si_el_evento_no_llega_nunca_el_pedido_queda_consultable`, `::test_un_suscriptor_que_falla_no_tumba_el_cobro` ✅ |
 | **CON-01** | Evolucionabilidad *(nuevo en S7)* | El contrato de API es la fuente única de verdad y un cambio incompatible no puede llegar a producción sin avisar | **0** cambios incompatibles no detectados; **20** casos negativos que deben seguir fallando | [N2 — contenedores](c4/nivel2-contenedores.md) *(protocolo y formato por flecha)* | [ADR-0003](adr/0003-estrategia-integracion.md), [política de versionado](api/politica-versionado.md) | [`docs/api/openapi.yaml`](api/openapi.yaml), [`asyncapi.yaml`](api/asyncapi.yaml), `backend/scripts/comparar_contratos.py` | `tests/test_contrato_api.py`, `tests/test_compatibilidad_contrato.py`, `tests/test_expectativas_consumidor.py` ✅ · Spectral y oasdiff en el job `contrato` |
 
 **Leyenda:** ✅ verificado en CI · ⏳ pendiente en la entrega actual.
 
-Estado a la fecha (S7): la cadena está **completa de punta a punta para ESC-01,
-ESC-03, ESC-05 y CON-01** (escenario → C4 → ADR → código → prueba en verde en
-CI). De ESC-03 queda pendiente el panel del establecimiento y de ESC-04 la
-validación del código en el punto de entrega; ambos son trabajo futuro, no
-huecos de trazabilidad. ESC-02 tiene línea base medida y protegida por una
-prueba de regresión, pero no prueba de carga.
+Estado a la fecha (S10): la cadena está **completa de punta a punta para los
+cinco escenarios y CON-01** (escenario → C4 → ADR → código → prueba en verde en
+CI). Lo que cerró en S9 y S10 fue el panel del mostrador con su máquina de
+estados (ESC-03) y la validación del código en el punto de entrega (ESC-04),
+que necesitaba saber **quién** entrega y por eso esperaba a la autenticación
+([ADR-0007](adr/0007-autenticacion-del-panel.md)).
 
-**Las cinco filas ya no tienen ninguna celda «Código» o «Pruebas» vacía.** Lo
-que cerró ESC-04 y ESC-05 fue implementar el contexto Pagos, que era
+Con una excepción que no se tapa: **ESC-03 no se cumple con el servicio frío.**
+El umbral es de 10 s y el arranque en frío de Render está medido en 42,4 s. La
+medición por capas de [`evidencia-s9.md` §1.3](evidencia-s9.md) lo separa:
+~0,7 s en caliente, ~43 s en frío. Los dos números llevaban semanas en el
+repositorio, en documentos distintos, y una medición de una sola capa —solo el
+tiempo local— no obligaba a ponerlos juntos. La fila de ESC-03 lleva por eso un
+✅ y un ❌ en la misma celda, que es lo que de verdad ocurre.
+
+ESC-02 tiene línea base medida y protegida por una prueba de regresión, pero no
+prueba de carga.
+
+**Las cinco filas ya no tienen ninguna celda «Código» o «Pruebas» vacía, ni
+ninguna marca ⏳.** Lo que cerró ESC-04 y ESC-05 fue implementar el contexto
+Pagos, que era
 precisamente lo que las bloqueaba desde S5.
 
 Las violaciones de propiedad de datos detectadas en la auditoría de modularidad
@@ -85,5 +97,5 @@ y arbitradas en [ADR-0001](adr/0001-estilo-arquitectonico.md):
 
 | Tensión | En conflicto | Cómo se resolvió |
 |---|---|---|
-| **T-1: Usabilidad vs. Seguridad** | ESC-01 (pedido en < 3 min, sin fricción) vs. ESC-04 (código no reutilizable, validación estricta) | Se privilegia la usabilidad en el flujo de compra y se concentra la validación estricta en el punto de entrega, no en cada paso del pedido |
+| **T-1: Usabilidad vs. Seguridad** | ESC-01 (pedido en < 3 min, sin fricción) vs. ESC-04 (código no reutilizable, validación estricta) | Se privilegia la usabilidad en el flujo de compra y se concentra la validación estricta en el punto de entrega, no en cada paso del pedido. **Implementado así en S10:** el código se exige en la transición a `entregado` y en ninguna otra, de modo que las tres transiciones anteriores no piden nada. Y se compara sin distinguir mayúsculas y recortando espacios, porque el código se dicta en voz alta en un mostrador: la tolerancia es a la caja de las letras, no al valor |
 | **T-2: Rendimiento/Disponibilidad vs. Simplicidad de construcción** | ESC-02 (hora pico, < 2 min en el 90 %) vs. el plazo y el tamaño del equipo (3 integrantes, sin presupuesto) | Monolito modular en un solo desplegable: se acepta menos margen de escalado independiente a cambio de entregar a tiempo, con módulos separados que permiten extraer un servicio después si ESC-02 lo exige |

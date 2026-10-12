@@ -36,7 +36,7 @@ def sesion_de_mostrador():
     Estas pruebas verifican la **máquina de estados y la autorización por
     establecimiento**, no el mecanismo de sesión. Mezclarlos haría que un fallo
     de scrypt rompiera quince pruebas que no hablan de contraseñas, y costaría
-    61 ms por caso derivando credenciales que no aportan nada aquí.
+    unos 100 ms por caso derivando credenciales que no aportan nada aquí.
 
     El mecanismo real —derivación, token, caducidad— se prueba contra PostgreSQL
     en `tests/test_autenticacion.py`, porque `usuarios.repository` **no tiene**
@@ -251,6 +251,105 @@ def test_sin_sesion_no_se_puede_ni_mirar():
     assert client.post(
         "/v1/pedidos/1/estado", json={"estado": "en_preparacion"}
     ).status_code == 401
+
+
+def test_avanzar_el_pedido_de_otro_establecimiento_da_404():
+    """Y `404`, no `403`, a propósito.
+
+    Un `403` diría «ese pedido existe pero no es tuyo», y con esa respuesta se
+    enumeran los pedidos del campus probando identificadores: es una fuga
+    distinta, y más silenciosa, que la que se estaba cerrando con la sesión.
+
+    Para quien tiene derecho a ese pedido la respuesta es la misma que si no
+    existiera, que es exactamente lo que se quiere decir: desde esta sesión, no
+    existe.
+    """
+    ajeno = repository.crear(
+        establecimiento_id=3,
+        item_id=4,
+        nombre_item="Café americano",
+        precio_unitario_centavos=200000,
+        cantidad=1,
+        total_centavos=200000,
+    )
+
+    respuesta = client.post(
+        f"/v1/pedidos/{ajeno.id}/estado", json={"estado": "en_preparacion"}
+    )
+
+    assert respuesta.status_code == 404
+    # Y existe de verdad: sin esto la prueba pasaría por el motivo equivocado.
+    assert repository.buscar_por_id(ajeno.id) is not None
+
+
+def test_entregar_sin_el_codigo_no_se_puede():
+    """Lo que cierra ESC-04: el código es la condición de la entrega.
+
+    La comprobación vive en la última transición y no en un endpoint aparte,
+    precisamente para que no sea un trámite opcional. Un endpoint «validar
+    código» que no bloqueara la entrega se podría saltar sin más.
+    """
+    pedido_id = _pedido_pagado()
+    codigo = client.get(f"/v1/pedidos/{pedido_id}").json()["codigo_canje"]
+    for estado in ("en_preparacion", "listo_para_recoger"):
+        client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": estado})
+
+    sin_codigo = client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": "entregado"})
+    equivocado = client.post(
+        f"/v1/pedidos/{pedido_id}/estado",
+        json={"estado": "entregado", "codigo_canje": "ZZZZZZ"},
+    )
+
+    assert sin_codigo.status_code == 409
+    assert equivocado.status_code == 409
+    # El pedido no se movió: un intento fallido no puede dejarlo a medio entregar.
+    assert client.get(f"/v1/pedidos/{pedido_id}").json()["estado"] == "listo_para_recoger"
+
+    # Y con el código correcto sí. Sin esta mitad, la prueba pasaría igual con
+    # un endpoint que rechazara siempre.
+    assert client.post(
+        f"/v1/pedidos/{pedido_id}/estado",
+        json={"estado": "entregado", "codigo_canje": codigo},
+    ).status_code == 200
+
+
+def test_el_codigo_se_acepta_en_minusculas_pero_no_con_otro_valor():
+    """Se dicta en voz alta en un mostrador; quien lo teclea no debe fallar por eso.
+
+    La tolerancia es solo a la caja de las letras. Un código parecido pero
+    distinto sigue siendo un código distinto.
+    """
+    pedido_id = _pedido_pagado()
+    codigo = client.get(f"/v1/pedidos/{pedido_id}").json()["codigo_canje"]
+    for estado in ("en_preparacion", "listo_para_recoger"):
+        client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": estado})
+
+    assert client.post(
+        f"/v1/pedidos/{pedido_id}/estado",
+        json={"estado": "entregado", "codigo_canje": f"  {codigo.lower()} "},
+    ).status_code == 200
+
+
+def test_el_codigo_no_se_puede_reutilizar():
+    """El 100 % de las reutilizaciones se rechaza, y sin código propio que lo haga.
+
+    Sale de que `entregado` sea un estado final: el segundo intento no falla por
+    el código sino porque ya no hay transición desde ahí. Vale la pena tener la
+    prueba igual, porque lo que ESC-04 promete es el rechazo, no el mecanismo
+    por el que ocurre — y si algún día `entregado` deja de ser final, esta
+    prueba es la que avisa de que la promesa se rompió.
+    """
+    pedido_id = _pedido_pagado()
+    codigo = client.get(f"/v1/pedidos/{pedido_id}").json()["codigo_canje"]
+    for estado in ("en_preparacion", "listo_para_recoger"):
+        client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": estado})
+    cuerpo = {"estado": "entregado", "codigo_canje": codigo}
+
+    primera = client.post(f"/v1/pedidos/{pedido_id}/estado", json=cuerpo)
+    segunda = client.post(f"/v1/pedidos/{pedido_id}/estado", json=cuerpo)
+
+    assert primera.status_code == 200
+    assert segunda.status_code == 409
 
 
 def test_la_cola_llega_del_mas_reciente_al_mas_antiguo():
