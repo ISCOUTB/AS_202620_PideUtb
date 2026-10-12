@@ -72,6 +72,11 @@ tags:
     description: |
       Contexto Pagos — inicio del cobro y recepción del evento de la pasarela.
       El primero es síncrono; el segundo es el punto de entrada asíncrono.
+  - name: sesiones
+    description: |
+      Contexto Cuentas — abrir y cerrar la sesión con la que se opera el panel
+      del mostrador. Nuevo en la 2.0.0, y la razón del salto de MAYOR: las dos
+      operaciones del panel pasaron a exigir la credencial que se obtiene aquí.
 
 paths:
   /health:
