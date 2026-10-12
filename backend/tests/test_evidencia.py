@@ -27,17 +27,17 @@ DOSSIER = RAIZ / "docs" / "evidencia-s7.md"
 CITAS = [
     # §1 — Correspondencia contrato ↔ código: prefijos de los routers
     ("backend/app/main.py", 120, '"/health"'),
-    ("backend/app/main.py", 155, '"/metricas"'),
-    ("backend/app/menu/router.py", 18, 'prefix="/v1/menu"'),
-    ("backend/app/menu/router.py", 22, '"/items/{item_id}"'),
-    ("backend/app/menu/router.py", 35, '"/establecimientos/{establecimiento_id}/items"'),
-    ("backend/app/pedidos/router.py", 21, 'prefix="/v1/pedidos"'),
-    ("backend/app/pedidos/router.py", 45, '"/{pedido_id}"'),
-    ("backend/app/pedidos/router.py", 95, '"/{pedido_id}/estado"'),
-    ("backend/app/usuarios/router.py", 14, 'prefix="/v1/sesiones"'),
-    ("backend/app/pagos/router.py", 18, 'prefix="/v1/pagos"'),
-    ("backend/app/pagos/router.py", 22, '"/intentos"'),
-    ("backend/app/pagos/router.py", 40, '"/eventos"'),
+    ("backend/app/main.py", 161, '"/metricas"'),
+    ("backend/app/menu/router.py", 20, 'prefix="/v1/menu"'),
+    ("backend/app/menu/router.py", 24, '"/items/{item_id}"'),
+    ("backend/app/menu/router.py", 36, '"/establecimientos/{establecimiento_id}/items"'),
+    ("backend/app/pedidos/router.py", 23, 'prefix="/v1/pedidos"'),
+    ("backend/app/pedidos/router.py", 46, '"/{pedido_id}"'),
+    ("backend/app/pedidos/router.py", 96, '"/{pedido_id}/estado"'),
+    ("backend/app/usuarios/router.py", 16, 'prefix="/v1/sesiones"'),
+    ("backend/app/pagos/router.py", 20, 'prefix="/v1/pagos"'),
+    ("backend/app/pagos/router.py", 24, '"/intentos"'),
+    ("backend/app/pagos/router.py", 41, '"/eventos"'),
 
     # §1 — Los paths del contrato
     ("docs/api/openapi.yaml", 82, "/health:"),

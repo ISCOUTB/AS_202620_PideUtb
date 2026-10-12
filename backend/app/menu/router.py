@@ -9,6 +9,8 @@ deja que el framework las omita: un código de respuesta que el contrato promete
 pero la aplicación no documenta es exactamente la divergencia que
 `tests/test_contrato_api.py` está puesto a detectar.
 """
+from typing import Annotated
+
 from fastapi import APIRouter, HTTPException, Query
 
 from app.esquemas_comunes import ErrorDeNegocio, ErrorDeValidacion
@@ -20,7 +22,6 @@ router = APIRouter(prefix="/v1/menu", tags=["menu"])
 
 @router.get(
     "/items/{item_id}",
-    response_model=ItemMenuResponse,
     responses={404: {"model": ErrorDeNegocio}, 422: {"model": ErrorDeValidacion}},
     summary="Consulta un ítem del menú.",
 )
@@ -33,16 +34,15 @@ def obtener_item(item_id: int) -> ItemMenuResponse:
 
 @router.get(
     "/establecimientos/{establecimiento_id}/items",
-    response_model=ListaItemsMenuResponse,
     responses={404: {"model": ErrorDeNegocio}, 422: {"model": ErrorDeValidacion}},
     summary="Lista los ítems que ofrece un establecimiento.",
 )
 def listar_items(
     establecimiento_id: int,
-    solo_disponibles: bool = Query(
-        default=False,
-        description="Si es `true`, omite los ítems marcados como no disponibles.",
-    ),
+    solo_disponibles: Annotated[
+        bool,
+        Query(description="Si es `true`, omite los ítems marcados como no disponibles."),
+    ] = False,
 ) -> ListaItemsMenuResponse:
     try:
         items = service.listar_items_de_establecimiento(

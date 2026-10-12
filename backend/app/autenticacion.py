@@ -21,6 +21,8 @@ Queda anotado en [V-12](../../docs/violaciones.md).
 """
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import Depends, HTTPException, Request
 
 from app.usuarios import service as cuentas_service
@@ -86,7 +88,7 @@ def usuario_actual(peticion: Request) -> UsuarioAutenticado:
 
 
 def personal_de_establecimiento(
-    usuario: UsuarioAutenticado = Depends(usuario_actual),
+    usuario: Annotated[UsuarioAutenticado, Depends(usuario_actual)],
 ) -> UsuarioAutenticado:
     """Exige una sesión de alguien que atiende un mostrador.
 

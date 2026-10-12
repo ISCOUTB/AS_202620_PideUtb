@@ -3,6 +3,8 @@
 El router traduce excepciones de dominio a códigos HTTP (arc42 §8.4); el
 servicio no conoce el protocolo.
 """
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.autenticacion import token_de_sesion, usuario_actual
@@ -17,7 +19,6 @@ router = APIRouter(prefix="/v1/sesiones", tags=["sesiones"])
 @router.post(
     "",
     status_code=201,
-    response_model=SesionResponse,
     responses={401: {"model": ErrorDeNegocio}, 422: {"model": ErrorDeValidacion}},
     summary="Abre una sesión.",
 )
@@ -48,8 +49,8 @@ def iniciar_sesion(datos: IniciarSesionRequest) -> SesionResponse:
     summary="Cierra la sesión actual.",
 )
 def cerrar_sesion(
-    _: UsuarioAutenticado = Depends(usuario_actual),
-    token: str = Depends(token_de_sesion),
+    _: Annotated[UsuarioAutenticado, Depends(usuario_actual)],
+    token: Annotated[str, Depends(token_de_sesion)],
 ) -> None:
     """Borra **la** sesión con la que se llama, no todas las del usuario.
 
