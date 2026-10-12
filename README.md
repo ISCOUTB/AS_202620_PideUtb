@@ -32,6 +32,8 @@ y lo que **no** está hecho— está en
 [`docs/evidencia-s8.md`](docs/evidencia-s8.md).
 La de la semana 9 —generación verificada, auditoría de erosión y de dependencias—
 en [`docs/evidencia-s9.md`](docs/evidencia-s9.md).
+La de la semana 10 —autenticación del panel, y los seis defectos que las
+correcciones destaparon— en [`docs/evidencia-s10.md`](docs/evidencia-s10.md).
 
 **Primera petición tras 15 minutos de silencio: hasta ~60 s.** Es el arranque en
 frío del plan gratuito, no un fallo. El sitio avisa cuando ocurre. Por qué se
@@ -46,8 +48,8 @@ fragmentos reproducidos, está en [`docs/evidencia-s7.md`](docs/evidencia-s7.md)
 
 | Criterio | Evidencia citada |
 |---|---|
-| Contrato ejecutable versionado | [`docs/api/openapi.yaml`](docs/api/openapi.yaml) `openapi: 3.1.0`, `info.version: 1.1.0` · [`asyncapi.yaml`](docs/api/asyncapi.yaml) `3.0.0` |
-| Rutas y esquemas, no solo endpoints | 8 `paths` con `content`/`schema`; `components.schemas` con `required` y tipos |
+| Contrato ejecutable versionado | [`docs/api/openapi.yaml`](docs/api/openapi.yaml) `openapi: 3.1.0`, `info.version: 2.0.0` · [`asyncapi.yaml`](docs/api/asyncapi.yaml) `3.0.0` |
+| Rutas y esquemas, no solo endpoints | 10 `paths` con `content`/`schema`; `components.schemas` con `required` y tipos |
 | **Correspondencia contrato ↔ código** | 9 paths ↔ 10 operaciones: `menu/router.py:18,22,35` · `pedidos/router.py:18,22,42,55,78` · `pagos/router.py:18,22,40` · `main.py:103,117`. Lo verifica `test_contrato_api.py` en cada push |
 | Versión declarada con historial | `info.version: 1.1.0`; [`historial/`](docs/api/historial/) congela **1.0.0 y 1.1.0**. El salto de MINOR se justifica en [§6 de la política](docs/api/politica-versionado.md): la forma intuitiva de hacer real el chequeo de salud era la regla **I-8**, y el diseño cambió por eso |
 | Prueba de contrato presente | `test_contrato_api.py` · `test_compatibilidad_contrato.py` · `test_expectativas_consumidor.py` — **20 casos negativos** |
