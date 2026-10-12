@@ -14,6 +14,17 @@ producción. La lección de la semana 9 fue justamente esa, así que no se repit
 Lo que va en la línea de comandos queda en el historial del shell y en la lista
 de procesos de la máquina. `getpass` además no hace eco, así que tampoco queda
 en la pantalla de quien esté mirando.
+
+### Por qué cierra el pool a mano
+
+`usuarios.repository` habla por el pool de `app.base_de_datos`, que levanta hilos
+en segundo plano. Un guion que termina sin cerrarlo deja que `psycopg_pool` se
+queje al apagar el intérprete con cuatro líneas de `couldn't stop thread ...`.
+
+No rompe nada —la cuenta ya está escrita y confirmada— y precisamente por eso
+importa: aparece **después** del mensaje de éxito, y quien acaba de tocar la base
+de datos de producción lee «no pude parar» y se pregunta si algo quedó a medias.
+Un mensaje alarmante tras una operación correcta enseña a ignorar los mensajes.
 """
 from __future__ import annotations
 
@@ -24,16 +35,28 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app import base_de_datos  # noqa: E402
 from app.usuarios import service as cuentas_service  # noqa: E402
 
 LONGITUD_MINIMA = 12
 
 
 def main() -> int:
+    """Pide los datos, crea la cuenta y deja el pool cerrado al salir."""
     if not os.getenv("PIDEUTB_DATABASE_URL", "").strip():
         print("Falta PIDEUTB_DATABASE_URL.", file=sys.stderr)
         return 2
 
+    try:
+        return _crear()
+    finally:
+        # En `finally` y no al final del camino feliz: si algo falla a mitad,
+        # los hilos del pool quedarían igualmente colgando y el error de verdad
+        # se perdería entre las quejas del apagado.
+        base_de_datos.cerrar_pool()
+
+
+def _crear() -> int:
     correo = input("Correo: ").strip()
     if "@" not in correo:
         print("Eso no parece un correo.", file=sys.stderr)

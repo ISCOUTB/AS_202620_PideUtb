@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app import base_de_datos  # noqa: E402
 from app.main import app  # noqa: E402
 
 PEDIDO = {"item_id": 1, "cantidad": 2}
@@ -54,9 +55,17 @@ def medir(n: int) -> dict[str, float]:
 
 if __name__ == "__main__":
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 200
-    r = medir(n)
-    print(f"Línea base POST /pedidos  (n={r['n']} peticiones)")
-    print(f"  min  : {r['min_ms']:.2f} ms")
-    print(f"  p50  : {r['p50_ms']:.2f} ms")
-    print(f"  p95  : {r['p95_ms']:.2f} ms")
-    print(f"  max  : {r['max_ms']:.2f} ms")
+    try:
+        r = medir(n)
+        print(f"Línea base POST /pedidos  (n={r['n']} peticiones)")
+        print(f"  min  : {r['min_ms']:.2f} ms")
+        print(f"  p50  : {r['p50_ms']:.2f} ms")
+        print(f"  p95  : {r['p95_ms']:.2f} ms")
+        print(f"  max  : {r['max_ms']:.2f} ms")
+    finally:
+        # `TestClient(app)` sin `with` no ejecuta el ciclo de vida, así que el
+        # pool que abre la primera consulta no lo cierra nadie. Solo pasa
+        # cuando se mide contra PostgreSQL, que es justo cuando la medición
+        # vale: sin esto, las cifras salen seguidas de cuatro quejas del
+        # apagado y cuesta leer cuál es el resultado.
+        base_de_datos.cerrar_pool()
