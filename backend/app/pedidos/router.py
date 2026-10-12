@@ -3,6 +3,8 @@
 El router es el único que traduce excepciones de dominio a códigos HTTP
 (arc42 §8.4): el servicio no conoce el protocolo.
 """
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.autenticacion import establecimiento_que_puede_ver, personal_de_establecimiento
@@ -24,7 +26,6 @@ router = APIRouter(prefix="/v1/pedidos", tags=["pedidos"])
 @router.post(
     "",
     status_code=201,
-    response_model=PedidoResponse,
     responses={404: {"model": ErrorDeNegocio}, 409: {"model": ErrorDeNegocio}, 422: {"model": ErrorDeValidacion}},
     summary="Crea un pedido.",
 )
@@ -43,7 +44,6 @@ def crear_pedido(datos: CrearPedidoRequest) -> PedidoResponse:
 
 @router.get(
     "/{pedido_id}",
-    response_model=PedidoResponse,
     responses={404: {"model": ErrorDeNegocio}, 422: {"model": ErrorDeValidacion}},
     summary="Consulta un pedido y su estado.",
 )
@@ -56,7 +56,6 @@ def obtener_pedido(pedido_id: int) -> PedidoResponse:
 
 @router.get(
     "",
-    response_model=ListaDePedidosResponse,
     responses={
         401: {"model": ErrorDeNegocio},
         403: {"model": ErrorDeNegocio},
@@ -65,15 +64,17 @@ def obtener_pedido(pedido_id: int) -> PedidoResponse:
     summary="Lista los pedidos del establecimiento de la sesión.",
 )
 def listar_pedidos(
-    usuario: UsuarioAutenticado = Depends(personal_de_establecimiento),
-    establecimiento_id: int | None = Query(
-        default=None,
-        ge=1,
-        description=(
-            "Solo para administradores. El personal opera sobre su propio "
-            "establecimiento y recibe `403` si indica otro."
+    usuario: Annotated[UsuarioAutenticado, Depends(personal_de_establecimiento)],
+    establecimiento_id: Annotated[
+        int | None,
+        Query(
+            ge=1,
+            description=(
+                "Solo para administradores. El personal opera sobre su propio "
+                "establecimiento y recibe `403` si indica otro."
+            ),
         ),
-    ),
+    ] = None,
 ) -> ListaDePedidosResponse:
     """Los pedidos que el mostrador tiene que atender.
 
@@ -93,7 +94,6 @@ def listar_pedidos(
 
 @router.post(
     "/{pedido_id}/estado",
-    response_model=PedidoResponse,
     responses={
         401: {"model": ErrorDeNegocio},
         403: {"model": ErrorDeNegocio},
@@ -106,7 +106,7 @@ def listar_pedidos(
 def cambiar_estado(
     pedido_id: int,
     datos: CambiarEstadoRequest,
-    usuario: UsuarioAutenticado = Depends(personal_de_establecimiento),
+    usuario: Annotated[UsuarioAutenticado, Depends(personal_de_establecimiento)],
 ) -> PedidoResponse:
     """Mueve el pedido dentro de la máquina de estados del mostrador.
 

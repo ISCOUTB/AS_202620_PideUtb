@@ -4,6 +4,8 @@ Contiene los dos extremos del sistema: la operación síncrona que el frontend
 invoca y el punto de entrada asíncrono que invoca la pasarela. Están en el
 mismo archivo porque pertenecen al mismo contexto, no porque se parezcan.
 """
+from typing import Annotated
+
 from fastapi import APIRouter, Header, HTTPException, Request
 
 from app.esquemas_comunes import ErrorDeNegocio, ErrorDeValidacion
@@ -21,7 +23,6 @@ router = APIRouter(prefix="/v1/pagos", tags=["pagos"])
 @router.post(
     "/intentos",
     status_code=201,
-    response_model=IntentoPagoResponse,
     responses={404: {"model": ErrorDeNegocio}, 409: {"model": ErrorDeNegocio}, 422: {"model": ErrorDeValidacion}},
     summary="Inicia el cobro de un pedido.",
 )
@@ -39,14 +40,13 @@ def iniciar_intento(datos: IniciarPagoRequest) -> IntentoPagoResponse:
 @router.post(
     "/eventos",
     status_code=202,
-    response_model=AcuseDeEventoResponse,
     responses={401: {"model": ErrorDeNegocio}, 404: {"model": ErrorDeNegocio}, 422: {"model": ErrorDeValidacion}},
     summary="Recibe la confirmación de la pasarela (webhook).",
 )
 async def recibir_evento(
     evento: EventoPagoRequest,
     request: Request,
-    x_firma_evento: str | None = Header(default=None, alias="X-Firma-Evento"),
+    x_firma_evento: Annotated[str | None, Header(alias="X-Firma-Evento")] = None,
 ) -> AcuseDeEventoResponse:
     """Punto de entrada asíncrono.
 

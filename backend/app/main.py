@@ -119,6 +119,12 @@ app.include_router(sesiones_router)
 @app.get(
     "/health",
     tags=["operacion"],
+    # El único `response_model` que queda en todo el backend, y no es
+    # duplicación: la anotación de retorno es `EstadoServicio | JSONResponse`,
+    # porque el camino de fallo devuelve una respuesta con código 503 ya
+    # construida. Sin esto, FastAPI tomaría la unión entera como esquema
+    # publicado y `JSONResponse` no es un modelo. Las demás operaciones lo
+    # declaran solo con la anotación.
     response_model=EstadoServicio,
     summary="Comprueba que el servicio y sus dependencias responden.",
     responses={503: {"model": ServicioNoDisponible, "description": "Alguna dependencia no responde."}},
@@ -154,7 +160,6 @@ def health() -> EstadoServicio | JSONResponse:
 @app.get(
     "/metricas",
     tags=["operacion"],
-    response_model=Metricas,
     summary="Latencias observadas por operación.",
 )
 def metricas() -> Metricas:

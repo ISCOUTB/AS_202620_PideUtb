@@ -242,8 +242,40 @@ otros tres se dejan con motivo.
 | `python:S3457` — f-string sin campos de reemplazo | `usuarios/repository.py` | **Corregido**, y es el que más importa de los seis. Era el único `f"SELECT ..."` del backend sin interpolar nada: un prefijo suelto. No era inocuo — un `f` delante de una cadena SQL invita a que el siguiente escriba `{algo}` dentro sin notar que acaba de abrir una inyección. Las demás consultas sí lo llevan, y sí interpolan `{_COLUMNAS}` |
 | `javascript:S7744` — objeto vacío inútil | `panel.js` | **Corregido.** `...(opciones.headers \|\| {})`: esparcir `undefined` en un objeto literal ya no hace nada, así que el `\|\| {}` era código muerto con aspecto defensivo |
 | `javascript:S6582` — preferir encadenamiento opcional | `panel.js` | **Corregido.** `guardada?.token && guardada?.usuario` |
-| `python:S8409` — `response_model` duplica la anotación de retorno | `usuarios/router.py` | **No se cambia.** Los **cuatro** routers del backend declaran `response_model=` así. Cambiar solo este lo volvería el raro del conjunto, y la regla señalaría igualmente a los otros tres en cuanto alguien los tocara. Es un cambio de convención de todo el backend, y un cambio de convención no entra de rebote en una entrega que trata de autenticación |
-| `python:S8410` — usar `Annotated` en las dependencias (×2) | `usuarios/router.py` | **No se cambia**, por lo mismo. `usuario: X = Depends(...)` es el estilo de `pedidos/router.py` y del resto |
+| `python:S8409` — `response_model` duplica la anotación de retorno | `usuarios/router.py` | **Corregido después, en todo el backend.** Ver abajo |
+| `python:S8410` — usar `Annotated` en las dependencias (×2) | `usuarios/router.py` | **Corregido después, en todo el backend.** Ver abajo |
+
+### Los dos que se dejaron, y por qué se hicieron igual
+
+La decisión inicial fue **no tocarlos**, con este argumento: los cuatro routers
+usaban el estilo antiguo, así que cambiar solo `usuarios/router.py` lo volvería
+el raro del conjunto, y la regla señalaría igualmente a los otros tres en cuanto
+alguien los tocara.
+
+Ese argumento era correcto en su premisa y equivocado en su conclusión. Si el
+problema es que cambiar **uno** crea inconsistencia, la respuesta no es dejar el
+aviso abierto: es cambiar **los cuatro**. Lo que lo justificaba de verdad era el
+alcance —no meter un cambio de convención dentro de una entrega sobre
+autenticación—, y eso se resuelve con una rama aparte, no renunciando al cambio.
+
+Hecho así: `response_model` retirado de las **diez** operaciones donde duplicaba
+la anotación de retorno, y `Annotated` en las **siete** declaraciones de
+parámetro del backend (cuatro `Depends`, dos `Query`, un `Header`), más la
+dependencia de `app/autenticacion.py` que Sonar no señalaba porque no está en un
+router.
+
+**Queda un `response_model`, y no es un olvido.** `GET /health` se anota
+`-> EstadoServicio | JSONResponse`, porque el camino de fallo devuelve una
+respuesta 503 ya construida. Ahí la anotación y el modelo publicado **no** son
+lo mismo, así que retirarlo haría que FastAPI tomara la unión entera como
+esquema. Lleva su comentario en el decorador.
+
+**Lo que da confianza en que el refactor no cambió nada:**
+`test_contrato_api.py` compara el OpenAPI que genera la aplicación contra
+`docs/api/openapi.yaml`, campo a campo y en las dos direcciones. Si retirar
+`response_model` hubiera alterado un solo esquema publicado, esa prueba lo
+habría dicho. Pasó sin tocar el contrato, que es exactamente la prueba de que
+los dos declaraban lo mismo.
 
 **La regla que se sigue aquí:** un aviso se corrige cuando señala un defecto, y
 se deja escrito cuando lo que señala es una convención del proyecto. Lo que no
