@@ -103,7 +103,9 @@ const pesos = (centavos) =>
 // --------------------------------------------------------------------------
 
 async function api(ruta, opciones = {}) {
-  const cabeceras = { "Content-Type": "application/json", ...(opciones.headers || {}) };
+  // `...undefined` dentro de un objeto literal ya no hace nada, así que el
+  // `|| {}` que había aquí era código muerto que parecía defensivo.
+  const cabeceras = { "Content-Type": "application/json", ...opciones.headers };
   if (sesion) cabeceras.Authorization = `Bearer ${sesion.token}`;
 
   const respuesta = await fetch(`${CONFIG.API}${ruta}`, { ...opciones, headers: cabeceras });
@@ -146,7 +148,7 @@ function leerSesionGuardada() {
     // Se comprueba la forma antes de confiar en ella: un valor a medio escribir
     // dejaría la pantalla pidiendo una cola con un token inservible, y el
     // usuario vería un error en vez del formulario de ingreso.
-    return guardada && guardada.token && guardada.usuario ? guardada : null;
+    return guardada?.token && guardada?.usuario ? guardada : null;
   } catch {
     // `sessionStorage` lanza en modo privado con el almacenamiento bloqueado, y
     // `JSON.parse` lanza con un valor corrupto. Ninguno de los dos casos debe

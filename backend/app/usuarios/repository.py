@@ -141,7 +141,12 @@ def buscar_usuario_de_sesion(token_hash: str) -> Usuario | None:
     """
     with base_de_datos.conexion() as conn, conn.cursor() as cur:
         cur.execute(
-            f"SELECT u.id, u.establecimiento_id, u.correo, u.hash_contrasena, u.rol, u.activo "
+            # Sin prefijo `f`: esta consulta no interpola nada. Las demás del
+            # repositorio sí lo llevan porque insertan `{_COLUMNAS}`, que es
+            # una constante del módulo. Dejarlo aquí sin uso no era inocuo: un
+            # `f` delante de una cadena SQL invita a que el siguiente escriba
+            # `{algo}` dentro sin notar que acaba de abrir una inyección.
+            "SELECT u.id, u.establecimiento_id, u.correo, u.hash_contrasena, u.rol, u.activo "
             "FROM sesiones s JOIN usuarios u ON u.id = s.usuario_id "
             "WHERE s.token_hash = %s AND s.expira_en > now() AND u.activo",
             (token_hash,),
