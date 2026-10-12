@@ -73,7 +73,7 @@ def main() -> int:
         print(str(error), file=sys.stderr)
         return 1
 
-    print(f"Usuario {usuario.id} creado: {usuario.correo} ({usuario.rol.value})")
+    print(f"Usuario {usuario.usuario_id} creado: {usuario.correo} ({usuario.rol.value})")
     return 0
 
 

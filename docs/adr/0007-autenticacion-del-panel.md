@@ -144,6 +144,49 @@ puerta abierta tres meses más.
   resolverlo bien necesita almacenamiento compartido entre instancias, que es
   una decisión aparte.
 
+## Puesta en producción: dos pasos manuales, y por qué
+
+**Desplegar esto no basta con fusionar.** La API 2.0.0 necesita las tablas
+`usuarios` y `sesiones`, que no existen todavía en el proyecto desplegado, y
+necesita al menos una cuenta. Si se despliega sin eso, el panel muestra su
+formulario de ingreso y `POST /v1/sesiones` falla: el mostrador queda sin forma
+de operar.
+
+El orden correcto es:
+
+```bash
+# 1. Aplicar la migración. Lee PIDEUTB_DATABASE_URL del entorno a propósito:
+#    la cadena lleva la contraseña dentro y no debe quedar en el historial.
+cd backend && python scripts/migrar.py --estado   # ver qué falta
+python scripts/migrar.py                          # aplicar
+
+# 2. Dar de alta a quien atiende. Pide la contraseña sin eco.
+python scripts/crear_usuario.py
+```
+
+**Por qué no están automatizados.** Son dos decisiones distintas y las dos
+tienen el mismo motivo de fondo:
+
+- **La migración no corre al arrancar la aplicación.** Un proceso web que
+  modifica el esquema al iniciarse lo hace en cada instancia a la vez, y en una
+  plataforma que reinicia por su cuenta eso ocurre cuando nadie está mirando.
+  Que el `ALTER TABLE` sea un paso que alguien ejecuta es lo que permite verlo
+  fallar.
+- **No hay usuarios en ninguna migración.** Sembrarlos exigiría poner una
+  contraseña —o su derivación— en el repositorio, que es **exactamente**
+  [V-11](../violaciones.md#v-11): un valor «de desarrollo» que nadie trata como
+  secreto porque no lo parece, y que acaba vivo en producción. La lección de la
+  semana 9 cuesta dos minutos de trabajo manual por establecimiento, y esos dos
+  minutos son el precio correcto.
+
+El guion de alta está cubierto por
+`test_el_guion_de_alta_funciona_de_principio_a_fin`, y no es un adorno: antes de
+esa prueba, `crear_usuario.py` **creaba la cuenta y después reventaba** al
+imprimir la confirmación. Quien lo ejecutara habría visto un error, supuesto que
+falló, y al reintentar habría recibido «ya hay una cuenta con ese correo» sin
+saber que la suya ya existía. Un guion que nadie ejecuta en la construcción se
+rompe en silencio, y este lo hizo.
+
 ## Qué cambiaría esta decisión
 
 - **Que los usuarios dejen de ser decenas.** Si el sistema abre cuentas a

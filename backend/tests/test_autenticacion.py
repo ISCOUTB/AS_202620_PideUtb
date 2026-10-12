@@ -661,6 +661,60 @@ def test_una_cabecera_malformada_es_un_401_y_no_un_422(postgres, cabecera):
 
 
 # ---------------------------------------------------------------------------
+# El guion que da de alta a quien atiende
+#
+# No hay usuarios en ninguna migración, y es la lección de V-11: sembrarlos
+# exigiría poner una contraseña —o su derivación— en el repositorio, que es
+# exactamente la forma del defecto de la semana 9.
+#
+# La contrapartida es que el alta pasa por un guion, y un guion que nadie
+# ejecuta en la construcción se rompe en silencio. Pasó: `crear_usuario.py`
+# imprimía `usuario.id` sobre un objeto cuyo campo se llama `usuario_id`, así
+# que **creaba la cuenta y después reventaba**. Quien lo ejecutara vería un
+# traceback, supondría que falló y al reintentar recibiría «ya hay una cuenta
+# con ese correo», sin saber que la suya ya estaba creada.
+# ---------------------------------------------------------------------------
+
+def test_el_guion_de_alta_funciona_de_principio_a_fin(postgres, monkeypatch, capsys):
+    """Lo ejecuta con las entradas simuladas y comprueba que termina bien."""
+    import importlib
+
+    monkeypatch.setenv("PIDEUTB_DATABASE_URL", URL_PRUEBAS)
+    respuestas = iter(["nuevo@utb.edu.co", "personal_establecimiento", "2"])
+    monkeypatch.setattr("builtins.input", lambda *_: next(respuestas))
+    monkeypatch.setattr("getpass.getpass", lambda *_: "clave-de-prueba-larga")
+
+    guion = importlib.import_module("scripts.crear_usuario")
+
+    assert guion.main() == 0
+
+    # Lo que imprime importa: es la única confirmación que recibe quien lo corre.
+    salida = capsys.readouterr().out
+    assert "nuevo@utb.edu.co" in salida
+    assert "personal_establecimiento" in salida
+
+    creado = repository.buscar_usuario_por_correo("nuevo@utb.edu.co")
+    assert creado is not None
+    assert creado.establecimiento_id == 2
+    # Y la contraseña quedó derivada, no guardada.
+    assert "clave-de-prueba-larga" not in creado.hash_contrasena
+
+
+def test_el_guion_de_alta_rechaza_un_rol_que_no_existe(postgres, monkeypatch):
+    """Sin crear nada. Un rol mal escrito no puede dejar media cuenta."""
+    import importlib
+
+    monkeypatch.setenv("PIDEUTB_DATABASE_URL", URL_PRUEBAS)
+    respuestas = iter(["otro@utb.edu.co", "superadministrador"])
+    monkeypatch.setattr("builtins.input", lambda *_: next(respuestas))
+
+    guion = importlib.import_module("scripts.crear_usuario")
+
+    assert guion.main() == 2
+    assert repository.buscar_usuario_por_correo("otro@utb.edu.co") is None
+
+
+# ---------------------------------------------------------------------------
 # Que la omisión no se disfrace de éxito
 # ---------------------------------------------------------------------------
 
