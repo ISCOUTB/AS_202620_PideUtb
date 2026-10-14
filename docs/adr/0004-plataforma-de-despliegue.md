@@ -4,6 +4,19 @@
 
 Aceptada — 27/09/2026
 
+> **Reemplazada en la elección de plataforma el 13/10/2026 por
+> [ADR-0008](0008-despliegue-en-el-servidor-del-laboratorio.md).**
+>
+> No se reemplaza por error, sino porque **su premisa dejó de ser cierta**. Esta
+> decisión eligió Render bajo la condición «presupuesto $0» y aceptó el arranque
+> en frío como coste conocido. Apareció una opción que también cuesta $0 y **no
+> tiene arranque en frío**, que era justo lo que incumplía ESC-03.
+>
+> El razonamiento que sigue vigente es el de fondo: **un contenedor con proceso
+> persistente frente a una función sin servidor**, por el pool de conexiones.
+> Esa parte no cambia; el proveedor sí. Lo que caducó está anunciado abajo, en
+> «qué cambiaría esta decisión».
+
 ## Contexto
 
 Hasta esta entrega el sistema solo existía en las máquinas del equipo. La

@@ -53,10 +53,12 @@ info:
     identifier: MIT
 
 servers:
+  - url: https://pideutb.iscoutb.dev/api
+    description: |
+      Despliegue del laboratorio. El sitio se sirve en `/` del mismo dominio, de
+      modo que el panel llama a la API **sin cruzar orígenes**.
   - url: http://127.0.0.1:8000
-    description: Desarrollo local.
-  - url: https://pideutb.vercel.app
-    description: Despliegue gestionado (aún no aprovisionado — ver arc42 §7).
+    description: Desarrollo local, sin prefijo.
 
 tags:
   - name: operacion

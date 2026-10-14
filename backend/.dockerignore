@@ -1,0 +1,18 @@
+# Lo que no tiene que entrar en la imagen.
+#
+# El entorno virtual es de Windows: copiarlo dentro de una imagen Linux no solo
+# no sirve, sino que tapa los paquetes instalados en la etapa de dependencias.
+.venv/
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Las pruebas corren en el pipeline, no en producción.
+tests/
+
+# Artefactos de medición y reportes.
+reporte-pruebas.xml
