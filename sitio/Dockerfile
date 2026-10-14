@@ -9,9 +9,18 @@
 # sirviendo estáticos cabe en 64 MB, mientras que un frontend con renderizado
 # en servidor pediría 160 MB de los 512 del equipo.
 
-FROM nginx:1.27-alpine
+# `nginx-unprivileged` y no la imagen oficial: esta corre como un usuario sin
+# privilegios desde el primer proceso, no solo en los trabajadores. A cambio
+# escucha en el **8080**, porque un proceso sin privilegios no puede tomar el
+# puerto 80.
+FROM nginxinc/nginx-unprivileged:1.27-alpine
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --chown=nginx:nginx *.html *.css *.js /usr/share/nginx/html/
 
-EXPOSE 80
+# Sin `--chown`: los archivos quedan de root y nginx solo puede **leerlos**. Con
+# la propiedad cambiada al usuario que sirve, un fallo en el servidor podría
+# reescribir las páginas que entrega — que es justo lo que no se quiere de un
+# contenedor cuyo contenido no cambia nunca en caliente.
+COPY *.html *.css *.js /usr/share/nginx/html/
+
+EXPOSE 8080

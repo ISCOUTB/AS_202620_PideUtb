@@ -60,6 +60,20 @@ services:
       # La API se publica bajo `/api` y el proxy recorta ese prefijo. Sin esto,
       # `/api/docs` genera sus enlaces a `/docs` y la documentación queda rota.
       PIDEUTB_ROOT_PATH: /api
+
+      # Primera cuenta del panel, y **solo** si la tabla está vacía.
+      #
+      # Es la respuesta a un problema que esta migración crea: la base no
+      # publica puertos y el panel no da terminal, así que `crear_usuario.py` no
+      # se puede ejecutar contra producción. Sin esto, un despliegue limpio deja
+      # un sistema en el que nadie puede entrar — y con los volúmenes sin
+      # respaldo, «despliegue limpio» es el procedimiento de recuperación.
+      #
+      # La contraseña vive en el panel. Si falta, no se crea nada: una cuenta
+      # inicial con contraseña conocida sería peor que no tener cuenta.
+      PIDEUTB_USUARIO_INICIAL_CORREO: ${PIDEUTB_USUARIO_INICIAL_CORREO:-}
+      PIDEUTB_USUARIO_INICIAL_CONTRASENA: ${PIDEUTB_USUARIO_INICIAL_CONTRASENA:-}
+      PIDEUTB_USUARIO_INICIAL_ESTABLECIMIENTO: ${PIDEUTB_USUARIO_INICIAL_ESTABLECIMIENTO:-1}
     expose:
       - "8000"
     depends_on:
@@ -132,9 +146,9 @@ services:
       context: ../sitio
     restart: unless-stopped
     expose:
-      - "80"
+      - "8080"
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/"]
       interval: 30s
       timeout: 5s
       retries: 3

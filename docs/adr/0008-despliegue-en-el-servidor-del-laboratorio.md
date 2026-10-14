@@ -143,6 +143,36 @@ despliegue anterior.** Aquí hay dos hechos nuevos:
 Si una migración falla, el contenedor no arranca: el despliegue queda en rojo en
 vez de servir una API contra un esquema a medio aplicar.
 
+### La primera cuenta se siembra al arrancar, desde el entorno
+
+Esta decisión **crea un problema que no existía** y hay que resolverlo con ella,
+no después: con PostgreSQL dentro del compose y sin puertos publicados, la base
+no es alcanzable desde fuera, y el panel del laboratorio no da terminal del
+servidor. `scripts/crear_usuario.py` deja de poder ejecutarse contra producción.
+
+Sin más, un despliegue limpio dejaría un sistema impecable **en el que nadie
+puede entrar**. Y con los volúmenes sin respaldo, «despliegue limpio» no es un
+caso raro: es el procedimiento de recuperación.
+
+`scripts/sembrar_usuario_inicial.py` corre tras las migraciones y crea esa
+cuenta desde tres variables de entorno. Tres restricciones lo separan de una
+puerta trasera:
+
+1. **Solo actúa si la tabla `usuarios` está vacía.** Con cuentas existentes no
+   hace nada. Quien pueda escribir una variable de entorno no puede, por tanto,
+   crearse una cuenta en un sistema en marcha ni reponer la contraseña de nadie:
+   lo único que puede hacer es lo que ya puede hacer quien despliega.
+2. **No tiene valores por defecto.** Sin las variables no crea nada y lo
+   registra. Una cuenta inicial con contraseña conocida sería la forma de
+   [V-11](../violaciones.md#v-11) trasladada a las credenciales de usuario.
+3. **Nunca registra la contraseña**, ni su longitud —de la longitud se deduce
+   cuánto hay que probar—. El registro del despliegue lo lee cualquiera con
+   acceso al panel.
+
+La alternativa descartada era sembrarla en una migración SQL, que habría exigido
+escribir en el repositorio una contraseña o su derivación. Aquí el valor vive en
+el panel y el repositorio no lo ve.
+
 ### ESC-03 pasa a cumplirse
 
 Queda por medir en el entorno nuevo —es trabajo de S14—, pero el término que lo

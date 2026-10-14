@@ -28,6 +28,14 @@ echo '{"level":"INFO","service":"api","event":"migraciones_inicio"}'
 python scripts/migrar.py
 echo '{"level":"INFO","service":"api","event":"migraciones_fin"}'
 
+# La primera cuenta del panel, y solo si no hay ninguna.
+#
+# Va aquí porque en el servidor del laboratorio no hay otra forma: la base no
+# publica puertos y el panel no da terminal, así que `crear_usuario.py` no se
+# puede ejecutar contra producción. Sin esto, un despliegue limpio deja un
+# sistema perfecto en el que nadie puede entrar.
+python scripts/sembrar_usuario_inicial.py
+
 # `--root-path` solo cuando la API se publica bajo un prefijo que el proxy
 # recorta. Vacío en local, `/api` en el laboratorio: sin esto, `/api/docs`
 # genera enlaces a `/docs` y la documentación queda rota.
