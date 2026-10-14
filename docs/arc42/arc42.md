@@ -932,6 +932,7 @@ arquitectura sin abrir nada.
 | [ADR-0005](../adr/0005-maquina-de-estados-del-mostrador.md) | Declarar las transiciones del mostrador como dato y excluir el pago de ellas | [ESC-03](#esc-03) | Aceptada |
 | [ADR-0006](../adr/0006-componente-generativo.md) | No incorporar un componente generativo, y dejar escrito qué lo cambiaría | [ESC-02](#esc-02) | Aceptada |
 | [ADR-0007](../adr/0007-autenticacion-del-panel.md) | Autenticar el panel con sesiones propias en lugar de Supabase Auth | [ESC-04](#esc-04) | Aceptada |
+| [ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md) | Desplegar en el servidor del laboratorio, con la base de datos dentro del despliegue y bajo un solo origen | [ESC-03](#esc-03) | Aceptada — reemplaza a ADR-0004 |
 
 *(Este índice se amplía en cada entrega a medida que surgen nuevas
 decisiones — por ejemplo, la forma de validar el código de canje en el punto de

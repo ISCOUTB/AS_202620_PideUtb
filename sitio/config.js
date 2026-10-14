@@ -6,12 +6,19 @@
 // tiene que viajar en un archivo.
 
 const CONFIG = {
-  // ⚠️ ACTUALIZAR tras crear el web service en Render.
+  // **Una ruta, no un host.** El sitio y la API se publican bajo el mismo
+  // dominio —`pideutb.iscoutb.dev`— y el proxy del laboratorio enruta `/api`
+  // hacia el contenedor de la API.
   //
-  // El plan gratuito no se puede gestionar con Terraform (issue #105 del
-  // provider), así que la API se crea a mano y su URL no la conoce nadie hasta
-  // ese momento. Ver `infra/README.md`.
-  API_PRODUCCION: "https://pideutb-api.onrender.com",
+  // Que sean el mismo origen no es un detalle de despliegue: hace que las
+  // peticiones del panel dejen de ser peticiones entre orígenes, y con ellas
+  // desaparece toda una clase de fallo. Esta misma semana una configuración de
+  // CORS incompleta dejó el panel roto en el navegador con 250 pruebas en
+  // verde, porque el cliente de pruebas no hace *preflight*.
+  //
+  // La alternativa evaluada era un host aparte (`api-pideutb.iscoutb.dev`), que
+  // mantendría la separación visual a cambio de conservar CORS. Ver ADR-0008.
+  API_PRODUCCION: "/api",
 
   API_LOCAL: "http://127.0.0.1:8000",
 

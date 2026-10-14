@@ -40,15 +40,15 @@ CITAS = [
     ("backend/app/pagos/router.py", 41, '"/eventos"'),
 
     # §1 — Los paths del contrato
-    ("docs/api/openapi.yaml", 82, "/health:"),
-    ("docs/api/openapi.yaml", 141, "/v1/menu/items/{item_id}:"),
-    ("docs/api/openapi.yaml", 165, "/v1/menu/establecimientos/{establecimiento_id}/items:"),
-    ("docs/api/openapi.yaml", 199, "/v1/sesiones:"),
-    ("docs/api/openapi.yaml", 259, "/v1/pedidos:"),
-    ("docs/api/openapi.yaml", 351, "/v1/pedidos/{pedido_id}/estado:"),
-    ("docs/api/openapi.yaml", 435, "/v1/pedidos/{pedido_id}:"),
-    ("docs/api/openapi.yaml", 459, "/v1/pagos/intentos:"),
-    ("docs/api/openapi.yaml", 492, "/v1/pagos/eventos:"),
+    ("docs/api/openapi.yaml", 84, "/health:"),
+    ("docs/api/openapi.yaml", 143, "/v1/menu/items/{item_id}:"),
+    ("docs/api/openapi.yaml", 167, "/v1/menu/establecimientos/{establecimiento_id}/items:"),
+    ("docs/api/openapi.yaml", 201, "/v1/sesiones:"),
+    ("docs/api/openapi.yaml", 261, "/v1/pedidos:"),
+    ("docs/api/openapi.yaml", 353, "/v1/pedidos/{pedido_id}/estado:"),
+    ("docs/api/openapi.yaml", 437, "/v1/pedidos/{pedido_id}:"),
+    ("docs/api/openapi.yaml", 461, "/v1/pagos/intentos:"),
+    ("docs/api/openapi.yaml", 494, "/v1/pagos/eventos:"),
 
     # §2 — El pipeline ejecuta la prueba de contrato
     (".github/workflows/ci.yml", 109, "Ejecutar pruebas"),

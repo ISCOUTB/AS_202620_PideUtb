@@ -102,6 +102,20 @@ def crear_usuario(
         return _usuario_desde_fila(cur.fetchone())
 
 
+def hay_usuarios() -> bool:
+    """Si existe al menos una cuenta.
+
+    La usa el sembrado del arranque para no actuar nunca sobre un sistema que ya
+    tiene cuentas. Pregunta por la existencia y no por el total —`LIMIT 1`— no
+    por rendimiento sobre una tabla de decenas de filas, sino porque es la
+    pregunta que de verdad se está haciendo: a quien la llama no le importa
+    cuántas hay, solo si hay alguna.
+    """
+    with base_de_datos.conexion() as conn, conn.cursor() as cur:
+        cur.execute("SELECT 1 FROM usuarios LIMIT 1")
+        return cur.fetchone() is not None
+
+
 def buscar_usuario_por_correo(correo: str) -> Usuario | None:
     """Busca por correo, normalizando a minúsculas.
 

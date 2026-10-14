@@ -1,0 +1,170 @@
+# Infraestructura como código del sistema en el servidor del laboratorio.
+#
+# Dokploy lo despliega en cada push a la rama configurada con:
+#   docker compose -p <app> --env-file deploy/.env -f deploy/compose.lab.yaml up -d --build
+#
+# Las rutas de `build.context` se resuelven **desde `deploy/`**, por eso el `../`.
+#
+# ---------------------------------------------------------------------------
+# Presupuesto de memoria: 512 MB para todo el equipo
+# ---------------------------------------------------------------------------
+#
+#   api    192 MB   FastAPI con su pool de conexiones
+#   db     160 MB   PostgreSQL 16
+#   web     64 MB   nginx sirviendo estáticos
+#   ----------------
+#   total  416 MB   de 512 → quedan 96 MB sin asignar
+#
+# Ese margen no es desperdicio: es lo que permitiría añadir un broker ligero
+# (NATS con JetStream, ~64 MB) sin pedir cuota, si la decisión de S12 llega a
+# justificarlo. Hoy no lo está, así que no está aquí.
+#
+# ---------------------------------------------------------------------------
+# Reglas del laboratorio que explican la forma de este archivo
+# ---------------------------------------------------------------------------
+#
+# - **Sin `ports:`**, solo `expose:`. Traefik enruta el tráfico público según
+#   los dominios configurados en el panel; publicar un puerto saltaría ese
+#   enrutado y expondría el servicio sin TLS.
+# - **Sin `container_name` ni redes externas**: el despliegue aislado crea la
+#   red del equipo y los nombres.
+# - **Volúmenes con nombre**, nunca bind mounts ni anónimos: un volumen anónimo
+#   se pierde en el siguiente despliegue y con él los datos.
+# - **Los secretos se referencian con `${...}`** y su valor vive en el panel.
+#   Este archivo se versiona; los valores no.
+
+services:
+  # --------------------------------------------------------------------------
+  # API
+  # --------------------------------------------------------------------------
+  api:
+    build:
+      context: ../backend
+    restart: unless-stopped
+    environment:
+      # La base de datos es un contenedor vecino, así que el host es el nombre
+      # del servicio. Eso elimina de un plumazo el conector de sesión y el
+      # IPv6-solo que obligaba el plan gratuito del proveedor anterior.
+      PIDEUTB_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+
+      # Sin valor por defecto en el código: si falta, el webhook rechaza todo
+      # evento en vez de verificar firmas contra una cadena conocida (V-11).
+      PIDEUTB_SECRETO_PASARELA: ${PIDEUTB_SECRETO_PASARELA}
+
+      # El sitio y la API comparten origen, así que en la práctica no hay
+      # peticiones entre orígenes que autorizar. Se declara igual: el día que
+      # alguien sirva el panel desde otro sitio, esta lista es la que decide, y
+      # una lista vacía falla cerrado.
+      PIDEUTB_ORIGENES_PERMITIDOS: https://pideutb.iscoutb.dev
+
+      # La API se publica bajo `/api` y el proxy recorta ese prefijo. Sin esto,
+      # `/api/docs` genera sus enlaces a `/docs` y la documentación queda rota.
+      PIDEUTB_ROOT_PATH: /api
+
+      # Primera cuenta del panel, y **solo** si la tabla está vacía.
+      #
+      # Es la respuesta a un problema que esta migración crea: la base no
+      # publica puertos y el panel no da terminal, así que `crear_usuario.py` no
+      # se puede ejecutar contra producción. Sin esto, un despliegue limpio deja
+      # un sistema en el que nadie puede entrar — y con los volúmenes sin
+      # respaldo, «despliegue limpio» es el procedimiento de recuperación.
+      #
+      # La contraseña vive en el panel. Si falta, no se crea nada: una cuenta
+      # inicial con contraseña conocida sería peor que no tener cuenta.
+      PIDEUTB_USUARIO_INICIAL_CORREO: ${PIDEUTB_USUARIO_INICIAL_CORREO:-}
+      PIDEUTB_USUARIO_INICIAL_CONTRASENA: ${PIDEUTB_USUARIO_INICIAL_CONTRASENA:-}
+      PIDEUTB_USUARIO_INICIAL_ESTABLECIMIENTO: ${PIDEUTB_USUARIO_INICIAL_ESTABLECIMIENTO:-1}
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        # Espera a que PostgreSQL acepte conexiones, no solo a que el
+        # contenedor exista: las migraciones corren al arrancar la API y
+        # fallarían contra una base que todavía no escucha.
+        condition: service_healthy
+    healthcheck:
+      # `/health` sondea las dependencias de verdad y responde 503 si alguna no
+      # está: `urlopen` lanza ante un 503, así que un contenedor con la base
+      # caída se marca enfermo en lugar de seguir recibiendo tráfico.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # Generoso a propósito: el primer arranque aplica las migraciones antes
+      # de escuchar, y marcarlo enfermo por eso reiniciaría el contenedor en
+      # mitad de un `CREATE TABLE`.
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 192M
+
+  # --------------------------------------------------------------------------
+  # Base de datos
+  # --------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    # Parámetros ajustados al límite de 160 MB. `max_connections=30` sobra para
+    # un pool que abre como mucho 5 conexiones, y bajarlo es lo que permite que
+    # PostgreSQL quepa: cada conexión reserva memoria aunque esté ociosa.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=32MB
+      - -c
+      - effective_cache_size=96MB
+      - -c
+      - work_mem=2MB
+      - -c
+      - maintenance_work_mem=16MB
+      - -c
+      - max_connections=30
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 160M
+
+  # --------------------------------------------------------------------------
+  # Sitio
+  # --------------------------------------------------------------------------
+  web:
+    build:
+      context: ../sitio
+    restart: unless-stopped
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 64M
+
+volumes:
+  # Con nombre, y esto es lo único que sobrevive a un despliegue.
+  #
+  # **El laboratorio no garantiza copia de seguridad de los volúmenes.** Por eso
+  # `backend/migraciones/002_datos_semilla.sql` no es un adorno de desarrollo:
+  # es el procedimiento de recuperación, y corre solo en cada arranque limpio.
+  # Lo que no está en la semilla —las cuentas del personal— hay que volver a
+  # crearlo con `scripts/crear_usuario.py`.
+  pgdata:

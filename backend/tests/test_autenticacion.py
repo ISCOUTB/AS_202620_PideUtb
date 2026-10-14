@@ -769,6 +769,133 @@ def test_el_guion_de_alta_rechaza_un_rol_que_no_existe(postgres, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# El sembrado de la primera cuenta
+#
+# Existe porque el despliegue del laboratorio no deja otra vía: la base no
+# publica puertos y el panel no da terminal, así que `crear_usuario.py` no se
+# puede ejecutar contra producción (ADR-0008). Es una puerta de entrada al
+# sistema, y por eso se prueba sobre todo **cuándo NO debe actuar**.
+# ---------------------------------------------------------------------------
+
+def _sembrar(monkeypatch, correo="inicial@utb.edu.co",
+             contrasena="clave-de-prueba-larga", establecimiento="1"):
+    import importlib
+
+    monkeypatch.setenv("PIDEUTB_DATABASE_URL", URL_PRUEBAS)
+    monkeypatch.setenv("PIDEUTB_USUARIO_INICIAL_CORREO", correo)
+    monkeypatch.setenv("PIDEUTB_USUARIO_INICIAL_CONTRASENA", contrasena)
+    monkeypatch.setenv("PIDEUTB_USUARIO_INICIAL_ESTABLECIMIENTO", establecimiento)
+    return importlib.import_module("scripts.sembrar_usuario_inicial").main()
+
+
+def test_el_sembrado_crea_la_primera_cuenta(postgres, monkeypatch):
+    """Sobre una base recién migrada, que es el caso que lo justifica."""
+    assert _sembrar(monkeypatch) == 0
+
+    creado = repository.buscar_usuario_por_correo("inicial@utb.edu.co")
+    assert creado is not None
+    assert creado.establecimiento_id == 1
+    assert "clave-de-prueba-larga" not in creado.hash_contrasena
+
+
+def test_el_sembrado_no_toca_un_sistema_que_ya_tiene_cuentas(postgres, monkeypatch):
+    """La comprobación que lo separa de una puerta trasera.
+
+    Si actuara con la tabla poblada, quien pudiera escribir una variable de
+    entorno podría crearse una cuenta en un sistema en marcha. Limitado al
+    arranque en frío, lo único que puede hacer es lo que ya puede hacer quien
+    despliega.
+    """
+    _mostrador()
+
+    assert _sembrar(monkeypatch, correo="colado@utb.edu.co") == 0
+
+    assert repository.buscar_usuario_por_correo("colado@utb.edu.co") is None
+
+
+def test_el_sembrado_sin_variables_no_hace_nada(postgres, monkeypatch):
+    """Y no inventa una cuenta por defecto.
+
+    Una cuenta inicial con contraseña conocida sería peor que no tener cuenta:
+    es la forma de V-11 trasladada a las credenciales de usuario.
+    """
+    import importlib
+
+    monkeypatch.setenv("PIDEUTB_DATABASE_URL", URL_PRUEBAS)
+    for variable in ("PIDEUTB_USUARIO_INICIAL_CORREO",
+                     "PIDEUTB_USUARIO_INICIAL_CONTRASENA"):
+        monkeypatch.delenv(variable, raising=False)
+
+    guion = importlib.import_module("scripts.sembrar_usuario_inicial")
+
+    assert guion.main() == 0
+    assert repository.hay_usuarios() is False
+
+
+def test_el_sembrado_rechaza_una_contrasena_debil(postgres, monkeypatch):
+    """Y detiene el arranque en vez de dejar una cuenta floja en producción.
+
+    El despliegue queda en rojo, que es visible. Una cuenta con contraseña corta
+    en un sistema en marcha no lo es.
+    """
+    assert _sembrar(monkeypatch, contrasena="corta") == 2
+    assert repository.hay_usuarios() is False
+
+
+def test_el_sembrado_no_imprime_la_contrasena(postgres, monkeypatch, capsys):
+    """El log del despliegue lo lee cualquiera con acceso al panel.
+
+    Ni el valor ni su longitud: de la longitud se deduce cuánto hay que probar.
+    """
+    _sembrar(monkeypatch, contrasena="una-contrasena-muy-reconocible")
+
+    salida = capsys.readouterr()
+    assert "una-contrasena-muy-reconocible" not in salida.out + salida.err
+    assert "usuario_inicial_creado" in salida.out
+
+
+def test_lo_que_el_sembrado_imprime_es_JSON_de_verdad(postgres, monkeypatch, capsys):
+    """Y no algo que lo parece.
+
+    La primera versión componía la línea interpolando con `repr`, que escribe
+    las cadenas entre comillas **simples**. El resultado se lee como JSON de un
+    vistazo y no lo es, así que el recolector de logs del laboratorio lo habría
+    guardado como texto suelto — y nadie lo habría notado, porque en pantalla se
+    ve bien.
+    """
+    import json
+
+    _sembrar(monkeypatch)
+
+    lineas = [l for l in capsys.readouterr().out.splitlines() if l.strip()]
+    assert lineas, "el sembrado no imprimió nada"
+    for linea in lineas:
+        registro = json.loads(linea)  # revienta si no es JSON válido
+        assert registro["service"] == "api"
+        assert registro["event"].startswith("usuario_inicial_")
+
+
+@pytest.mark.parametrize(
+    "variables",
+    [
+        {"correo": "cierra@utb.edu.co"},
+        {"correo": "cierra@utb.edu.co", "contrasena": "corta"},
+    ],
+    ids=["camino feliz", "falla a mitad"],
+)
+def test_el_sembrado_cierra_el_pool(postgres, monkeypatch, variables):
+    """Salga bien o mal, no deja hilos vivos.
+
+    Importa más aquí que en `crear_usuario.py`: estas líneas saldrían en el
+    registro de **cada despliegue**, justo detrás del aviso de que la cuenta se
+    creó. Quien lea «couldn't stop thread» ahí no sabrá si algo quedó a medias.
+    """
+    _sembrar(monkeypatch, **variables)
+
+    assert base_de_datos._pool is None
+
+
+# ---------------------------------------------------------------------------
 # Que la omisión no se disfrace de éxito
 # ---------------------------------------------------------------------------
 
