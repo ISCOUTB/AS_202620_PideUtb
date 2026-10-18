@@ -1056,6 +1056,7 @@ en absoluto que el problema sea la salud. Ocurrió, y costó una tarde (§7.6).
 | 3 | No hay entorno de pruebas separado | El entorno `development` del panel existe y está vacío: se despliega contra el mismo entorno que se demuestra |
 | 4 | No hay alerta automática | El `503` lo ve la plataforma, pero nadie recibe aviso: hay que mirar |
 | 5 | Un cambio de dominio exige recrear el contenedor | `Deploy` no basta si la definición del servicio no cambió; hace falta `Rebuild`. Se olvida, y el síntoma es un `404` que parece un problema de enrutado |
+| 6 | **Una migración aplicada es inmutable, comentarios incluidos** | Su huella vive **solo en la base de producción**, así que editarla pasa todas las pruebas y tumba el contenedor en el siguiente despliegue. Ocurrió el 18/10/2026: media hora de API caída por corregir un comentario. Mitigado en CI desde entonces — ver abajo |
 
 **La deuda número 2 merece su propio párrafo**, porque es la que más costó. El
 despliegue de la semana 11 se encontró **cinco defectos que las 282 pruebas no
@@ -1076,6 +1077,41 @@ que es exactamente lo que el servidor ejecuta.
 
 Que no esté hecho es una decisión pendiente, no un olvido: está aquí para que se
 decida, no para que se herede.
+
+#### La deuda 6 costó una caída, y la lección no es la obvia
+
+El 18/10/2026, al reconciliar la documentación con la plataforma real, se
+corrigió un comentario de `001_esquema_inicial.sql`: el que justificaba el punto
+débil del rollback con las copias automáticas de Supabase, que ya no se usa.
+
+Un comentario. Las 323 pruebas pasaron, el Quality Gate pasó, el PR se fusionó —
+y el contenedor de la API entró en bucle de reinicio:
+
+```
+ERROR: '001_esquema_inicial.sql' ya se aplicó pero su contenido cambió.
+```
+
+`scripts/migrar.py` guarda un `sha256` de cada migración aplicada y se niega a
+arrancar si el archivo cambió. **Es una buena guardia y funcionó.** El problema
+es dónde: la huella existe solo en la base de datos de producción, así que la
+comprobación únicamente podía fallar allí. Todas las rutas de la API devolvieron
+el `404` de Traefik durante media hora, mientras el sitio seguía en pie — lo que
+hacía el síntoma más confuso todavía.
+
+Tres cosas que esto deja:
+
+- **La guardia tenía que estar en CI, y ahora lo está.** Las huellas se fijan en
+  `backend/tests/test_migraciones.py`, comprobado contra el cambio exacto que
+  provocó la caída. La detección pasa de producción al `push`.
+- **Una prueba puede pedir el cambio que rompe el sistema.** La regla de la S13
+  que vigila menciones a la plataforma abandonada incluía `backend/migraciones`
+  entre sus ámbitos: exigía justamente esa corrección. Ya no los incluye, y el
+  motivo está escrito donde se podría volver a añadir.
+- **Aquí la documentación se queda inexacta a propósito.** El comentario sobre
+  Supabase de esa migración no se puede corregir sin romper el arranque, así que
+  es el único sitio del repositorio donde una afirmación vieja tiene que
+  permanecer. La corrección vive en esta sección y en
+  [ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md).
 
 #### El caso espejo, encontrado en la S14
 

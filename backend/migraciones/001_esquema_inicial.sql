@@ -1,12 +1,10 @@
 -- Esquema inicial de PideUTB.
 --
 -- Cada migración es aditiva y no se edita después de aplicarse: el rollback de
--- base de datos es el punto débil declarado de esta arquitectura, porque **no
--- hay copias automáticas**. Lo era con la capa gratuita de Supabase y lo sigue
--- siendo en el servidor del laboratorio, donde el volumen `pgdata` no tiene
--- respaldo garantizado (ADR-0008, `arc42` §7.6). Con migraciones aditivas,
--- revertir el código basta; con migraciones destructivas, no habría vuelta
--- atrás.
+-- base de datos es el punto débil declarado de esta arquitectura, porque la
+-- capa gratuita de Supabase no incluye copias automáticas
+-- (`docs/comparacion-despliegue.md` §9). Con migraciones aditivas, revertir el
+-- código basta; con migraciones destructivas, no habría vuelta atrás.
 --
 -- Este archivo usa a propósito las tres primitivas con las que
 -- `comparacion-despliegue.md` §1.1 justificó elegir PostgreSQL sobre MySQL:

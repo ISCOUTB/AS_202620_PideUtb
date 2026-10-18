@@ -67,12 +67,28 @@ HOLGURA_MAXIMA_MS = 1_000
 # Rastros de la plataforma anterior
 # ---------------------------------------------------------------------------
 
-#: Dónde se vigila. No se barre el repositorio entero a propósito: `docs/`
-#: contiene evidencias semanales, ADRs reemplazados y comparativas que **deben**
-#: hablar de la plataforma vieja, porque son el registro de cuando era la
-#: actual. Reescribir la historia para que una prueba pase sería peor que el
-#: defecto que la prueba busca.
-AMBITOS = ("backend/app", "backend/scripts", "backend/migraciones", "sitio", "deploy")
+#: Dónde se vigila. No se barre el repositorio entero a propósito.
+#:
+#: `docs/` queda fuera porque contiene evidencias semanales, ADRs reemplazados y
+#: comparativas que **deben** hablar de la plataforma vieja: son el registro de
+#: cuando era la actual. Reescribir la historia para que una prueba pase sería
+#: peor que el defecto que la prueba busca.
+#:
+#: `backend/migraciones` queda fuera por un motivo más duro, y aprendido a
+#: golpes. Una migración ya aplicada **es inmutable, comentarios incluidos**:
+#: `scripts/migrar.py` compara un sha256 del archivo entero contra la huella que
+#: guardó la base, así que corregir una palabra de un comentario deja el
+#: contenedor en bucle de reinicio.
+#:
+#: Esta lista incluía `backend/migraciones` en su primera versión, y eso
+#: **provocó una caída de producción**: la prueba exigía corregir el comentario
+#: sobre Supabase de `001_esquema_inicial.sql`, se corrigió, y la API dejó de
+#: arrancar. La prueba pedía exactamente el cambio que rompía el sistema.
+#:
+#: Así que ahí la documentación se queda inexacta a propósito, y la corrección
+#: vive en arc42 §7.6. `tests/test_migraciones.py` vigila lo contrario: que esos
+#: archivos **no** cambien.
+AMBITOS = ("backend/app", "backend/scripts", "sitio", "deploy")
 
 #: Archivos cuyo contenido **lo lee una persona**, no solo quien programa.
 #:
