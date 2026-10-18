@@ -53,10 +53,11 @@ info:
     identifier: MIT
 
 servers:
-  - url: https://pideutb.iscoutb.dev/api
+  - url: https://api-pideutb.iscoutb.dev
     description: |
-      Despliegue del laboratorio. El sitio se sirve en `/` del mismo dominio, de
-      modo que el panel llama a la API **sin cruzar orígenes**.
+      Despliegue del laboratorio. El sitio se sirve en `pideutb.iscoutb.dev`, es
+      decir **otro origen**: las llamadas del panel son peticiones entre
+      orígenes y dependen de `PIDEUTB_ORIGENES_PERMITIDOS`.
   - url: http://127.0.0.1:8000
     description: Desarrollo local, sin prefijo.
 
