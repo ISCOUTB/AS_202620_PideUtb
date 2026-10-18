@@ -26,8 +26,14 @@ viaja por el entorno, su valor vive en el panel, y el repositorio no la ve.
 
 Para que esto no sea una puerta trasera. Si actuara con la tabla poblada, quien
 pudiera escribir una variable de entorno podría crearse una cuenta en un sistema
-en marcha, o reponer la contraseña de otro. Limitado al arranque en frío, lo
-único que puede hacer es lo que ya puede hacer quien despliega.
+en marcha, o reponer la contraseña de otro. Limitado al **primer arranque con
+la tabla vacía**, lo único que puede hacer es lo que ya puede hacer quien
+despliega.
+
+(Se dice «primer arranque» y no «arranque en frío» a propósito: ese otro
+término significaba otra cosa —que la plataforma durmiera el servicio— y dejó
+de aplicarse con ADR-0008. Usar la misma expresión para las dos invita a
+confundirlas.)
 
 No lleva valores por defecto. Sin las variables no hace nada y lo dice: una
 cuenta inicial con contraseña conocida sería peor que no tener cuenta.

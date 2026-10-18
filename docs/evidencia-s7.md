@@ -36,8 +36,8 @@ efectiva es `prefix` del router más el path del decorador.
 
 | Path en `openapi.yaml` | Prefijo del router | Path del decorador | Ruta resultante |
 |---|---|---|---|
-| `/health` · L85 | — | `main.py:119-120` `@app.get("/health")` | `/health` ✔ |
-| `/metricas` · L118 | — | `main.py:160-161` `@app.get("/metricas")` | `/metricas` ✔ |
+| `/health` · L85 | — | `main.py:120-121` `@app.get("/health")` | `/health` ✔ |
+| `/metricas` · L118 | — | `main.py:161-162` `@app.get("/metricas")` | `/metricas` ✔ |
 | `/v1/menu/items/{item_id}` · L144 | `menu/router.py:20` `/v1/menu` | `:23-24` `"/items/{item_id}"` | ✔ |
 | `/v1/menu/establecimientos/{establecimiento_id}/items` · L168 | `menu/router.py:20` `/v1/menu` | `:35-36` `"/establecimientos/{establecimiento_id}/items"` | ✔ |
 | `/v1/sesiones` (POST) · L202 — *2.0.0* | `usuarios/router.py:16` `/v1/sesiones` | `:19-20` `""` | ✔ |

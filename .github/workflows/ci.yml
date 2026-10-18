@@ -294,3 +294,119 @@ jobs:
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # --------------------------------------------------------------------------
+  # Dependencias
+  #
+  # Nació de la auditoría de la S13, que encontró dos cosas a la vez:
+  #
+  #   1. `pytest<=9.0.2` arrastra GHSA-6w46-j5rx-g56g (moderada, vector local).
+  #   2. `pytest` viajaba a la imagen de producción, junto con `httpx` y seis
+  #      dependencias suyas, sin que la aplicación importe ninguna.
+  #
+  # La segunda es la que importa. El pipeline no tenía ninguna comprobación de
+  # vulnerabilidades, así que la primera podía estar ahí indefinidamente; pero
+  # el defecto de fondo era la regla incumplida: en la imagen no debería haber
+  # nada que la aplicación no use.
+  # --------------------------------------------------------------------------
+  dependencias:
+    name: Dependencias
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Versión exacta, igual que Spectral en el job `contrato`: una
+      # herramienta que se resuelve sola cambia el veredicto del pipeline sin
+      # que nadie lo haya decidido.
+      - name: Instalar pip-audit
+        run: python -m pip install --no-cache-dir pip-audit==2.7.3
+
+      # `--no-deps` porque el lock ya es la lista completa y resuelta: sin él,
+      # pip-audit volvería a resolver el árbol y auditaría versiones que no son
+      # las que se instalan.
+      #
+      # Este paso **bloquea**. Una vulnerabilidad en lo que corre delante de
+      # Internet es un problema del producto.
+      - name: Auditar las dependencias de producción
+        run: |
+          python -m pip_audit \
+            --requirement backend/requirements-prod.txt \
+            --no-deps \
+            --progress-spinner=off
+
+      # Este **no** bloquea, y la asimetría es deliberada. Una vulnerabilidad
+      # en `pytest` no alcanza a ningún usuario: ese código no se ejecuta en
+      # producción, y desde la S13 tampoco se instala allí. Hacerla bloqueante
+      # pondría el pipeline en rojo por algo que no pone en riesgo a nadie, y
+      # un pipeline que se pone rojo sin motivo acaba ignorado.
+      #
+      # Se informa porque sigue siendo instrumental que corre en el runner con
+      # acceso al repositorio.
+      - name: Auditar el instrumental de pruebas (informativo)
+        continue-on-error: true
+        run: |
+          python -m pip_audit \
+            --requirement backend/requirements-ci.txt \
+            --no-deps \
+            --progress-spinner=off
+
+      # La comprobación que sustituye a lo que no se puede hacer en local: no
+      # hay Docker en la máquina de desarrollo (deuda D-01 de arc42 §11), así
+      # que la imagen no se puede construir para ver si le falta algo.
+      #
+      # Se instala **solo** el lock de producción en un entorno limpio y se
+      # importa la aplicación. Si alguno de los ocho paquetes retirados hiciera
+      # falta de verdad, esto falla aquí y no en el arranque del contenedor.
+      - name: Verificar que la aplicación arranca con solo el lock de producción
+        run: |
+          python -m venv /tmp/solo-produccion
+          /tmp/solo-produccion/bin/python -m pip install --no-cache-dir \
+            --require-hashes --only-binary=:all: \
+            -r backend/requirements-prod.txt
+          cd backend
+          /tmp/solo-produccion/bin/python -c "
+          import app.main
+          print('app.main importa correctamente')
+          "
+
+      # El complemento del paso anterior: comprobar que la retirada es real.
+      # Sin esto, un lock que siguiera trayendo pytest pasaría las dos
+      # comprobaciones anteriores sin que nada lo señalara.
+      # El complemento: comprobar que la retirada es real. Sin esto, un lock
+      # que siguiera trayendo pytest pasaría los pasos anteriores sin que nada
+      # lo señalara.
+      #
+      # Se pregunta por lo **instalado** (`importlib.metadata`) y no por lo
+      # importable: `packaging` lo vendoriza pip dentro de sí mismo, así que un
+      # `import packaging` puede resolverse en un entorno donde el paquete no
+      # está instalado, y la comprobación tumbaría la construcción sin motivo.
+      - name: Comprobar que el instrumental de pruebas no está en producción
+        run: |
+          /tmp/solo-produccion/bin/python - <<'FIN'
+          from importlib.metadata import distributions
+
+          RETIRADOS = {
+              "certifi", "httpcore", "httpx", "iniconfig",
+              "packaging", "pluggy", "pygments", "pytest",
+          }
+
+          instalados = {d.metadata["Name"].lower().replace("_", "-")
+                        for d in distributions()}
+          intrusos = sorted(RETIRADOS & instalados)
+
+          if intrusos:
+              for p in intrusos:
+                  print(f"::error::{p} se instaló con el lock de producción")
+              raise SystemExit(1)
+
+          print(f"{len(instalados)} distribuciones instaladas, ninguna de las 8 retiradas")
+          FIN

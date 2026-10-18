@@ -9,11 +9,15 @@ lista de procesos de la máquina, y esa cadena lleva la contraseña dentro.
 
 ### Por qué esto y no Terraform
 
-`infra/supabase.tf` crea el proyecto; sus tablas no. Terraform razona en
-términos de estado deseado, así que una columna borrada del `.tf` es un recurso
-que hay que destruir — y lo destruiría, con los datos dentro, sin preguntar. Las
-migraciones son la herramienta correcta porque razonan en términos de pasos
-aplicados, no de estado final.
+Terraform razona en términos de estado deseado, así que una columna borrada del
+`.tf` es un recurso que hay que destruir — y lo destruiría, con los datos
+dentro, sin preguntar. Las migraciones son la herramienta correcta porque
+razonan en términos de pasos aplicados, no de estado final.
+
+El argumento nació cuando `infra/supabase.tf` declaraba el proyecto de base de
+datos. Desde ADR-0008 la base vive dentro del despliegue y `infra/` quedó
+obsoleta, pero el razonamiento no dependía del proveedor: sigue siendo la razón
+por la que el esquema no se declara.
 
 ### Por qué cada migración se registra
 

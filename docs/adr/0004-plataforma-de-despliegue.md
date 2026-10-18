@@ -128,7 +128,9 @@ El arranque en frío se acepta **como coste conocido y se mitiga**, en lugar de
 ignorarse:
 
 - El sitio muestra un aviso explícito si la comprobación inicial tarda más de
-  2,5 segundos (`sitio/config.js`, `MS_ANTES_DE_AVISAR_ARRANQUE_EN_FRIO`), para
+  2,5 segundos (`sitio/config.js`, entonces
+  `MS_ANTES_DE_AVISAR_ARRANQUE_EN_FRIO`, hoy `MS_ANTES_DE_AVISAR_LENTITUD`
+  desde que ADR-0008 dejó sin causa al arranque en frío), para
   que el usuario sepa que el sistema está despertando y no que está roto.
 - Se documenta que ESC-02 **no se cumple en la primera petición tras un periodo
   de inactividad**. Es una violación conocida y declarada, no un supuesto que

@@ -17,16 +17,16 @@
 <main>
 
   <!-- Pantalla 0 · comprobación de salud.
-       Existe por el arranque en frío: el plan gratuito duerme el servicio tras
-       15 min sin tráfico y tarda ~60 s en volver. Sin esta pantalla, el primer
-       usuario de cada pico vería la página congelada. -->
+       Avisa cuando `/health` tarda más de lo normal, para que una espera no se
+       lea como una página rota. No afirma la causa: desde el navegador no se
+       distingue un reinicio de una red lenta. -->
   <section id="pantalla-arranque" class="pantalla activa">
     <div class="cargando" role="status" aria-live="polite">
       <div class="girando" aria-hidden="true"></div>
       <p id="mensaje-arranque">Comprobando el servicio…</p>
-      <p id="aviso-frio" class="nota oculto">
-        El servicio estaba dormido y se está despertando. Puede tardar hasta un
-        minuto: es el arranque en frío del plan gratuito.
+      <p id="aviso-lentitud" class="nota oculto">
+        El servicio está tardando más de lo normal en responder. Seguimos
+        intentándolo.
       </p>
     </div>
   </section>

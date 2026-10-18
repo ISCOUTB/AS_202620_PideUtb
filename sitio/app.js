@@ -104,15 +104,17 @@ let temporizadorConsulta = null;
 // --------------------------------------------------------------------------
 // Pantalla 0 · comprobar que la API responde
 //
-// Operación `consultarSalud`. Existe por el arranque en frío: el plan gratuito
-// duerme el servicio tras 15 min sin tráfico y tarda ~60 s en despertar. Sin
-// avisar, el usuario ve una página congelada y asume que está rota.
+// Operación `consultarSalud`. Comprueba que la API responde antes de pintar la
+// carta, y avisa si tarda. Nació por el arranque en frío de Render; esa causa
+// murió con ADR-0008, pero la pantalla no, porque el aviso vale para cualquier
+// motivo por el que `/health` se demore. Lo que ya no se hace es decirle al
+// usuario cuál es: desde aquí no se sabe.
 // --------------------------------------------------------------------------
 
 async function comprobarSalud() {
   const avisar = setTimeout(
-    () => $("aviso-frio").classList.remove("oculto"),
-    CONFIG.MS_ANTES_DE_AVISAR_ARRANQUE_EN_FRIO
+    () => $("aviso-lentitud").classList.remove("oculto"),
+    CONFIG.MS_ANTES_DE_AVISAR_LENTITUD
   );
 
   try {
@@ -125,7 +127,7 @@ async function comprobarSalud() {
     await cargarCarta();
   } catch (e) {
     clearTimeout(avisar);
-    $("aviso-frio").classList.add("oculto");
+    $("aviso-lentitud").classList.add("oculto");
 
     // Un 503 y un fallo de red no son lo mismo y no merecen el mismo mensaje.
     // En el 503 la API contestó: sabemos que existe, que llegamos a ella y

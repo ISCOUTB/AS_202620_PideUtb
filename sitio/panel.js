@@ -14,7 +14,30 @@ const $ = (id) => document.getElementById(id);
 // Cada cuánto se refresca la cola sola. En hora pico entran pedidos mientras
 // se atiende, y obligar a pulsar «Refrescar» para verlos gastaría una de las
 // tres interacciones que concede ESC-03.
-const MS_ENTRE_REFRESCOS = 8000;
+//
+// **Este número sostiene el umbral de ESC-03, no es una preferencia.** El
+// escenario concede 10 s desde que un pedido se paga hasta que el encargado lo
+// ha visto y cambiado de estado, y el reloj arranca en el pago: lo que la cola
+// tarde en mostrarlo cuenta dentro del plazo.
+//
+// Estuvo en 8000 hasta la S14, cuando se midió la cadena completa
+// (`backend/scripts/medir_esc03.py`, con PostgreSQL y 10 pedidos en cola):
+//
+//   8000 ms de espera + 301,6 de red + 18,7 de servidor = 8320 ms
+//   dejaban 1,68 s para que una persona viera el pedido y pulsara.
+//
+// Menos de dos segundos, mientras se cocina. El escenario se incumplía en el
+// peor caso —el pago ocurre justo después de un sondeo— sin que nada fallara:
+// simplemente el pedido aparecía tarde.
+//
+// Con 5000 quedan 4,68 s, reservando 4 para la persona y 0,68 de holgura. El
+// coste es 12 sondeos por minuto en vez de 7,5, que a ~8 ms de servidor cada
+// uno son 46 s de CPU por turno de 8 h y panel abierto: indistinguible de cero
+// frente a los 0,5 CPU del contenedor.
+//
+// `backend/tests/test_escenarios_de_calidad.py` rompe la construcción si este
+// número sube por encima de lo que el presupuesto admite.
+const MS_ENTRE_REFRESCOS = 5000;
 
 // Dónde vive el token mientras dura la pestaña.
 //
@@ -475,9 +498,11 @@ $("salir").addEventListener("click", () => lanzar(salir()));
 $("refrescar").addEventListener("click", () => lanzar(cargarCola()));
 $("cancelar-canje").addEventListener("click", () => $("dialogo-canje").close("cancelar"));
 
-// No se refresca mientras la pestaña está oculta: con el plan gratuito, cada
-// petición evitada es tráfico que no consume la cuota, y un panel en segundo
-// plano no lo está mirando nadie.
+// No se refresca mientras la pestaña está oculta. El motivo original era la
+// cuota de tráfico del plan gratuito; hoy el límite es otro —la API corre con
+// 0,5 CPU de tope (ADR-0008)— pero la conclusión no cambia: un panel
+// en segundo plano no lo está mirando nadie, y sondear para nadie gasta el
+// presupuesto de quien sí está delante.
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     clearInterval(temporizador);

@@ -7,7 +7,8 @@
 # coincidieran. Eso rompió un despliegue: `psycopg` se añadió a
 # `requirements.in` y al lock de CI, las pruebas pasaron en verde, y el
 # servicio arrancó en producción sin la librería —`ModuleNotFoundError: No
-# module named 'psycopg_pool'`— porque Render instala desde aquí.
+# module named 'psycopg_pool'`— porque la plataforma de entonces instalaba
+# desde aquí y no desde el lock.
 #
 # Con la inclusión, olvidar uno de los dos deja de ser posible.
 #

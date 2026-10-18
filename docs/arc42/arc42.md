@@ -1248,6 +1248,433 @@ propio con su propia base. Esa decisión está evaluada y descartada en
 
 ---
 
+<a id="consistencia"></a>
+
+### 8.6 Consistencia por operación
+
+#### Lo primero: dónde NO hay consistencia eventual
+
+El sistema tiene **una sola base de datos, sin réplicas de lectura**. Todas las
+escrituras y todas las lecturas van al mismo PostgreSQL, por el mismo pool.
+
+De ahí se sigue algo que conviene decir antes de la tabla, porque es la respuesta
+a la mitad de las preguntas: **las diez operaciones de dominio son fuertemente
+consistentes**. Una lectura posterior a una escritura confirmada ve esa escritura,
+siempre, sin ventanas. No hay réplica que alcanzar ni caché que invalidar.
+
+Las otras dos del contrato —`/health` y `/metricas`— no leen la base en absoluto,
+y la segunda por eso no tiene garantía que dar: se explica más abajo, porque es
+menos trivial de lo que parece.
+
+Eso no es una virtud del diseño: es una consecuencia del tamaño del sistema, y
+vale mientras lo siga siendo. Lo que lo cambiaría está al final de la sección.
+
+#### La tabla
+
+| Operación | Garantía | Concurrencia | Notas |
+|---|---|---|---|
+| `GET /v1/menu/items/{id}` | **Fuerte** | — | Lectura directa |
+| `GET /v1/menu/establecimientos/{id}/items` | **Fuerte** | — | Orden estable fijado en el repositorio, no por el almacenamiento |
+| `POST /v1/pedidos` | **Fuerte**, atómica | El identificador lo asigna la secuencia de la base | El precio se congela en el pedido: una subida posterior no reescribe lo ya pedido |
+| `GET /v1/pedidos/{id}` | **Fuerte** · lee-lo-que-escribiste | — | Lo que el cliente ve desfasado es por el sondeo, no por el almacén (abajo) |
+| `GET /v1/pedidos` | **Fuerte** | — | Filtrada por el establecimiento de la sesión |
+| `POST /v1/pedidos/{id}/estado` | **Fuerte**, atómica | `UPDATE ... WHERE estado = <el esperado>` | **No idempotente a propósito**: repetir da `409`, que es información útil para quien atiende |
+| `POST /v1/pagos/intentos` | **Fuerte** · **idempotente por pedido** | Restricción única: un solo intento pendiente por pedido | Pulsar «Pagar» dos veces devuelve el mismo intento |
+| `POST /v1/pagos/eventos` | **Al-menos-una-vez** entrante · **idempotente por referencia** | `UPDATE ... WHERE estado = 'pendiente_pago'` | La única operación con entrega repetida garantizada. Ver [§8.5](#idempotencia) |
+| `POST` / `DELETE /v1/sesiones` | **Fuerte** | El cierre borra **una** sesión, no todas las del usuario | — |
+| `GET /health` | **Fuerte** · del proceso | — | No consulta la base: responde si *este* proceso vive |
+| `GET /metricas` | **Ni fuerte ni eventual: no es estado compartido** | — | La única del contrato que no sale de la base (abajo) |
+
+Dos filas merecen ampliarse, y son las dos que menos lo parecen.
+
+#### `GET /metricas` no tiene garantía de consistencia, y no es un descuido
+
+Las otras once operaciones responden en función de lo que hay en PostgreSQL. Esta
+no: los percentiles los acumula **una ventana en la memoria del proceso** que
+atiende la petición. De ahí se siguen tres cosas que conviene decir, porque
+afectan a cómo se usan los números de esta misma sección:
+
+- **Se pierden al reiniciar.** Un despliegue pone el contador a cero. Las cifras
+  medidas aquí valen para la ventana en que se tomaron, y por eso se anotan con
+  su `n` y su fecha en vez de como constantes del sistema.
+- **No son agregables.** Hoy hay un solo proceso, así que la pregunta no se
+  plantea; el día que hubiera dos, cada uno respondería lo suyo y `p50` dejaría
+  de significar «el p50 del sistema» sin que nada avisara.
+- **Por eso mismo sirven para lo que se usan aquí**: comparar el tiempo de
+  servidor con la ida y vuelta vista desde fuera. Para eso basta un proceso.
+
+Es la única operación del sistema donde «¿a qué instancia pregunté?» cambiaría la
+respuesta. Hoy no hay dos instancias, pero el día que las haya este endpoint es
+lo primero que miente — y mentiría en silencio.
+
+#### El desfase que el usuario percibe no está en los datos
+
+El panel del mostrador refresca su cola **cada 8 segundos**, y la pantalla del
+cliente consulta su pedido **cada 3** mientras espera el pago.
+
+Eso significa que lo que una persona ve puede estar hasta 8 segundos
+desactualizado. Es fácil llamar a eso «consistencia eventual» y sería **falso**:
+el almacén responde el dato correcto en cada consulta. Lo que está desfasado es
+**la última vez que alguien preguntó**.
+
+La distinción no es académica, porque las dos cosas se arreglan en sitios
+distintos:
+
+| | Dónde vive | Cómo se reduce |
+|---|---|---|
+| Desfase de sondeo | `sitio/panel.js`, `sitio/config.js` | Bajar el intervalo, o empujar desde el servidor |
+| Consistencia eventual | El almacenamiento | No se puede «bajar»: se diseña alrededor |
+
+Hoy el sistema **no tiene** lo segundo. Confundirlos llevaría a resolver con
+arquitectura un problema que es un número en un archivo de configuración.
+
+#### Estrategia de caché: no hay, y el motivo es un número
+
+La pregunta no es si una caché *ayudaría* —casi siempre ayuda algo— sino
+**cuánto**, comparado con lo que cuesta.
+
+Medido contra el despliegue el 18/10/2026, sobre `GET /v1/menu/establecimientos/1/items`:
+
+| | |
+|---|---|
+| Ida y vuelta completa, desde fuera | **328 ms** (p50, n=12; mín. 281, máx. 775) |
+| De eso, tiempo de servidor (`/metricas`) | **1,79 ms** (p50, n=26) |
+| Proporción | **0,55 %** |
+
+Una caché de aplicación optimiza el tiempo de servidor. Aunque fuera perfecta
+—cero milisegundos— llevaría la experiencia de 328 ms a 326. **Eso no se percibe,
+y de hecho no se distingue del ruido**: la propia medición varía entre 281 y 775
+ms. Los otros 326 ms son red, TLS y el proxy, y ninguna caché nuestra los toca.
+
+Y lo que costaría sí es real: **invalidación**. Una carta cacheada que no se
+invalida al cambiar un precio muestra precios viejos, y un pedido creado contra
+un precio viejo es una discrepancia con dinero de por medio. Se estaría
+cambiando un problema que no existe por uno que sí.
+
+**La operación más lenta del sistema es `POST /v1/sesiones`, con 37,15 ms de p50**
+(n=24, p95 48,74), y es lenta por diseño: es scrypt derivando la contraseña
+([ADR-0007](../adr/0007-autenticacion-del-panel.md)). Cachear eso sería desarmar
+la defensa que hace caro probar contraseñas — es el único sitio del sistema donde
+**tardar es la función**, no un costo.
+
+*(Ese 37 ms dejó al descubierto otra cosa, que no es de esta semana pero se
+anota donde se encontró: ADR-0007 eligió el parámetro de coste midiendo **100 ms
+en el portátil de desarrollo**, y el servidor hace la misma derivación en unos
+35. La defensa en producción vale, medida, bastante menos de lo que el ADR
+sugiere. Se trata en [§11](#riesgos), con los números.)*
+
+**Decisión: ninguna caché de aplicación.** Lo que sí hay es lo que no cuesta
+nada:
+
+- `config.js` se sirve con `no-cache`: lleva la dirección de la API y un
+  navegador que lo guarde seguiría llamando a donde la API ya no está.
+- El resto de estáticos los cachea el navegador con las cabeceras por defecto de
+  nginx, que es suficiente para tres archivos.
+
+**Qué cambiaría esta decisión**, y es comprobable sin discutirlo: que el tiempo
+de servidor deje de ser el 0,5 %. `GET /metricas` publica el p50 y el p95 por
+operación, así que basta compararlo con la ida y vuelta medida desde fuera. El
+día que el servidor sea una fracción apreciable, la caché pasa a tener algo que
+optimizar.
+
+#### Qué cambiaría la fila de arriba del todo
+
+La consistencia fuerte de todas las operaciones depende de que haya **una sola
+base sin réplicas**. Dejaría de ser cierta si:
+
+- Se añadiera una réplica de lectura para repartir carga. Ahí aparecería el
+  desfase de replicación, y las lecturas tendrían que elegir entre fresca y
+  barata.
+- Se extrajera un contexto a un servicio con base propia — evaluado y descartado
+  en [ADR-0009](../adr/0009-no-extraer-un-servicio.md), precisamente porque
+  convertiría una transacción local en una saga.
+- Se añadiera una caché, que es una réplica con otro nombre.
+
+Las tres están hoy descartadas con su motivo, y las tres tienen el mismo
+síntoma: lo que hoy se puede afirmar en una línea pasaría a necesitar una
+tabla por operación.
+
+---
+
+<a id="amenazas"></a>
+
+### 8.7 Modelo de amenazas (STRIDE)
+
+#### Por qué STRIDE y no una lista de riesgos
+
+Una lista de riesgos contiene lo que se nos ocurrió. STRIDE obliga a hacer
+**seis preguntas a cada elemento**, y el valor está en las que se contestan
+«esto no lo habíamos pensado». De las dieciocho filas de abajo, tres salieron
+así, y una de ellas es la más grave del sistema.
+
+El inventario de elementos y fronteras es el de [§7.2](#despliegue-topologia).
+Lo que importa para este análisis es que hay **tres fronteras de confianza** y
+no cuatro:
+
+| Frontera | Quién está al otro lado | Qué la protege |
+|---|---|---|
+| Navegador → API | Cualquiera en Internet | CORS, sesiones, autorización por establecimiento |
+| Pasarela → API (webhook) | Un tercero, por una ruta pública | Firma HMAC, y falla en cerrado sin secreto |
+| Panel de Dokploy → contenedores | Quien tenga esa cuenta | Nada nuestro: es la plataforma |
+| ~~API → base de datos~~ | — | **Dejó de cruzar la red** con ADR-0008 |
+
+La cuarta se tachó esta semana 11 y conviene recordarlo aquí: mientras la base
+estuvo en Supabase, cada consulta salía a Internet. Hoy es un contenedor vecino
+en una red privada, y eso **elimina** una clase entera de amenazas en lugar de
+mitigarla.
+
+#### S — Suplantación de identidad
+
+| # | Amenaza | Mitigación | Verificada por |
+|---|---|---|---|
+| S-1 | Alguien se hace pasar por la pasarela y marca pedidos como pagados | Firma HMAC sobre el cuerpo. **Sin secreto la API se niega a arrancar la verificación**, no la salta ([V-11](../violaciones.md#v-11)) | `test_un_evento_sin_firma_valida_se_rechaza` · `test_una_firma_hecha_con_otro_secreto_no_sirve` · `test_firmar_se_niega_en_vez_de_usar_una_cadena_vacia` |
+| S-2 | Alguien se hace pasar por personal del mostrador | Token de sesión de 32 bytes de `secrets`, guardado **hasheado**: una fuga de la tabla no da acceso | `test_el_token_se_guarda_hasheado_y_no_en_claro` · `test_un_token_inventado_no_abre_nada` · `test_dos_tokens_seguidos_no_se_repiten` |
+| S-3 | Reutilizar un evento válido capturado | No hay marca de tiempo ni nonce en la firma, así que **se puede repetir**. No importa: el efecto es idempotente por referencia, y el segundo intento no genera un segundo código | `test_el_mismo_evento_repetido_no_genera_un_segundo_codigo` |
+| S-4 | Una sesión caducada o de un usuario dado de baja sigue sirviendo | La consulta de sesión exige `expira_en > now()` **y** `u.activo` en la misma cláusula | `test_una_sesion_caducada_no_sirve` · `test_un_usuario_desactivado_no_puede_entrar` |
+
+S-3 es la fila que se contesta «no está mitigado y no hace falta». Vale
+escribirla porque la respuesta no es evidente: lo que hace inofensiva la
+repetición no es una defensa contra repetición, es la idempotencia que se
+construyó por otro motivo ([§8.5](#idempotencia)).
+
+#### T — Manipulación de datos
+
+| # | Amenaza | Mitigación | Verificada por |
+|---|---|---|---|
+| T-1 | El cliente manipula el precio de lo que pide | El precio **no viaja en la petición**: se lee del catálogo y se congela en el pedido ([V-06](../violaciones.md#v-06)) | `test_el_pedido_conserva_el_precio_aunque_cambie_el_catalogo` |
+| T-2 | El cliente elige a qué establecimiento va su pedido | Se deriva del ítem, no del cuerpo ([V-01](../violaciones.md#v-01)) | `test_establecimiento_se_deriva_del_item_y_no_del_cliente` |
+| T-3 | El mostrador marca un pedido como pagado sin cobro | `confirmar_pago` **no está expuesta**: la única vía es el webhook firmado | `test_el_mostrador_no_puede_marcar_un_pedido_como_pagado` |
+| T-4 | Inyección de SQL | Todos los valores viajan como parámetros. Las dos consultas con `f-string` interpolan `_COLUMNAS`, que es una **constante literal del módulo**, nunca entrada | Revisado en la S13; no hay concatenación de entrada |
+| T-5 | Una dependencia alterada en el camino | `--require-hashes --only-binary=:all:` en la imagen y en CI | Job `dependencias` del pipeline |
+| T-6 | Escucha o alteración entre la API y la base | Red privada de contenedores, sin publicar puertos. **No hay TLS**, y no se añade: dejó de cruzar Internet | `deploy/compose.lab.yaml` — solo `expose`, nunca `ports` |
+
+#### R — Repudio
+
+| # | Amenaza | Mitigación | Verificada por |
+|---|---|---|---|
+| R-1 | **Nadie puede decir qué persona avanzó un pedido** | **Ninguna.** `avanzar_estado` recibe `establecimiento_id`, no el usuario: el sistema sabe *qué mostrador* movió un pedido, no *quién* | — |
+
+Es una de las tres que aparecieron por preguntar. Y es relevante, no formal: el
+`codigo_canje` **da derecho a comida**, y la transición a `entregado` es el
+momento en que ese derecho se consume. Si un pedido aparece entregado y el
+cliente dice que no lo recogió, hoy no hay forma de saber quién lo marcó.
+
+No se corrige esta semana. Añadir el usuario a la transición toca la firma de
+`avanzar_estado`, el repositorio, el esquema y el contrato, y es un cambio de
+modelo de datos, no un endurecimiento. Queda como [R-08](#riesgos) con su coste.
+
+#### I — Revelación de información
+
+| # | Amenaza | Mitigación | Verificada por |
+|---|---|---|---|
+| I-1 | Enumerar los pedidos de otro establecimiento | **`404`, no `403`**: un `403` confirmaría que el pedido existe. En la cola sí es `403`, porque ahí no hay nada que enumerar | `test_avanzar_el_pedido_de_otro_establecimiento_da_404` · `test_el_personal_que_pide_otro_recibe_403` |
+| I-2 | Averiguar qué correos tienen cuenta | Un solo `401` para correo inexistente y contraseña errada, **y derivación contra un hash de descarte** para que los tiempos no hablen | `test_una_contrasena_incorrecta_y_un_correo_desconocido_dan_el_mismo_error` |
+| I-3 | Otro origen lee respuestas del panel | CORS con lista explícita, sin comodín y sin credenciales automáticas | `test_un_origen_cualquiera_no_recibe_permiso` · `test_no_hay_comodin_de_origen` · `test_no_se_permiten_credenciales_automaticas` |
+| I-4 | El código de canje o una contraseña acaban en los registros | Nada sensible se registra. El guion de alta **no imprime** la contraseña | `test_el_sembrado_no_imprime_la_contrasena` · revisado en la S13: ningún `_LOG` toca código, token ni secreto |
+| I-5 | El secreto de la pasarela en el repositorio | Guardia automática en CI, además de la rotación de [V-11](../violaciones.md#v-11) | `test_el_secreto_no_aparece_en_el_codigo_fuente` · `test_el_guardia_de_secretos_detecta_lo_que_dice_detectar` |
+| I-6 | El token de sesión en `sessionStorage` lo lee un XSS | Aceptado y documentado en [V-12](../violaciones.md#v-12). Acotado: el panel no renderiza HTML de terceros, y la sesión muere al cerrar la pestaña | — |
+| I-7 | **`GET /metricas` es público** | **Ninguna.** Publica p50, p95, máximo y número de muestras por operación a quien lo pida | — |
+
+I-7 es la segunda que apareció por preguntar. Lo que revela es modesto —el
+inventario de operaciones ya está en `openapi.yaml`, que es público a propósito—
+pero el **volumen de tráfico** no estaba publicado en ninguna parte, y es
+información del negocio: cuántos pedidos se hacen y a qué horas.
+
+No se cierra todavía porque cerrarlo tiene un coste concreto: `/metricas` es la
+fuente de las mediciones de [§8.6](#consistencia) y del seguimiento de ESC-02, y
+hoy se consulta sin credenciales desde fuera. Ponerle sesión significa decidir
+quién la tiene. Queda como [R-09](#riesgos).
+
+#### D — Denegación de servicio
+
+| # | Amenaza | Mitigación | Verificada por |
+|---|---|---|---|
+| DoS-1 | **Agotar la CPU pidiendo iniciar sesión** | **Ninguna nuestra.** Ver abajo: es la más grave del modelo | — |
+| DoS-2 | Agotar el pool de conexiones | `TIMEOUT_POOL_S = 5`: la petición se rinde en vez de encolarse para alguien que ya se fue | `base_de_datos.py` |
+| DoS-3 | Saturar la base con conexiones | `max_connections=30` contra un pool que abre 5 como máximo | `deploy/compose.lab.yaml` |
+| DoS-4 | Tumbar un contenedor | `restart: unless-stopped` en los tres, y chequeos de salud que impiden enrutar a uno que no responde | `deploy/compose.lab.yaml` |
+
+##### DoS-1, en detalle: dos defensas que se estorban
+
+Es la tercera que apareció por preguntar, y la única del modelo que calificaría
+como grave. Sale de juntar tres hechos que, por separado, son decisiones
+correctas:
+
+1. **`POST /v1/sesiones` es caro a propósito.** Deriva scrypt, y eso cuesta unos
+   35 ms de CPU en producción. Es la defensa de [ADR-0007](../adr/0007-autenticacion-del-panel.md)
+   contra probar contraseñas en serie.
+2. **No hay límite de intentos.** Declarado en ese mismo ADR: hacerlo bien exige
+   almacenamiento compartido entre instancias.
+3. **El contenedor tiene 0,5 CPU de tope** ([ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md)).
+
+La aritmética:
+
+```
+0,5 CPU  =  500 ms de CPU por segundo de reloj
+          ÷ 35 ms por derivación
+          ≈ 14 peticiones por segundo saturan el contenedor
+```
+
+Catorce. Y lo que lo convierte de molestia en amenaza es el detalle que ninguna
+de las tres decisiones anticipó: **el atacante no necesita una cuenta.** La
+defensa contra ataques de tiempo (I-2) deriva contra un hash de descarte cuando
+el correo no existe, así que un correo inventado cuesta **lo mismo** que uno
+real.
+
+Dicho de otro modo: para proteger los tiempos de respuesta se hizo que cualquiera
+pueda obligar al servidor a trabajar. Las dos defensas son correctas por separado
+y se estorban juntas.
+
+**Lo que hoy lo contiene es algo que no es nuestro, y que la semana 11 anotó como
+un problema.** Cloudflare rechaza con `403` a los clientes que identifica como
+automatismos (fallo 9 de [§6.7](#fallos-parciales)): un ataque con el cliente
+HTTP por defecto de un guion no llega. Eso no es una mitigación —no la
+controlamos, no la configuramos y un atacante que ponga un `User-Agent` de
+navegador la pasa— pero explica por qué el riesgo es real y no ha ocurrido.
+
+La corrección está en la S14, porque **tiene un número que medir antes**: un
+límite de intentos por IP en memoria del proceso funcionaría hoy, con una sola
+instancia, y dejaría de funcionar en silencio con dos — exactamente el modo de
+fallo de R-03. Elegir entre eso y subir el coste de scrypt (que empeora DoS-1 en
+vez de mejorarlo) exige medir las dos cosas.
+
+#### E — Elevación de privilegios
+
+| # | Amenaza | Mitigación | Verificada por |
+|---|---|---|---|
+| E-1 | Quien pueda escribir una variable de entorno se crea una cuenta | El sembrado actúa **solo con la tabla vacía**: en un sistema en marcha no hace nada | `test_el_sembrado_no_toca_un_sistema_que_ya_tiene_cuentas` · `test_el_sembrado_sin_variables_no_hace_nada` |
+| E-2 | Personal de un establecimiento opera sobre otro | El establecimiento sale **de la sesión**, no del parámetro | `test_el_establecimiento_sale_de_la_sesion_y_no_del_parametro` · `test_el_personal_opera_sobre_el_suyo_lo_pida_o_no` |
+| E-3 | Entregar un pedido sin presentar el código | `avanzar_estado` exige el código para pasar a `entregado`, comparado con `compare_digest` | `test_entregar_sin_el_codigo_no_se_puede` · `test_el_codigo_no_se_puede_reutilizar` |
+| E-4 | Los dos roles pueden lo mismo | Cierto hoy, y **declarado** en vez de descubierto | `test_hoy_los_dos_roles_pueden_operar_el_panel` |
+
+#### Priorización
+
+Ordenadas por lo que de verdad pasaría, no por la categoría:
+
+| Prioridad | Amenaza | Por qué ahí | Dónde se trata |
+|---|---|---|---|
+| **1** | DoS-1 · agotar la CPU con inicios de sesión | 14 peticiones por segundo tumban el servicio, sin cuenta y sin credenciales. Lo contiene un proxy ajeno | [R-07](#riesgos), S14 |
+| **2** | R-1 · no se sabe quién entregó un pedido | Afecta a lo único que vale dinero: el canje. No es explotable, es **no auditable** | [R-08](#riesgos) |
+| **3** | I-7 · `/metricas` público | Revela volumen de negocio. Bajo impacto, corrección con coste | [R-09](#riesgos) |
+| **4** | I-6 · token en `sessionStorage` | Ya evaluado y aceptado con su acotación | [V-12](../violaciones.md#v-12) |
+| **5** | S-3 · repetición de eventos | Mitigado de hecho por la idempotencia | — |
+
+Lo que **no** está en esta lista también es resultado: de las dieciocho filas,
+catorce tienen una mitigación con una prueba que la verifica. No porque se haya
+trabajado en seguridad esta semana, sino porque las violaciones V-01 a V-12 de
+las semanas anteriores eran, casi todas, amenazas de este modelo encontradas de
+una en una.
+
+---
+
+<a id="datos-personales"></a>
+
+### 8.8 Datos personales y retención
+
+#### Lo que el sistema guarda de una persona
+
+La respuesta es más corta de lo que suele ser, y es una propiedad de la
+arquitectura y no una casualidad:
+
+| Tabla | Dato personal | Forma |
+|---|---|---|
+| `usuarios` | `correo` del personal | En claro. Es el identificador de acceso |
+| `usuarios` | Contraseña | **Nunca**: solo su derivación scrypt con sal propia |
+| `sesiones` | Token | **Nunca**: solo su hash |
+| `pedidos` | — | **Nada.** Ni nombre, ni teléfono, ni correo, ni identificador de dispositivo |
+
+La fila que importa es la última. **Un cliente de PideUTB no es un registro: es
+quien tiene un código de canje.** Pide sin cuenta, sin dejar datos y sin que el
+sistema pueda relacionar dos de sus pedidos entre sí.
+
+Eso no se decidió como política de privacidad; salió de
+[ADR-0002](../adr/0002-propiedad-datos-establecimiento.md) y del alcance del
+producto. Pero el efecto es que la minimización de datos no hay que
+implementarla: **el dato que no se recoge no se puede filtrar, ni hay que
+borrarlo, ni hay que explicar quién lo ve.**
+
+La contrapartida, y conviene decirla: el `codigo_canje` pasa a ser un
+**portador** —quien lo tenga come— así que su manejo es el control relevante.
+Por eso se genera con `secrets`, es único en la tabla, y se exige al entregar.
+
+#### Retención
+
+| Dato | Cuánto vive | Quién lo limpia |
+|---|---|---|
+| `sesiones` vigentes | 8 horas (`HORAS_DE_SESION`), para cubrir un turno | Caducan solas; la consulta de sesión las descarta |
+| `sesiones` caducadas | **Para siempre** | `borrar_sesiones_caducadas()` existe y **no la llama nadie** |
+| `pedidos` | **Para siempre** | Nadie |
+| `usuarios` | Hasta que se desactiven | Nadie; `activo = false` en vez de borrado |
+
+Las dos filas de «para siempre» son honestas y no urgentes, por el motivo de
+arriba: lo que se acumula no contiene datos de clientes. Una sesión caducada es
+un hash inútil —`buscar_usuario_de_sesion` la descarta por `expira_en`— así que
+es **higiene y no seguridad**, y su función lo dice en el propio docstring en vez
+de dar a entender que alguien la ejecuta.
+
+Los pedidos acumulados son, de hecho, el registro contable del sistema: borrarlos
+sería perder la auditoría del dinero. Lo que falta no es borrado sino una
+política escrita de cuánto conservar, y eso depende de un requisito que nadie ha
+dado.
+
+---
+
+<a id="secretos"></a>
+
+### 8.9 Gestión de secretos
+
+#### Los cuatro que existen
+
+| Secreto | Dónde vive | Quién lo ve |
+|---|---|---|
+| `PIDEUTB_SECRETO_PASARELA` | Entorno del panel de Dokploy | Quien tenga esa cuenta |
+| `POSTGRES_PASSWORD` · `PIDEUTB_DATABASE_URL` | Ídem | Ídem |
+| `PIDEUTB_USUARIO_INICIAL_CONTRASENA` | Ídem | Ídem |
+| `SONAR_TOKEN` | Secretos de GitHub Actions | Quien administre el repositorio |
+
+Ninguno está en el repositorio, y eso lo comprueba una prueba en cada push
+(`test_el_secreto_no_aparece_en_el_codigo_fuente`) que a su vez tiene su propia
+prueba de que sabe detectar lo que dice detectar. La historia de por qué existe
+esa guardia está en [V-11](../violaciones.md#v-11): el secreto de la pasarela
+**estuvo** escrito en el código.
+
+#### Las dos propiedades que se eligieron, y valen más que la lista
+
+**Fallar en cerrado.** Sin `PIDEUTB_SECRETO_PASARELA` la API no verifica firmas
+con una cadena vacía: se niega a firmar. La diferencia es que un despliegue mal
+configurado **no arranca aceptando cualquier evento**, que es el modo de fallo
+que convierte un olvido en una brecha.
+
+**Derivar y no cifrar.** Ni las contraseñas ni los tokens se guardan de forma
+reversible. Cifrar implica poder descifrar, y nadie necesita recuperar una
+contraseña original: solo comprobar si la que llega produce la misma derivación.
+Una fuga de `usuarios` o de `sesiones` no da acceso a nada.
+
+#### Lo que falta, y es concreto
+
+**La contraseña inicial se queda en el panel.** `PIDEUTB_USUARIO_INICIAL_CONTRASENA`
+cumple su función una sola vez —el primer arranque con la tabla vacía— y después
+sigue ahí, en claro, legible para cualquiera que entre al panel. El diseño del
+sembrado ya acota el daño (E-1: con la tabla poblada no hace nada), pero una
+contraseña que sigue siendo válida y visible mucho después de usarse es una
+credencial olvidada.
+
+Lo correcto es cambiarla desde el panel y vaciar la variable. Y ahí aparece lo
+otro:
+
+**No hay forma de restablecer una contraseña.** Comprobado en la S13: no existe
+ruta en el contrato ni guion que lo haga. `crear_usuario.py` crea cuentas y
+necesita acceso a la base, que **el despliegue no concede** —la base no publica
+puertos y el panel no da terminal—. Así que:
+
+- Cambiar la contraseña inicial hoy **no se puede** sin recrear el despliegue.
+- Una contraseña perdida deja el panel inaccesible por el mismo motivo.
+
+Las dos cosas son la misma carencia, y es la que hace que la primera no se pueda
+arreglar. Quedan como [R-10](#riesgos) y la deuda D-04 de la misma sección.
+
+---
+
 ## 9. Decisiones de arquitectura
 
 Las decisiones arquitectónicas relevantes se documentan como ADRs en
@@ -1268,12 +1695,15 @@ arquitectura sin abrir nada.
 | [ADR-0005](../adr/0005-maquina-de-estados-del-mostrador.md) | Declarar las transiciones del mostrador como dato y excluir el pago de ellas | [ESC-03](#esc-03) | Aceptada |
 | [ADR-0006](../adr/0006-componente-generativo.md) | No incorporar un componente generativo, y dejar escrito qué lo cambiaría | [ESC-02](#esc-02) | Aceptada |
 | [ADR-0007](../adr/0007-autenticacion-del-panel.md) | Autenticar el panel con sesiones propias en lugar de Supabase Auth | [ESC-04](#esc-04) | Aceptada |
-| [ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md) | Desplegar en el servidor del laboratorio, con la base de datos dentro del despliegue y bajo un solo origen | [ESC-03](#esc-03) | Aceptada — reemplaza a ADR-0004 |
+| [ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md) | Desplegar en el servidor del laboratorio, con la base de datos dentro del despliegue y la API en un host aparte | [ESC-03](#esc-03) | Aceptada — reemplaza a ADR-0004 |
 | [ADR-0009](../adr/0009-no-extraer-un-servicio.md) | No extraer ningún módulo a un servicio independiente, y dejar escrito qué lo cambiaría | [ESC-02](#esc-02) | Aceptada |
+| [ADR-0010](../adr/0010-notificar-al-panel-por-sondeo.md) | Notificar al panel por sondeo, y conservar el canal de eventos como costura sin suscriptores | [ESC-03](#esc-03) | Aceptada — revisa ADR-0003 con evidencia de producción |
 
 *(Este índice se amplía en cada entrega a medida que surgen nuevas
-decisiones — por ejemplo, la forma de validar el código de canje en el punto de
-entrega, prevista para la siguiente.)*
+decisiones. Dos de las de arriba **revisan** a otras en vez de añadirse: ADR-0008
+reemplaza la plataforma que eligió ADR-0004, y ADR-0010 revisa ADR-0003 a la luz
+de lo que el sistema desplegado hace de verdad. Una decisión revisada no se
+borra: se deja con su razonamiento y se anota qué premisa dejó de ser cierta.)*
 
 ------------------------------------------------------------------------
 
@@ -1484,10 +1914,251 @@ impacto medio y riesgo bajo.
 
 ------------------------------------------------------------------------
 
+<a id="evaluacion"></a>
+
+### 10.7 Evaluación contra los umbrales
+
+Los cinco escenarios de arriba declaran una medida de respuesta. Esta sección
+dice **cuál se cumple y cuál no**, con el número y el método, porque un umbral
+que nadie comprueba es una aspiración con formato de requisito.
+
+#### Cómo se midió, y qué parte de cada número viene de dónde
+
+Ninguna de las cifras sale de un solo sitio, y conviene decirlo antes de la
+tabla porque explica sus límites:
+
+| Tramo | De dónde sale | Cuándo |
+|---|---|---|
+| **Red** | `curl` contra `api-pideutb.iscoutb.dev`, **conexión reutilizada** | 18/10/2026, n=14 |
+| **Servidor** | En proceso contra PostgreSQL, en el portátil de desarrollo | 18/10/2026, n=50 |
+| **Sondeo** | `MS_ENTRE_REFRESCOS` de `sitio/panel.js` | Constante |
+| **Persona** | No se mide: se **reserva** | — |
+
+Tres advertencias sobre eso, en orden de importancia:
+
+**La red se midió desde un solo sitio.** 150,8 ms de p50 con la conexión ya
+abierta, desde la máquina de desarrollo. Quien use el sistema en el campus verá
+otra cifra. Lo que no cambia con la ubicación es que de esos 150,8 ms el
+servidor solo pone 1,7: el resto es trayecto.
+
+**El servidor se midió en el portátil, que es más lento que producción.**
+Calibrado con la única operación de la que hay muestras en los dos sitios:
+
+| | `GET /v1/menu/.../items`, p50 |
+|---|---|
+| Portátil de desarrollo | **7,56 ms** |
+| Contenedor de producción (`/metricas`) | **1,68 ms** |
+| | **El portátil es 4,5× más lento** |
+
+Así que los números de servidor de la tabla son una **cota superior**: en
+producción son menores. Eso hace la evaluación conservadora, que es la
+dirección correcta para equivocarse.
+
+*(Este factor explica además el riesgo [R-02](#riesgos). Los parámetros de
+scrypt se eligieron midiendo 100 ms en el portátil, y producción deriva en unos
+35: un factor de 2,9. Dos operaciones independientes coinciden en que el
+contenedor es entre 3 y 4,5 veces más rápido que la máquina donde se decidió.
+No era un error de medición.)*
+
+**Se mide el peor caso, no la mediana.** Las medidas de respuesta dicen «máximo»
+y «en menos de», que son techos. Un p50 que cumple y un máximo que no es un
+escenario incumplido.
+
+#### La tabla
+
+| Escenario | Umbral | Lo que controla el sistema | Medido | Veredicto |
+|---|---|---|---|---|
+| [ESC-01](#esc-01) | < 3 min, sin errores de navegación | `POST /v1/pedidos` | **11,67 ms** p95 + 151 de red ≈ **163 ms** | **Cumple.** Usa el 0,09 % del presupuesto; el resto es tiempo de la persona decidiendo |
+| [ESC-02](#esc-02) | < 2 min en ≥ 90 % de los intentos | Ídem | ≈ **163 ms** | **Cumple.** 0,14 % del presupuesto |
+| [ESC-03](#esc-03) | ≤ 10 s, ≤ 3 interacciones, sin recargar | Sondeo + cola + transición | **5 320 ms** en el peor caso → **4,68 s** para la persona | **Cumple tras bajar el sondeo.** Con 8 000 ms dependía de una reacción de **menos de 1,68 s**: ver abajo |
+| [ESC-04](#esc-04) | < 2 s de validación · 100 % de reutilizaciones rechazadas | `POST /{id}/estado` con código | **9,94 ms** p95 + 151 ≈ **161 ms** | **Cumple.** 8 % del umbral. El 100 % no es una latencia: lo garantiza la máquina de estados, porque `entregado` es final |
+| [ESC-05](#esc-05) | Mensaje claro < 3 s · pedido conservado 100 % | `POST /v1/pagos/intentos` | ≈ **164 ms** | **Cumple.** El 100 % de conservación es estructural: el pedido se persiste **antes** de empezar el cobro |
+
+Cuatro de los cinco cumplen con dos o tres órdenes de magnitud de holgura, y eso
+no es un elogio: significa que **el servidor no es el cuello de botella de
+ninguno de ellos**, igual que [§8.6](#consistencia) concluyó para la caché. Lo
+que consume esos presupuestos son las personas y la red.
+
+El quinto es el único donde el sistema decide, y era el que fallaba.
+
+#### ESC-03: el único que no se cumplía, y por qué no se veía
+
+El reloj de ESC-03 arranca **en el pago**, no cuando el encargado mira: el
+estímulo es *recibir un pedido pagado* y la respuesta incluye *visualizarlo*.
+Eso pone el intervalo de sondeo dentro del plazo, y con él la cadena completa:
+
+| Tramo | Con 8 000 ms | Con 5 000 ms |
+|---|---|---|
+| [1] Espera al siguiente sondeo *(peor caso)* | 8 000,0 ms | **5 000,0 ms** |
+| [2+4] Red, dos idas y vueltas | 301,6 ms | 301,6 ms |
+| [2+4] Servidor, p95 de las dos operaciones | 18,7 ms | 18,9 ms |
+| **Consumido sin contar a la persona** | **8 320,3 ms** | **5 320,5 ms** |
+| **Queda para que la persona vea y pulse** | **1,68 s** | **4,68 s** |
+
+Con 8 000 ms el escenario **se cumplía solo si la persona reaccionaba en menos
+de 1,68 s**, y eso es la afirmación exacta: no es que fallara siempre, es que su
+cumplimiento dependía de una reacción de menos de dos segundos a un pedido que
+aparece mientras se cocina. Para un mostrador en hora pico eso no es una reserva
+razonable, y en el peor caso —el pago ocurre un milisegundo después de un
+sondeo— el umbral se pasaba.
+
+Lo importante es que se pasaba **sin que nada fallara**: el pedido simplemente
+aparecía tarde, que es el tipo de defecto que no produce un error sino una
+queja.
+
+Se bajó a **5 000 ms**, reservando 4 s para la persona y dejando 0,68 de
+holgura. El costo son 12 sondeos por minuto en vez de 7,5: a ~8 ms de servidor
+cada uno, **46 segundos de CPU por turno de 8 horas y panel abierto**, contra
+los 0,5 CPU del contenedor. Y el panel ya deja de sondear cuando su pestaña está
+oculta, así que ese es el peor caso y no el normal.
+
+`backend/scripts/medir_esc03.py` rehace esta medición y **devuelve código de
+error si el escenario no se cumple**, así que la evaluación se puede repetir en
+vez de citarse. `backend/tests/test_escenarios_de_calidad.py` fija el intervalo
+por los dos lados: no puede subir y romper el umbral, ni bajar sin motivo y
+multiplicar peticiones.
+
+#### Lo que esta evaluación no cubre
+
+Se dice porque la diferencia entre medir y suponer es justamente el punto de
+esta sección:
+
+- **No es una prueba de carga.** Todo se midió sin concurrencia. El riesgo
+  [R-07](#riesgos) —14 peticiones por segundo saturan el contenedor— es
+  aritmética sobre una medición de una sola petición, no una medición bajo
+  carga.
+- **La latencia de red es de un punto de observación.** Falta medirla desde el
+  campus, que es donde estarán los usuarios.
+- **ESC-01 y ESC-02 se evalúan solo en su parte de servidor.** Los umbrales de
+  3 y 2 minutos son dominados por la persona, y medir eso exige usuarios reales,
+  no un `curl`.
+- **ESC-04 se midió sin el código de canje real** en la transición: la latencia
+  de `compare_digest` sobre una cadena corta es despreciable, pero la cifra
+  viene de la transición `pagado → en_preparacion`.
+
+------------------------------------------------------------------------
+
+<a id="riesgos"></a>
+
 ## 11. Riesgos y deuda técnica
 
-*(Pendiente — se documentará a medida que se identifiquen riesgos
-concretos durante la implementación de `pagos` y `usuarios`.)*
+Esta sección estuvo vacía hasta la S12, y conviene decir por qué se llena ahora
+y no antes: **los riesgos que vale la pena anotar son los que se pueden medir.**
+Una lista escrita al empezar habría contenido lo que se temía; esta contiene lo
+que se comprobó, con el número al lado y, donde existe, la prueba que avisa si
+cambia.
+
+La columna «cómo se detecta» es la que decide si una fila sirve. Un riesgo que
+solo se vigila leyendo esta tabla se hereda sin revisarse.
+
+### 11.1 Riesgos
+
+| ID | Riesgo | Medida | Impacto | Cómo se detecta |
+|---|---|---|---|---|
+| **R-01** | ~~El margen de ESC-03 está agotado~~ · **Cerrado en la S14.** Medido, incumplía; se bajó el sondeo a 5 s | Quedaban **1,68 s** para la persona · ahora **4,68 s** | — | `medir_esc03.py` devuelve error si deja de cumplirse · `test_escenarios_de_calidad.py` fija el intervalo por los dos lados |
+| **R-02** | **scrypt protege menos de lo que ADR-0007 afirma**, y no hay límite de intentos | 100 ms medidos en el portátil · ~35 ms en producción. **Confirmado en la S14** por una segunda operación: el portátil es 4,5× más lento que el contenedor ([§10.7](#evaluacion)) | Alto: es la única barrera contra probar contraseñas en serie | Ninguna automática. Ligado a R-07: las dos correcciones se estorban |
+| **R-03** | **El bus de eventos en proceso fallaría en silencio con más de un proceso** de API | Hoy: 1 proceso | Alto *si ocurre*: un panel no se enteraría de que no se entera | `test_el_evento_se_pierde_si_no_hay_nadie_escuchando` obliga a revisar al aparecer un suscriptor |
+| **R-04** | **`GET /metricas` dejaría de significar lo que dice** con más de un proceso: la ventana es por proceso y no agregable | Hoy: 1 proceso | Medio: se decide con esas cifras, incluida la de no cachear | Ninguna automática. Declarado en [§8.6](#consistencia) |
+| **R-05** | **Un proceso por servicio, sin redundancia.** `restart: unless-stopped` recupera, pero no evita la caída | 1 réplica de cada uno | Medio: la cuota de 4 contenedores impide duplicar | `GET /health` y el chequeo del compose |
+| **R-06** | **Un proxy que no controlamos filtra clientes automatizados.** Si la pasarela usara un agente filtrado, sus avisos no llegarían y sería indistinguible de «el evento no llegó» | `Python-urllib` recibe `403` en una sola petición | Medio: el pedido queda en `pendiente_pago`, estado honesto y consultable | Medido en [§7.2](#despliegue-topologia). No mitigable desde aquí: ver fallo 9 de [§6.7](#fallos-parciales) |
+| **R-07** | **Agotar la CPU pidiendo iniciar sesión.** `POST /v1/sesiones` es caro a propósito y no hay límite de intentos | **≈14 peticiones/s** saturan 0,5 CPU · 35 ms por derivación | **Alto: el servicio deja de responder**, y el atacante no necesita cuenta | Ninguna automática. Modelada como DoS-1 en [§8.7](#amenazas) |
+| **R-08** | **No se puede saber qué persona avanzó un pedido.** `avanzar_estado` recibe el establecimiento, no el usuario | — | Medio: afecta a la auditoría del canje, que es lo que vale dinero | Ninguna: el dato no se guarda |
+| **R-09** | **`GET /metricas` es público** y publica el volumen de tráfico por operación | — | Bajo: el inventario de operaciones ya es público; el volumen no lo era | Ninguna automática |
+| **R-10** | **La contraseña inicial sigue en el panel, en claro, mucho después de usarse** | 1 uso real, vigente indefinidamente | Medio: es una credencial válida y visible. No se puede rotar por la deuda D-04 | Ninguna |
+
+#### R-01 y R-02 en detalle, que son los dos que tienen número
+
+**R-01, cerrado, y vale como ejemplo de para qué sirve medir.** La S12 lo
+encontró cruzando dos documentos: [ESC-03](#esc-03) concede 10 segundos desde que
+un pedido se paga hasta que el encargado lo ha visualizado y cambiado de estado,
+y el sondeo del panel se comía 8 de ellos. Se dejó anotado con una estimación de
+2 segundos para la persona y se aplazó la decisión, porque bajar el intervalo
+cambia el comportamiento en producción.
+
+La S14 lo midió entero —red, servidor y sondeo— y el número desmontó la
+estimación: quedaban **1,68 s**, no 2. Con una reacción realista en hora pico el
+escenario **se incumplía** en el peor caso, y lo hacía sin que nada fallara: el
+pedido simplemente aparecía tarde.
+
+Eso convirtió una preferencia en un defecto, y con ello la decisión dejó de ser
+discutible. Se bajó el sondeo a 5 000 ms —4,68 s para la persona, 46 s de CPU
+por turno y panel— y la medición quedó ejecutable en `medir_esc03.py`, que
+devuelve código de error si el umbral deja de cumplirse. El detalle está en
+[§10.7](#evaluacion).
+
+**R-02.** [ADR-0007](../adr/0007-autenticacion-del-panel.md) eligió los
+parámetros de scrypt (N=2¹⁴, r=8, p=1) midiendo **100 ms de mediana en el
+portátil de desarrollo**, y dejó constancia de que la cifra depende de la
+máquina. Esa cautela es la que salva al ADR, porque la máquina resultó ser otra:
+
+| | Derivación | Intentos por segundo y núcleo |
+|---|---|---|
+| Portátil de desarrollo (15 repeticiones) | **100 ms** | ~10 |
+| Producción *(37,15 ms de p50 de `POST /v1/sesiones`, menos ~2 ms de las dos consultas)* | **~35 ms** | **~29** |
+
+Los parámetros son constantes del código (`credenciales.py`), idénticos en los
+dos entornos: la diferencia es puramente de máquina. Y como **no hay límite de
+intentos** —decisión declarada en ADR-0007, porque hacerlo bien exige
+almacenamiento compartido entre instancias— el costo de la derivación *es* toda
+la defensa. En producción vale **unas tres veces menos** de lo que el
+razonamiento del ADR asumía.
+
+No se toca esta semana. Subir los parámetros endurece también el arranque del
+panel y afecta a `POST /v1/sesiones`, que ya es la operación más lenta del
+sistema: es una decisión con dos medidas que corresponde a la S13, no un ajuste
+de constante.
+
+#### R-07 es el que sale de juntar tres decisiones correctas
+
+Ninguna de las tres está mal por separado, y es lo que lo hace interesante:
+
+1. `POST /v1/sesiones` deriva scrypt, que cuesta **~35 ms de CPU**. Es la
+   defensa de ADR-0007 contra probar contraseñas en serie.
+2. **No hay límite de intentos.** Declarado en ese mismo ADR, porque hacerlo
+   bien exige almacenamiento compartido entre instancias.
+3. El contenedor tiene **0,5 CPU** de tope (ADR-0008).
+
+```
+500 ms de CPU por segundo ÷ 35 ms por derivación ≈ 14 peticiones/s
+```
+
+Y el detalle que ninguna anticipó: **el atacante no necesita una cuenta.** La
+defensa contra ataques de tiempo deriva contra un hash de descarte cuando el
+correo no existe, de modo que un correo inventado cuesta lo mismo que uno real.
+Para proteger los tiempos de respuesta se hizo que cualquiera pueda obligar al
+servidor a trabajar.
+
+Lo que hoy lo contiene no es nuestro: Cloudflare rechaza a los clientes que
+identifica como automatismos (R-06, y el fallo 9 de [§6.7](#fallos-parciales)).
+Es decir, **lo que la semana 11 anotó como un obstáculo es lo que la semana 13
+encuentra conteniendo su amenaza más grave.** No cuenta como mitigación —no la
+controlamos y un `User-Agent` de navegador la pasa— pero explica por qué el
+riesgo es real y no ha ocurrido.
+
+Se trata en la S14 y no aquí porque hay que medir antes: un límite por IP en
+memoria del proceso funcionaría hoy con una sola instancia y **dejaría de
+funcionar en silencio con dos**, que es el modo de fallo de R-03. Subir el coste
+de scrypt, la otra opción, empeora R-07 mientras mejora R-02.
+
+Las dos correcciones apuntan en direcciones opuestas, y eso es exactamente lo
+que hay que resolver con un número delante.
+
+### 11.2 Deuda técnica
+
+| ID | Deuda | Qué cuesta | Qué la pagaría |
+|---|---|---|---|
+| **D-01** | **No se puede ejecutar el despliegue en local**: no hay Docker en la máquina de desarrollo | Cinco defectos de configuración llegaron a producción invisibles para 282 pruebas ([§7.6](#despliegue-deuda)) | Instalar Docker y correr `deploy/compose.lab.yaml`. Los cinco se habrían visto en treinta segundos |
+| **D-02** | **El canal de eventos no tiene suscriptores.** `publicar()` es una operación nula | Quien lea `publicar(...)` asume que algo pasa después | Evaluado en [ADR-0010](../adr/0010-notificar-al-panel-por-sondeo.md): se conserva como costura, y la trampa se desactiva nombrándola |
+| **D-03** | **ESC-03 no se ha vuelto a medir en la plataforma nueva.** La medición de ~0,7 s en caliente es de Render | No se sabe si el escenario se cumple hoy, solo que debería | Remedir en la S14, que es donde toca |
+| **D-04** | **No hay forma de restablecer una contraseña en producción.** La cuenta inicial se siembra una vez | Una contraseña perdida deja el panel inaccesible sin tocar la base | Se analiza en la S13 |
+
+D-01 es la que explica a las demás. El patrón está en
+[§7.6](#despliegue-deuda) y se resume en una frase: **la prueba y el entorno real
+no recorren el mismo camino.** Los defectos que produce no dan error: dan un
+sistema que parece sano. Dos de esta semana —un aviso que explicaba al usuario
+una plataforma abandonada, y un ADR cuyo título afirmaba una decisión que se
+había revertido— son de la misma familia, aunque no sean de configuración:
+**afirmaciones que nadie volvió a comprobar contra la realidad.**
 
 ------------------------------------------------------------------------
 

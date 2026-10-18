@@ -803,7 +803,7 @@ def test_el_sembrado_no_toca_un_sistema_que_ya_tiene_cuentas(postgres, monkeypat
 
     Si actuara con la tabla poblada, quien pudiera escribir una variable de
     entorno podría crearse una cuenta en un sistema en marcha. Limitado al
-    arranque en frío, lo único que puede hacer es lo que ya puede hacer quien
+    primer arranque con la tabla vacía, lo único que puede hacer es lo que ya puede hacer quien
     despliega.
     """
     _mostrador()
