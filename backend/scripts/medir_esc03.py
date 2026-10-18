@@ -56,6 +56,10 @@ from app.usuarios.contracts import RolUsuario, UsuarioAutenticado  # noqa: E402
 #: Umbral del escenario, en milisegundos.
 PRESUPUESTO_ESC_03_MS = 10_000
 
+#: La cola del mostrador. Se crea un pedido por aquí y se sondea por aquí, y
+#: repetir la cadena tres veces invita a que una de ellas se quede atrás.
+RUTA_PEDIDOS = "/v1/pedidos"
+
 #: Intervalo de sondeo del panel. Se lee del archivo, no se copia: una
 #: constante duplicada aquí dejaría de coincidir sin que nadie se enterase.
 RUTA_PANEL = Path(__file__).resolve().parents[2] / "sitio" / "panel.js"
@@ -101,7 +105,7 @@ def resumen(nombre: str, muestras: list[float]) -> dict[str, float]:
 
 def _pedido_pagado(client: TestClient) -> int:
     """Un pedido en `pagado`, por la vía legítima."""
-    respuesta = client.post("/v1/pedidos", json={"item_id": 1, "cantidad": 1})
+    respuesta = client.post(RUTA_PEDIDOS, json={"item_id": 1, "cantidad": 1})
     if respuesta.status_code != 201:
         raise SystemExit(f"No se pudo crear el pedido: {respuesta.status_code} {respuesta.text}")
     pedido_id = respuesta.json()["pedido_id"]
@@ -123,12 +127,12 @@ def medir(n: int, cola: int) -> list[dict[str, float]]:
 
         # Calentamiento: descarta el coste de abrir el pool y compilar rutas.
         for _ in range(10):
-            client.get("/v1/pedidos")
+            client.get(RUTA_PEDIDOS)
 
         lecturas: list[float] = []
         for _ in range(n):
             inicio = time.perf_counter()
-            respuesta = client.get("/v1/pedidos")
+            respuesta = client.get(RUTA_PEDIDOS)
             lecturas.append((time.perf_counter() - inicio) * 1000)
             if respuesta.status_code != 200:
                 raise SystemExit(f"GET /v1/pedidos: {respuesta.status_code} {respuesta.text}")
@@ -161,7 +165,7 @@ def informe(medidas: list[dict[str, float]], rtt: float, cola: int) -> int:
     lectura, transicion = medidas
 
     print(f"\nCola del establecimiento durante la medición: {cola} pedidos")
-    print(f"Almacenamiento: PostgreSQL\n")
+    print("Almacenamiento: PostgreSQL\n")
     print(f"{'Operación':<32} {'n':>4} {'mín':>8} {'p50':>8} {'p95':>8} {'máx':>9}")
     print("-" * 74)
     for m in medidas:
@@ -193,9 +197,9 @@ def informe(medidas: list[dict[str, float]], rtt: float, cola: int) -> int:
         print("VEREDICTO: ESC-03 NO SE CUMPLE ni con reacción instantánea.")
         return 1
     if queda < 2_000:
-        print(f"VEREDICTO: ESC-03 se cumple solo si la persona reacciona en menos")
+        print("VEREDICTO: ESC-03 se cumple solo si la persona reacciona en menos")
         print(f"           de {queda/1000:.2f} s. Es poco para un mostrador en hora pico:")
-        print(f"           el margen depende de la persona, no del sistema.")
+        print("           el margen depende de la persona, no del sistema.")
         return 1
     print(f"VEREDICTO: ESC-03 se cumple con {queda/1000:.2f} s de margen para la persona.")
     return 0

@@ -327,8 +327,20 @@ jobs:
       # Versión exacta, igual que Spectral en el job `contrato`: una
       # herramienta que se resuelve sola cambia el veredicto del pipeline sin
       # que nadie lo haya decidido.
+      #
+      # Y `--only-binary=:all:`, que la primera versión de este job olvidaba.
+      # Lo señaló SonarCloud (githubactions:S8541) y tenía razón: sin esa
+      # opción pip puede construir desde fuentes, y construir ejecuta el script
+      # de instalación del paquete — código de terceros corriendo con los
+      # permisos del runner.
+      #
+      # Que se olvidara **aquí** es lo llamativo: es el job que audita
+      # dependencias, y se instalaba a sí mismo sin la salvaguarda que el resto
+      # del proyecto exige (`backend/Dockerfile`, los tres locks). La regla no
+      # vale menos por aplicarse al instrumental.
       - name: Instalar pip-audit
-        run: python -m pip install --no-cache-dir pip-audit==2.7.3
+        run: |
+          python -m pip install --no-cache-dir --only-binary=:all:             pip-audit==2.7.3
 
       # `--no-deps` porque el lock ya es la lista completa y resuelta: sin él,
       # pip-audit volvería a resolver el árbol y auditaría versiones que no son
