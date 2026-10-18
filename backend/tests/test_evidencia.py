@@ -70,18 +70,18 @@ CITAS = [
 
     # §5 — C4 nivel 2: cada flecha con protocolo, formato y modo
     ("docs/c4/nivel2-contenedores.md", 31, "HTTPS · JSON (REST) · síncrono"),
-    ("docs/c4/nivel2-contenedores.md", 32, "TCP/TLS · PostgreSQL (pool) · síncrono"),
+    ("docs/c4/nivel2-contenedores.md", 32, "PostgreSQL sobre un pool reutilizado · síncrono · ~1 ms"),
     ("docs/c4/nivel2-contenedores.md", 33, "HTTPS · JSON · síncrono"),
     ("docs/c4/nivel2-contenedores.md", 34, "HTTPS · JSON + HMAC · ASÍNCRONO"),
 
     # §4 — arc42 sección 6
-    ("docs/arc42/arc42.md", 435, "## 6. Vista de tiempo de ejecución"),
-    ("docs/arc42/arc42.md", 450, "### 6.1 Resumen de los flujos"),
-    ("docs/arc42/arc42.md", 471, "### 6.2 Crear un pedido"),
-    ("docs/arc42/arc42.md", 536, "### 6.3 Pagar un pedido"),
-    ("docs/arc42/arc42.md", 618, "### 6.4 Consultar el estado"),
-    ("docs/arc42/arc42.md", 651, "### 6.5 Modos de fallo"),
-    ("docs/arc42/arc42.md", 675, "### 6.6 Deuda conocida"),
+    ("docs/arc42/arc42.md", 453, "## 6. Vista de tiempo de ejecución"),
+    ("docs/arc42/arc42.md", 468, "### 6.1 Resumen de los flujos"),
+    ("docs/arc42/arc42.md", 489, "### 6.2 Crear un pedido"),
+    ("docs/arc42/arc42.md", 554, "### 6.3 Pagar un pedido"),
+    ("docs/arc42/arc42.md", 636, "### 6.4 Consultar el estado"),
+    ("docs/arc42/arc42.md", 669, "### 6.5 Modos de fallo"),
+    ("docs/arc42/arc42.md", 693, "### 6.6 Deuda conocida"),
 ]
 
 

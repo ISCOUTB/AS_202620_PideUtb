@@ -1,7 +1,33 @@
 # Infraestructura como código
 
-Terraform gestiona aquí tres de las seis piezas del sistema. Este documento
-explica qué gestiona, qué **no**, y cómo ejecutarlo sin romper nada.
+> ## ⚠️ Lee esto antes de ejecutar nada aquí
+>
+> **Desde la semana 11 el sistema no corre en Render ni usa Supabase.** Se
+> despliega en el servidor del laboratorio con
+> [`deploy/compose.lab.yaml`](../deploy/compose.lab.yaml), que es **la
+> infraestructura como código vigente**
+> ([ADR-0008](../docs/adr/0008-despliegue-en-el-servidor-del-laboratorio.md)).
+>
+> | Archivo | Estado |
+> |---|---|
+> | [`github.tf`](github.tf) | **Vigente.** Protección de la rama `master`, que no depende de dónde corra el sistema |
+> | [`render.tf`](render.tf) | **Obsoleto.** Describe servicios que ya no existen |
+> | [`supabase.tf`](supabase.tf) | **Obsoleto.** Describe un proyecto que ya no se usa |
+>
+> **Un `terraform apply` aquí recrearía infraestructura muerta**, y además la
+> cobraría al que corresponda. Si hay que tocar algo, limitar el alcance con
+> `-target=github_branch_protection.rama_evaluable`.
+>
+> Los dos archivos obsoletos **se conservan a propósito**: son la evidencia de
+> la semana 8 y el registro de una decisión que de verdad se tomó. Borrarlos
+> dejaría ADR-0004 y `comparacion-despliegue.md` hablando de algo que el
+> repositorio ya no muestra. Lo que no se puede hacer es dejarlos sin esta
+> advertencia, que es justo el defecto que la semana 10 encontró dos veces:
+> documentación que describe lo que no hay.
+
+Lo que sigue describe el despliegue **anterior** y se mantiene como referencia
+histórica. Terraform gestionaba aquí tres de las seis piezas del sistema; hoy
+gestiona una.
 
 ## Qué gestiona y qué no
 

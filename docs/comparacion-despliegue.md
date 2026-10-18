@@ -315,3 +315,35 @@ magnitud equivocado, no para afirmar un percentil.
 
 Ninguna de estas cifras se inventa. Cuando se midan, se contrastan igual que la
 primera: si la proyección estaba mal, se dice.
+
+---
+
+## 11. Lo que invalidó esta comparación (semana 11)
+
+Este documento comparó plataformas **bajo una condición operativa: presupuesto
+$0**. Con esa condición, el arranque en frío era un costo inevitable y la
+conclusión —Render, aceptando 42,4 s de arranque— era correcta.
+
+**La condición no cambió. El conjunto de opciones sí.** El curso puso a
+disposición un servidor compartido (`iscoutb.dev`, Dokploy sobre una VM de
+Oracle Cloud) que también cuesta $0 y **no duerme los contenedores**. Es decir:
+apareció una opción que domina a la elegida en el único eje donde esta perdía.
+
+La decisión está en
+[ADR-0008](adr/0008-despliegue-en-el-servidor-del-laboratorio.md) y la vista de
+despliegue al día en [arc42 §7](arc42/arc42.md#despliegue-piezas).
+
+**Lo que sigue siendo válido de este documento**, y por eso no se reescribe:
+
+- El método: comparar contra condiciones operativas explícitas en vez de contra
+  preferencias.
+- El razonamiento de fondo de ADR-0004 —contenedor con proceso persistente
+  frente a función sin servidor, por el pool de conexiones—, que no dependía del
+  proveedor.
+- La §10, donde lo proyectado se contrastó con lo medido. Ese contraste es lo
+  que produjo el número de 42,4 s, y ese número es lo que, trasladado a ESC-03
+  una semana después, mostró que el escenario no se cumplía.
+
+**Lo que queda obsoleto** es la elección concreta y las filas de precios. Se
+conservan porque un documento de comparación que se edita cada vez que cambia la
+respuesta deja de ser evidencia de cómo se decidió.

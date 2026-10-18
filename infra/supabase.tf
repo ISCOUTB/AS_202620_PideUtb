@@ -1,3 +1,14 @@
+# ============================================================================
+# OBSOLETO desde la semana 11. No lo apliques.
+#
+# El sistema se despliega en el servidor del laboratorio con
+# deploy/compose.lab.yaml (ADR-0008). Esto describe infraestructura que ya no
+# existe, y un `terraform apply` la recrearía.
+#
+# Se conserva como evidencia de la semana 8 y registro de una decisión real.
+# Ver la advertencia al principio de infra/README.md.
+# ============================================================================
+
 # Pieza 3 de seis: la base de datos.
 #
 # Crea un proyecto de Supabase, que es PostgreSQL gestionado. Sustituye a los

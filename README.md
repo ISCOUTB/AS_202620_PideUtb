@@ -9,23 +9,37 @@ Pide UTB es una plataforma web para realizar pedidos de comida dentro del campus
 
 | Pieza | URL |
 |---|---|
-| **Sitio** | https://pideutb-sitio.onrender.com |
-| **Panel del mostrador** | https://pideutb-sitio.onrender.com/panel.html |
-| **API** | https://pideutb-api.onrender.com |
-| Chequeo de salud | https://pideutb-api.onrender.com/health |
-| Métricas | https://pideutb-api.onrender.com/metricas |
+| **Sitio** | https://pideutb.iscoutb.dev |
+| **Panel del mostrador** | https://pideutb.iscoutb.dev/panel.html |
+| **API** | https://api-pideutb.iscoutb.dev/docs |
+| Chequeo de salud | https://api-pideutb.iscoutb.dev/health |
+| Métricas | https://api-pideutb.iscoutb.dev/metricas |
 
 ```bash
-curl -s https://pideutb-api.onrender.com/health
+curl -s https://api-pideutb.iscoutb.dev/health
 ```
 
 ```json
-{"status":"ok","dependencias":{"catalogo":{"estado":"ok","tipo":"memoria","latencia_ms":0.01,"detalle":null}}}
+{"status":"ok","dependencias":{
+  "catalogo":{"estado":"ok","tipo":"postgresql","latencia_ms":1.55,"detalle":null},
+  "base_de_datos":{"estado":"ok","tipo":"postgresql","latencia_ms":0.4,"detalle":null}}}
 ```
 
-Ese `tipo: "memoria"` es deliberado: el chequeo **declara lo que hay** en vez de
-reportar `ok` sobre lo que no comprobó. Hoy el estado vive en memoria del
-proceso ([V-09](docs/violaciones.md)) y el sistema lo dice en voz alta.
+Ese `tipo` es deliberado: el chequeo **declara lo que hay** en vez de reportar
+`ok` sobre lo que no comprobó. Cuando el estado vivía en memoria del proceso
+([V-09](docs/violaciones.md), cerrada en S8) decía `memoria` en voz alta; ahora
+dice `postgresql` porque eso es lo que hay, y con la latencia medida de verdad
+contra la base.
+
+Ese **~1 ms** es la consecuencia más visible de
+[ADR-0008](docs/adr/0008-despliegue-en-el-servidor-del-laboratorio.md): la base
+dejó de ser un servicio gestionado al otro lado de Internet y pasó a ser un
+contenedor vecino. Antes eran 33 ms y 16 ms.
+
+**El sitio y la API están en orígenes distintos**, así que el panel hace
+peticiones entre orígenes y depende de que la lista de orígenes permitidos sea
+correcta. Se intentó unificarlos bajo un solo host para eliminar esa dependencia
+y la plataforma no lo admite; el razonamiento completo está en ADR-0008 §3.
 
 La evidencia completa —infraestructura declarada, las tres señales de operación
 y lo que **no** está hecho— está en
@@ -35,10 +49,16 @@ en [`docs/evidencia-s9.md`](docs/evidencia-s9.md).
 La de la semana 10 —autenticación del panel, y los seis defectos que las
 correcciones destaparon— en [`docs/evidencia-s10.md`](docs/evidencia-s10.md).
 
-**Primera petición tras 15 minutos de silencio: hasta ~60 s.** Es el arranque en
-frío del plan gratuito, no un fallo. El sitio avisa cuando ocurre. Por qué se
-aceptó ese costo, y contra qué se comparó: [ADR-0004](docs/adr/0004-plataforma-de-despliegue.md)
-y [`docs/comparacion-despliegue.md`](docs/comparacion-despliegue.md).
+**Ya no hay arranque en frío.** El despliegue anterior dormía el servicio tras
+15 minutos sin tráfico y tardaba 42,4 s en volver, lo que incumplía
+[ESC-03](docs/arc42/arc42.md#esc-03) —cuyo umbral son 10 s— en el caso más
+habitual: el mostrador que abre el panel al empezar el turno. Los contenedores
+del servidor del laboratorio no duermen.
+
+Por qué se eligió aquello primero y qué lo cambió:
+[ADR-0004](docs/adr/0004-plataforma-de-despliegue.md),
+[ADR-0008](docs/adr/0008-despliegue-en-el-servidor-del-laboratorio.md) y
+[`docs/comparacion-despliegue.md`](docs/comparacion-despliegue.md).
 
 ## Evidencia de la entrega, con citas
 
@@ -349,9 +369,14 @@ no disponible), que corresponden al escenario **ESC-01** de
 [`arc42.md` §10.2](docs/arc42/arc42.md#esc-01) (fila ESC-01 de
 [`docs/aspectos.md`](docs/aspectos.md), columna "Pruebas").
 
-> **Nota:** los repositorios de `menu` y `pedidos` usan datos en
-> memoria en esta entrega (ver comentarios `TODO(supabase)` en el
-> código) para tener el corte vertical ejecutable sin depender de
-> credenciales de Supabase. La interfaz de `repository.py` ya está
-> pensada para cambiar la implementación sin tocar `service.py` ni
-> `router.py`.
+> **Nota:** los repositorios hablan con **PostgreSQL** desde S8. Cada uno
+> conserva además una implementación en memoria que se usa cuando no hay
+> `PIDEUTB_DATABASE_URL`, para que la suite corra en un portátil sin base de
+> datos instalada. Que existan las dos es lo que obliga a
+> [`test_repositorios.py`](backend/tests/test_repositorios.py) a ejecutar las
+> **mismas aserciones contra ambas**: dos implementaciones que nadie compara se
+> separan solas.
+>
+> La excepción es `usuarios`, que **no** tiene versión en memoria a propósito:
+> una autenticación de juguete que funciona sin base de datos invita a
+> desplegar sin ella ([ADR-0007](docs/adr/0007-autenticacion-del-panel.md)).
