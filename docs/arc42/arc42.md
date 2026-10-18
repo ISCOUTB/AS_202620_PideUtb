@@ -1058,7 +1058,7 @@ en absoluto que el problema sea la salud. Ocurrió, y costó una tarde (§7.6).
 | 5 | Un cambio de dominio exige recrear el contenedor | `Deploy` no basta si la definición del servicio no cambió; hace falta `Rebuild`. Se olvida, y el síntoma es un `404` que parece un problema de enrutado |
 
 **La deuda número 2 merece su propio párrafo**, porque es la que más costó. El
-despliegue de la semana 11 se encontró **cinco defectos que las 260 pruebas no
+despliegue de la semana 11 se encontró **cinco defectos que las 282 pruebas no
 podían ver**, todos en configuración y ninguno en código:
 
 | Defecto | Síntoma | Por qué las pruebas no lo veían |
@@ -1076,6 +1076,30 @@ que es exactamente lo que el servidor ejecuta.
 
 Que no esté hecho es una decisión pendiente, no un olvido: está aquí para que se
 decida, no para que se herede.
+
+#### El caso espejo, encontrado en la S14
+
+El patrón de la deuda 2 es «la prueba y la realidad no recorren el mismo
+camino». Verificando la S14 apareció su reflejo, que es igual de incómodo: **la
+prueba y la terminal de quien la ejecuta recorrían el mismo camino cuando no
+debían.**
+
+Con `PIDEUTB_DATABASE_URL` definida en el entorno —lo normal mientras se
+desarrolla contra una base real— **ocho casos fallaban**. No por un defecto del
+código: sus fixtures aíslan cada caso vaciando el almacenamiento en memoria, y
+con esa variable puesta la aplicación usa PostgreSQL, de modo que la limpieza no
+limpiaba nada y el estado se filtraba de un caso al siguiente.
+
+Es el peor tipo de prueba intermitente, porque el síntoma **viaja con la persona
+y no con el repositorio**: quien tuviera la variable exportada veía ocho fallos
+en tres archivos sin relación aparente, y quien no, ninguno.
+
+`backend/tests/conftest.py` retira la variable **al importarse**, antes de que
+cualquier módulo de prueba importe la aplicación. Se hace así y no con un
+fixture porque un fixture dependería del orden en que pytest los instancia, y
+equivocarse ahí tiene un modo de fallo peor que el problema: las pruebas de
+PostgreSQL correrían contra memoria y **pasarían**, sin probar lo que dicen
+probar. `backend/tests/test_aislamiento.py` vigila las dos mitades.
 
 <a id="seccion-8"></a>
 <a id="lenguaje-ubicuo"></a>

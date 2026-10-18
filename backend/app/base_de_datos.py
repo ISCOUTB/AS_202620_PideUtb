@@ -52,11 +52,20 @@ from typing import Iterator
 
 _LOG = logging.getLogger("pideutb")
 
-#: Cadena de conexión. Ausente = almacenamiento en memoria.
-#:
-#: Llega por variable de entorno y **nunca** se escribe en el repositorio:
-#: contiene la contraseña de la base de datos. Ver `infra/README.md`.
-URL_BASE_DE_DATOS = os.getenv("PIDEUTB_DATABASE_URL", "").strip()
+# La cadena de conexión **no** se guarda en una constante de módulo.
+#
+# Hubo una, `URL_BASE_DE_DATOS`, leída al importar y usada en cero sitios: todo
+# el código pregunta por `hay_base_de_datos()` o lee `os.environ` en el momento.
+# Se retiró en la S14 porque una constante que parece gobernar el
+# comportamiento y no lo gobierna es peor que no tenerla — invita a cambiarla
+# esperando un efecto.
+#
+# Que se lea en cada llamada y no al importar es deliberado, y lo explica
+# `hay_base_de_datos()`: permite a las pruebas activar y desactivar PostgreSQL
+# sin recargar la aplicación.
+#
+# Donde sí vive la cadena es en el entorno, y **nunca** en el repositorio:
+# contiene la contraseña de la base de datos.
 
 #: Conexiones que el pool mantiene abiertas y su techo.
 #:

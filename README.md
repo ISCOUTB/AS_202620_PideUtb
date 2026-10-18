@@ -192,6 +192,7 @@ pytest
 | **`tests/test_expectativas_consumidor.py`** | Que se siga emitiendo lo que el consumidor declaró que lee |
 | **`tests/test_escenarios_de_calidad.py`** | Que las constantes del sitio sigan cumpliendo el umbral del escenario que sostienen |
 | **`tests/test_dependencias.py`** | Que la imagen no instale nada que la aplicación no importe, ni al revés |
+| **`tests/test_aislamiento.py`** | Que la suite dé el mismo resultado sin importar qué tenga exportado quien la ejecuta |
 
 Las tres últimas son las **pruebas de contrato**, y llevan **20 casos negativos**
 —roturas introducidas a propósito— porque una prueba de contrato que no puede
