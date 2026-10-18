@@ -190,7 +190,7 @@ La rama se borró; el run permanece en el historial.
 
 ## 4. arc42 §6 — Vista de ejecución
 
-Ubicación: [`docs/arc42/arc42.md`](arc42/arc42.md) **líneas 453 a 825**.
+Ubicación: [`docs/arc42/arc42.md`](arc42/arc42.md) **líneas 453 a 850**.
 
 | Subsección | Línea | Contenido |
 |---|---|---|
@@ -199,7 +199,7 @@ Ubicación: [`docs/arc42/arc42.md`](arc42/arc42.md) **líneas 453 a 825**.
 | 6.3 Pagar un pedido | 554 | Diagrama de secuencia — dos fases, cruza la frontera asíncrona |
 | 6.4 Consultar el estado | 636 | Diagrama de secuencia — cómo se entera el usuario |
 | 6.5 Modos de fallo | 669 | 9 modos de fallo, cada uno con la prueba que lo cubre |
-| 6.6 Deuda conocida | 812 | Limitaciones del transporte en proceso |
+| 6.6 Deuda conocida | 837 | Limitaciones del transporte en proceso |
 
 La tabla de §6.1, reproducida:
 

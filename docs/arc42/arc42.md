@@ -741,6 +741,31 @@ exigiría primero inventar la llamada. Queda dicho aquí porque la alternativa
 | 6 | **Se pierde el volumen de datos** | Todo: pedidos, pagos y cuentas | Migraciones y semilla al arrancar; la cuenta inicial se siembra | `test_autenticacion.py::test_el_guion_de_alta_funciona_de_principio_a_fin` |
 | 7 | **El proxy no enruta hacia un contenedor** | El servicio corre y responde `404` desde fuera | La plataforma solo enruta hacia contenedores sanos | §7.5, y el chequeo de salud de cada servicio |
 | 8 | Despliegue mientras hay tráfico | Peticiones en vuelo cortadas | `depends_on: service_healthy` y arranque con migraciones antes de escuchar | `deploy/compose.lab.yaml` |
+| 9 | **Un proxy que no controlamos rechaza al cliente del webhook** | El aviso de pago nunca llega al servidor | Ninguna nuestra: el filtro está delante. El pedido queda en `pendiente_pago`, que es consultable | Medido en [§7.2](#despliegue-topologia): `Python-urllib` recibe `403` antes de entrar |
+
+#### El número 9 no se puede mitigar, solo saber
+
+Los ocho primeros son fallos del sistema, y cada uno tiene algo que hacer. El
+noveno no: **ocurre antes de que la petición exista para nosotros**.
+
+Cloudflare rechaza con `403` a los clientes que identifica como automatismos.
+Medido con una sola petición —no es cuestión de ritmo— un cliente que se
+anuncie como `Python-urllib/3.13` recibe `403` tanto en `GET /health` como en
+`POST /v1/pagos/eventos`, mientras que `python-requests`, `Go-http-client` y un
+navegador entran y reciben el `401` que les corresponde por firma inválida.
+
+**La consecuencia es la que importa.** Si la pasarela —o cualquier integrador
+futuro— usara un cliente con un agente filtrado, sus avisos de pago no llegarían
+nunca, y desde aquí sería **indistinguible** de «el evento no llegó»: el pedido
+quedaría en `pendiente_pago`, correctamente, y nadie sabría por qué.
+
+La mitigación de ese estado ya existe (§6.5, fila cuarta) y es la razón por la
+que esto no es una catástrofe: el pedido se queda en un estado honesto y
+consultable, no en uno desconocido. Pero la **causa** era invisible, y un modo de
+fallo cuya causa no se puede nombrar no se puede diagnosticar.
+
+Queda aquí por eso: no para arreglarlo —no está a nuestro alcance— sino para que
+la próxima vez que un pago «no llegue» exista esta fila que mirar.
 
 #### El número 1, en detalle
 
@@ -877,7 +902,8 @@ Tampoco hay pieza de **archivos**: no se suben imágenes ni documentos.
         │  HTTPS
         ▼
   ┌─────────────────────────────────────────────────────────────┐
-  │  Cloudflare DNS  ·  *.iscoutb.dev                           │
+  │  Cloudflare  ·  *.iscoutb.dev                               │
+  │  **Proxy, no solo DNS**: termina TLS y filtra automatismos  │
   └───────────────────────────┬─────────────────────────────────┘
                               │
   ┌───────────────────────────▼─────────────────────────────────┐
@@ -917,6 +943,29 @@ Tres cosas que esta vista hace visibles y las anteriores no:
   lo que la hace inalcanzable desde Internet, y también lo que obliga a sembrar
   la primera cuenta del panel desde el arranque
   ([ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md)).
+- **Hay un filtro de automatismos delante de todo, y no es nuestro.**
+  Cloudflare no solo resuelve el nombre: **procesa el tráfico**. Las respuestas
+  llevan sus cabeceras (`Server: cloudflare`, `cf-cache-status`), y rechaza
+  ciertos clientes antes de que lleguen al servidor. Medido:
+
+  | Cliente | `GET /health` | `POST /v1/pagos/eventos` |
+  |---|---|---|
+  | `Python-urllib/3.13` | **403** | **403** |
+  | `python-requests/2.31.0` | 200 | 401 |
+  | `Go-http-client/2.0` | 200 | 401 |
+  | navegador | 200 | 401 |
+
+  No es por ritmo: **una sola petición** con ese agente basta. Está en esta
+  vista porque tiene una consecuencia que ningún diagrama anterior dejaba ver:
+  el webhook es la única ruta por la que **un tercero tiene que alcanzarnos**, y
+  hay un filtro en medio que no controlamos ni configuramos. Ver el fallo 9 de
+  [§6.7](#fallos-parciales).
+
+  *(La documentación de la plataforma describe este registro como «DNS only».
+  Lo medido dice que el tráfico sí pasa por el proxy. Se consigna lo observado,
+  no para contradecir a nadie sino porque el análisis de fallos depende de cuál
+  de las dos cosas sea cierta.)*
+
 - **Sitio y API siguen siendo dos orígenes distintos**, ahora dos subdominios.
   Por eso hace falta CORS (`app/main.py`), con la lista de orígenes por variable
   de entorno y nunca `*`. Se intentó unificarlos bajo un solo host para eliminar

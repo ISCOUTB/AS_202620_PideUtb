@@ -81,7 +81,7 @@ CITAS = [
     ("docs/arc42/arc42.md", 554, "### 6.3 Pagar un pedido"),
     ("docs/arc42/arc42.md", 636, "### 6.4 Consultar el estado"),
     ("docs/arc42/arc42.md", 669, "### 6.5 Modos de fallo"),
-    ("docs/arc42/arc42.md", 812, "### 6.6 Deuda conocida"),
+    ("docs/arc42/arc42.md", 837, "### 6.6 Deuda conocida"),
 ]
 
 
