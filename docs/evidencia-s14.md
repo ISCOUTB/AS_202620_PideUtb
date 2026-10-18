@@ -30,16 +30,21 @@ Esta semana lo medí entero. La estimación estaba mal:
 Lo que faltaba en la estimación eran **los 301,6 ms de red**, que no había
 contado: dos idas y vueltas, una para ver la cola y otra para cambiar el estado.
 
-Con 1,68 s para notar un pedido nuevo mientras se cocina, **el escenario se
-incumplía** en el peor caso —el pago ocurre un milisegundo después de un
-sondeo—. Y se incumplía sin que nada fallara: el pedido simplemente aparecía
-tarde, que es el tipo de defecto que no produce un error sino una queja.
+La afirmación exacta es esta: **el escenario se cumplía solo si la persona
+reaccionaba en menos de 1,68 s.** No fallaba siempre; su cumplimiento dependía
+de una reacción de menos de dos segundos a un pedido que aparece mientras se
+cocina, y para un mostrador en hora pico eso no es una reserva razonable.
+
+Y cuando se pasaba, se pasaba **sin que nada fallara**: el pedido simplemente
+aparecía tarde, que es el tipo de defecto que no produce un error sino una
+queja.
 
 ### Eso cambió la naturaleza de la decisión
 
-En la S12 dije que bajar el intervalo era cosa tuya, y con la información que
-tenía era lo correcto: un margen estrecho es una preferencia. Un umbral que **no
-se cumple** es un defecto, y eso no se aplaza.
+En la S12 dije que bajar el intervalo era cosa del equipo, y con la información
+que tenía era lo correcto: un margen estrecho es una preferencia. Un umbral cuyo
+cumplimiento **depende de que una persona reaccione en 1,68 s** no lo es: es un
+defecto con una reserva implícita que nadie había aceptado por escrito.
 
 Se bajó a **5 000 ms**:
 

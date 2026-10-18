@@ -1970,7 +1970,7 @@ escenario incumplido.
 |---|---|---|---|---|
 | [ESC-01](#esc-01) | < 3 min, sin errores de navegación | `POST /v1/pedidos` | **11,67 ms** p95 + 151 de red ≈ **163 ms** | **Cumple.** Usa el 0,09 % del presupuesto; el resto es tiempo de la persona decidiendo |
 | [ESC-02](#esc-02) | < 2 min en ≥ 90 % de los intentos | Ídem | ≈ **163 ms** | **Cumple.** 0,14 % del presupuesto |
-| [ESC-03](#esc-03) | ≤ 10 s, ≤ 3 interacciones, sin recargar | Sondeo + cola + transición | **5 320 ms** en el peor caso → **4,68 s** para la persona | **Cumple tras bajar el sondeo.** Con 8 000 ms **no cumplía**: ver abajo |
+| [ESC-03](#esc-03) | ≤ 10 s, ≤ 3 interacciones, sin recargar | Sondeo + cola + transición | **5 320 ms** en el peor caso → **4,68 s** para la persona | **Cumple tras bajar el sondeo.** Con 8 000 ms dependía de una reacción de **menos de 1,68 s**: ver abajo |
 | [ESC-04](#esc-04) | < 2 s de validación · 100 % de reutilizaciones rechazadas | `POST /{id}/estado` con código | **9,94 ms** p95 + 151 ≈ **161 ms** | **Cumple.** 8 % del umbral. El 100 % no es una latencia: lo garantiza la máquina de estados, porque `entregado` es final |
 | [ESC-05](#esc-05) | Mensaje claro < 3 s · pedido conservado 100 % | `POST /v1/pagos/intentos` | ≈ **164 ms** | **Cumple.** El 100 % de conservación es estructural: el pedido se persiste **antes** de empezar el cobro |
 
@@ -1995,10 +1995,16 @@ Eso pone el intervalo de sondeo dentro del plazo, y con él la cadena completa:
 | **Consumido sin contar a la persona** | **8 320,3 ms** | **5 320,5 ms** |
 | **Queda para que la persona vea y pulse** | **1,68 s** | **4,68 s** |
 
-Menos de dos segundos para notar un pedido nuevo mientras se cocina, y en el
-peor caso —el pago ocurre un milisegundo después de un sondeo— el escenario se
-incumplía. **Sin que nada fallara**: el pedido simplemente aparecía tarde, que
-es el tipo de defecto que no produce un error sino una queja.
+Con 8 000 ms el escenario **se cumplía solo si la persona reaccionaba en menos
+de 1,68 s**, y eso es la afirmación exacta: no es que fallara siempre, es que su
+cumplimiento dependía de una reacción de menos de dos segundos a un pedido que
+aparece mientras se cocina. Para un mostrador en hora pico eso no es una reserva
+razonable, y en el peor caso —el pago ocurre un milisegundo después de un
+sondeo— el umbral se pasaba.
+
+Lo importante es que se pasaba **sin que nada fallara**: el pedido simplemente
+aparecía tarde, que es el tipo de defecto que no produce un error sino una
+queja.
 
 Se bajó a **5 000 ms**, reservando 4 s para la persona y dejando 0,68 de
 holgura. El costo son 12 sondeos por minuto en vez de 7,5: a ~8 ms de servidor
