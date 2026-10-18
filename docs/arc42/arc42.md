@@ -1914,6 +1914,124 @@ impacto medio y riesgo bajo.
 
 ------------------------------------------------------------------------
 
+<a id="evaluacion"></a>
+
+### 10.7 Evaluación contra los umbrales
+
+Los cinco escenarios de arriba declaran una medida de respuesta. Esta sección
+dice **cuál se cumple y cuál no**, con el número y el método, porque un umbral
+que nadie comprueba es una aspiración con formato de requisito.
+
+#### Cómo se midió, y qué parte de cada número viene de dónde
+
+Ninguna de las cifras sale de un solo sitio, y conviene decirlo antes de la
+tabla porque explica sus límites:
+
+| Tramo | De dónde sale | Cuándo |
+|---|---|---|
+| **Red** | `curl` contra `api-pideutb.iscoutb.dev`, **conexión reutilizada** | 18/10/2026, n=14 |
+| **Servidor** | En proceso contra PostgreSQL, en el portátil de desarrollo | 18/10/2026, n=50 |
+| **Sondeo** | `MS_ENTRE_REFRESCOS` de `sitio/panel.js` | Constante |
+| **Persona** | No se mide: se **reserva** | — |
+
+Tres advertencias sobre eso, en orden de importancia:
+
+**La red se midió desde un solo sitio.** 150,8 ms de p50 con la conexión ya
+abierta, desde la máquina de desarrollo. Quien use el sistema en el campus verá
+otra cifra. Lo que no cambia con la ubicación es que de esos 150,8 ms el
+servidor solo pone 1,7: el resto es trayecto.
+
+**El servidor se midió en el portátil, que es más lento que producción.**
+Calibrado con la única operación de la que hay muestras en los dos sitios:
+
+| | `GET /v1/menu/.../items`, p50 |
+|---|---|
+| Portátil de desarrollo | **7,56 ms** |
+| Contenedor de producción (`/metricas`) | **1,68 ms** |
+| | **El portátil es 4,5× más lento** |
+
+Así que los números de servidor de la tabla son una **cota superior**: en
+producción son menores. Eso hace la evaluación conservadora, que es la
+dirección correcta para equivocarse.
+
+*(Este factor explica además el riesgo [R-02](#riesgos). Los parámetros de
+scrypt se eligieron midiendo 100 ms en el portátil, y producción deriva en unos
+35: un factor de 2,9. Dos operaciones independientes coinciden en que el
+contenedor es entre 3 y 4,5 veces más rápido que la máquina donde se decidió.
+No era un error de medición.)*
+
+**Se mide el peor caso, no la mediana.** Las medidas de respuesta dicen «máximo»
+y «en menos de», que son techos. Un p50 que cumple y un máximo que no es un
+escenario incumplido.
+
+#### La tabla
+
+| Escenario | Umbral | Lo que controla el sistema | Medido | Veredicto |
+|---|---|---|---|---|
+| [ESC-01](#esc-01) | < 3 min, sin errores de navegación | `POST /v1/pedidos` | **11,67 ms** p95 + 151 de red ≈ **163 ms** | **Cumple.** Usa el 0,09 % del presupuesto; el resto es tiempo de la persona decidiendo |
+| [ESC-02](#esc-02) | < 2 min en ≥ 90 % de los intentos | Ídem | ≈ **163 ms** | **Cumple.** 0,14 % del presupuesto |
+| [ESC-03](#esc-03) | ≤ 10 s, ≤ 3 interacciones, sin recargar | Sondeo + cola + transición | **5 320 ms** en el peor caso → **4,68 s** para la persona | **Cumple tras bajar el sondeo.** Con 8 000 ms **no cumplía**: ver abajo |
+| [ESC-04](#esc-04) | < 2 s de validación · 100 % de reutilizaciones rechazadas | `POST /{id}/estado` con código | **9,94 ms** p95 + 151 ≈ **161 ms** | **Cumple.** 8 % del umbral. El 100 % no es una latencia: lo garantiza la máquina de estados, porque `entregado` es final |
+| [ESC-05](#esc-05) | Mensaje claro < 3 s · pedido conservado 100 % | `POST /v1/pagos/intentos` | ≈ **164 ms** | **Cumple.** El 100 % de conservación es estructural: el pedido se persiste **antes** de empezar el cobro |
+
+Cuatro de los cinco cumplen con dos o tres órdenes de magnitud de holgura, y eso
+no es un elogio: significa que **el servidor no es el cuello de botella de
+ninguno de ellos**, igual que [§8.6](#consistencia) concluyó para la caché. Lo
+que consume esos presupuestos son las personas y la red.
+
+El quinto es el único donde el sistema decide, y era el que fallaba.
+
+#### ESC-03: el único que no se cumplía, y por qué no se veía
+
+El reloj de ESC-03 arranca **en el pago**, no cuando el encargado mira: el
+estímulo es *recibir un pedido pagado* y la respuesta incluye *visualizarlo*.
+Eso pone el intervalo de sondeo dentro del plazo, y con él la cadena completa:
+
+| Tramo | Con 8 000 ms | Con 5 000 ms |
+|---|---|---|
+| [1] Espera al siguiente sondeo *(peor caso)* | 8 000,0 ms | **5 000,0 ms** |
+| [2+4] Red, dos idas y vueltas | 301,6 ms | 301,6 ms |
+| [2+4] Servidor, p95 de las dos operaciones | 18,7 ms | 18,9 ms |
+| **Consumido sin contar a la persona** | **8 320,3 ms** | **5 320,5 ms** |
+| **Queda para que la persona vea y pulse** | **1,68 s** | **4,68 s** |
+
+Menos de dos segundos para notar un pedido nuevo mientras se cocina, y en el
+peor caso —el pago ocurre un milisegundo después de un sondeo— el escenario se
+incumplía. **Sin que nada fallara**: el pedido simplemente aparecía tarde, que
+es el tipo de defecto que no produce un error sino una queja.
+
+Se bajó a **5 000 ms**, reservando 4 s para la persona y dejando 0,68 de
+holgura. El costo son 12 sondeos por minuto en vez de 7,5: a ~8 ms de servidor
+cada uno, **46 segundos de CPU por turno de 8 horas y panel abierto**, contra
+los 0,5 CPU del contenedor. Y el panel ya deja de sondear cuando su pestaña está
+oculta, así que ese es el peor caso y no el normal.
+
+`backend/scripts/medir_esc03.py` rehace esta medición y **devuelve código de
+error si el escenario no se cumple**, así que la evaluación se puede repetir en
+vez de citarse. `backend/tests/test_escenarios_de_calidad.py` fija el intervalo
+por los dos lados: no puede subir y romper el umbral, ni bajar sin motivo y
+multiplicar peticiones.
+
+#### Lo que esta evaluación no cubre
+
+Se dice porque la diferencia entre medir y suponer es justamente el punto de
+esta sección:
+
+- **No es una prueba de carga.** Todo se midió sin concurrencia. El riesgo
+  [R-07](#riesgos) —14 peticiones por segundo saturan el contenedor— es
+  aritmética sobre una medición de una sola petición, no una medición bajo
+  carga.
+- **La latencia de red es de un punto de observación.** Falta medirla desde el
+  campus, que es donde estarán los usuarios.
+- **ESC-01 y ESC-02 se evalúan solo en su parte de servidor.** Los umbrales de
+  3 y 2 minutos son dominados por la persona, y medir eso exige usuarios reales,
+  no un `curl`.
+- **ESC-04 se midió sin el código de canje real** en la transición: la latencia
+  de `compare_digest` sobre una cadena corta es despreciable, pero la cifra
+  viene de la transición `pagado → en_preparacion`.
+
+------------------------------------------------------------------------
+
 <a id="riesgos"></a>
 
 ## 11. Riesgos y deuda técnica
@@ -1931,8 +2049,8 @@ solo se vigila leyendo esta tabla se hereda sin revisarse.
 
 | ID | Riesgo | Medida | Impacto | Cómo se detecta |
 |---|---|---|---|---|
-| **R-01** | **El margen de ESC-03 está agotado.** El sondeo del panel consume 8 de los 10 s que el escenario concede | 8000 ms de 10 000 · 2 s para la persona | Alto si el umbral se endurece o alguien sube el intervalo | `test_escenarios_de_calidad.py` rompe la construcción |
-| **R-02** | **scrypt protege menos de lo que ADR-0007 afirma**, y no hay límite de intentos | 100 ms medidos en el portátil · ~35 ms en producción | Alto: es la única barrera contra probar contraseñas en serie | Ninguna automática todavía. Se trata en la S13 |
+| **R-01** | ~~El margen de ESC-03 está agotado~~ · **Cerrado en la S14.** Medido, incumplía; se bajó el sondeo a 5 s | Quedaban **1,68 s** para la persona · ahora **4,68 s** | — | `medir_esc03.py` devuelve error si deja de cumplirse · `test_escenarios_de_calidad.py` fija el intervalo por los dos lados |
+| **R-02** | **scrypt protege menos de lo que ADR-0007 afirma**, y no hay límite de intentos | 100 ms medidos en el portátil · ~35 ms en producción. **Confirmado en la S14** por una segunda operación: el portátil es 4,5× más lento que el contenedor ([§10.7](#evaluacion)) | Alto: es la única barrera contra probar contraseñas en serie | Ninguna automática. Ligado a R-07: las dos correcciones se estorban |
 | **R-03** | **El bus de eventos en proceso fallaría en silencio con más de un proceso** de API | Hoy: 1 proceso | Alto *si ocurre*: un panel no se enteraría de que no se entera | `test_el_evento_se_pierde_si_no_hay_nadie_escuchando` obliga a revisar al aparecer un suscriptor |
 | **R-04** | **`GET /metricas` dejaría de significar lo que dice** con más de un proceso: la ventana es por proceso y no agregable | Hoy: 1 proceso | Medio: se decide con esas cifras, incluida la de no cachear | Ninguna automática. Declarado en [§8.6](#consistencia) |
 | **R-05** | **Un proceso por servicio, sin redundancia.** `restart: unless-stopped` recupera, pero no evita la caída | 1 réplica de cada uno | Medio: la cuota de 4 contenedores impide duplicar | `GET /health` y el chequeo del compose |
@@ -1944,19 +2062,23 @@ solo se vigila leyendo esta tabla se hereda sin revisarse.
 
 #### R-01 y R-02 en detalle, que son los dos que tienen número
 
-**R-01.** [ESC-03](#esc-03) concede 10 segundos desde que un pedido se paga hasta
-que el encargado lo ha visualizado y cambiado de estado. El estímulo es *recibir
-un pedido pagado* y la respuesta incluye *visualizarlo*, así que el tiempo que la
-cola tarda en mostrarlo cuenta dentro del plazo. Con el sondeo en 8000 ms quedan
-2 segundos para que una persona vea el pedido y pulse.
+**R-01, cerrado, y vale como ejemplo de para qué sirve medir.** La S12 lo
+encontró cruzando dos documentos: [ESC-03](#esc-03) concede 10 segundos desde que
+un pedido se paga hasta que el encargado lo ha visualizado y cambiado de estado,
+y el sondeo del panel se comía 8 de ellos. Se dejó anotado con una estimación de
+2 segundos para la persona y se aplazó la decisión, porque bajar el intervalo
+cambia el comportamiento en producción.
 
-Lo que hacía el riesgo peligroso no era el número sino **que no estuviera
-escrito**: la constante citaba ESC-03 por las «3 interacciones», no por los 10
-segundos. Subirla para aliviar carga era un cambio de una línea sin error
-visible. Bajarla crearía margen, pero multiplica las peticiones de cada panel
-abierto, y eso es una decisión de producto que se toma con el número delante
-—está en [ADR-0010](../adr/0010-notificar-al-panel-por-sondeo.md)— no una
-corrección que se cuele en un arreglo de documentación.
+La S14 lo midió entero —red, servidor y sondeo— y el número desmontó la
+estimación: quedaban **1,68 s**, no 2. Con una reacción realista en hora pico el
+escenario **se incumplía** en el peor caso, y lo hacía sin que nada fallara: el
+pedido simplemente aparecía tarde.
+
+Eso convirtió una preferencia en un defecto, y con ello la decisión dejó de ser
+discutible. Se bajó el sondeo a 5 000 ms —4,68 s para la persona, 46 s de CPU
+por turno y panel— y la medición quedó ejecutable en `medir_esc03.py`, que
+devuelve código de error si el umbral deja de cumplirse. El detalle está en
+[§10.7](#evaluacion).
 
 **R-02.** [ADR-0007](../adr/0007-autenticacion-del-panel.md) eligió los
 parámetros de scrypt (N=2¹⁴, r=8, p=1) midiendo **100 ms de mediana en el

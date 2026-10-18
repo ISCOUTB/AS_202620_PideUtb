@@ -56,6 +56,9 @@ escrito— en [`docs/evidencia-s12.md`](docs/evidencia-s12.md).
 La de la semana 13 —modelo STRIDE, y dos defensas correctas que juntas dejan
 tumbar el servicio con catorce peticiones por segundo— en
 [`docs/evidencia-s13.md`](docs/evidencia-s13.md).
+La de la semana 14 —la evaluación contra los umbrales, donde medir convirtió una
+preferencia en un defecto: ESC-03 no se cumplía— en
+[`docs/evidencia-s14.md`](docs/evidencia-s14.md).
 
 **Ya no hay arranque en frío.** El despliegue anterior dormía el servicio tras
 15 minutos sin tráfico y tardaba 42,4 s en volver, lo que incumplía

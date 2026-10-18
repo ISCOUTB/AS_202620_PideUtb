@@ -36,9 +36,32 @@ PRESUPUESTO_ESC_03_MS = 10_000
 
 #: Lo que se reserva para la persona: ver el pedido nuevo y pulsar.
 #:
-#: Dos segundos es generoso para un clic y escaso para una cocina en hora pico.
-#: Se elige explícito para que el margen sea discutible en vez de implícito.
-MARGEN_HUMANO_MS = 2_000
+#: Estuvo en 2 000 hasta la S14. La medición de la cadena completa mostró que
+#: ese valor dejaba al escenario cumpliéndose solo con una reacción de 1,68 s
+#: mientras se cocina, que no es realista. Cuatro segundos es generoso y sigue
+#: siendo explícito: el margen se discute cambiando esta constante, no
+#: descubriéndolo en producción.
+MARGEN_HUMANO_MS = 4_000
+
+#: Lo que cuestan la red y el servidor en la cadena de ESC-03, medido.
+#:
+#: Dos idas y vueltas —leer la cola y cambiar el estado— más el tiempo de
+#: servidor de las dos operaciones:
+#:
+#:   red          2 × 150,8 ms  · conexión reutilizada, contra el despliegue
+#:   servidor      7,96 + 10,70 · p95 con PostgreSQL y 10 pedidos en cola
+#:
+#: Se vuelve a medir con `backend/scripts/medir_esc03.py`. Está aquí como
+#: constante y no como medición en vivo porque una prueba que depende de la red
+#: falla por motivos que no son el defecto que busca.
+COSTO_RED_Y_SERVIDOR_MS = 321
+
+#: Cuánta holgura se admite por debajo de lo que el presupuesto permite.
+#:
+#: Un segundo. Sondear más a menudo de lo necesario no mejora ESC-03 y sí
+#: multiplica las peticiones de cada panel abierto, así que el valor elegido
+#: debe ser el más largo que cabe — no el más corto que se nos ocurra.
+HOLGURA_MAXIMA_MS = 1_000
 
 # ---------------------------------------------------------------------------
 # Rastros de la plataforma anterior
@@ -113,32 +136,43 @@ def test_el_refresco_del_panel_cabe_en_el_presupuesto_de_esc_03():
     «aparecen tarde».
     """
     intervalo = _constante("panel.js", "MS_ENTRE_REFRESCOS")
-    disponible = PRESUPUESTO_ESC_03_MS - MARGEN_HUMANO_MS
+    disponible = PRESUPUESTO_ESC_03_MS - MARGEN_HUMANO_MS - COSTO_RED_Y_SERVIDOR_MS
 
     assert intervalo <= disponible, (
-        f"MS_ENTRE_REFRESCOS = {intervalo} ms deja solo "
-        f"{PRESUPUESTO_ESC_03_MS - intervalo} ms para que una persona vea el "
-        f"pedido y pulse. ESC-03 (arc42 §10.4) concede "
-        f"{PRESUPUESTO_ESC_03_MS} ms en total desde que el pedido se paga."
+        f"MS_ENTRE_REFRESCOS = {intervalo} ms deja "
+        f"{PRESUPUESTO_ESC_03_MS - intervalo - COSTO_RED_Y_SERVIDOR_MS} ms para "
+        f"que una persona vea el pedido y pulse, y hacen falta "
+        f"{MARGEN_HUMANO_MS}. ESC-03 (arc42 §10.4) concede "
+        f"{PRESUPUESTO_ESC_03_MS} ms en total desde que el pedido se paga, de "
+        f"los que {COSTO_RED_Y_SERVIDOR_MS} se van en red y servidor."
     )
 
 
-def test_el_margen_de_esc_03_esta_agotado_y_eso_consta():
-    """Hoy el intervalo está **exactamente** en el límite, y es el hallazgo.
+def test_el_refresco_es_el_mas_largo_que_cabe_en_el_presupuesto():
+    """La otra mitad: sondear más a menudo de lo necesario también es un defecto.
 
-    No es redundante con la anterior: esa impide empeorar, esta documenta que no
-    hay hacia dónde empeorar. Si alguien baja el intervalo y crea margen, esta
-    prueba falla y obliga a venir a retirar el riesgo R-01 de arc42 §11.
+    La prueba anterior impide que el intervalo crezca y rompa ESC-03. Esta
+    impide que se encoja sin motivo: cada sondeo es una petición por panel
+    abierto, y bajarlo «por si acaso» multiplica el tráfico sin mejorar nada que
+    el escenario mida.
 
-    Se escribe así a propósito. Un riesgo que se resuelve y nadie borra de la
-    documentación es la otra mitad del problema que esta suite ataca.
+    Juntas dicen que el valor está **elegido** y no heredado: es el más largo
+    que cabe en el presupuesto, con una holgura declarada.
+
+    Esta prueba nació fallando. En la S12 afirmaba que el margen estaba agotado,
+    para que crear margen obligase a volver a mirar el riesgo R-01; la medición
+    de la S14 lo creó, la prueba falló como estaba previsto, y esto es el
+    resultado de haber vuelto.
     """
     intervalo = _constante("panel.js", "MS_ENTRE_REFRESCOS")
+    disponible = PRESUPUESTO_ESC_03_MS - MARGEN_HUMANO_MS - COSTO_RED_Y_SERVIDOR_MS
 
-    assert intervalo == PRESUPUESTO_ESC_03_MS - MARGEN_HUMANO_MS, (
-        f"MS_ENTRE_REFRESCOS = {intervalo} ms ya no agota el presupuesto de "
-        "ESC-03. Si se bajó a propósito, el riesgo R-01 de arc42 §11 hay que "
-        "actualizarlo o retirarlo."
+    assert intervalo >= disponible - HOLGURA_MAXIMA_MS, (
+        f"MS_ENTRE_REFRESCOS = {intervalo} ms deja "
+        f"{disponible - intervalo} ms de holgura sobre lo que ESC-03 necesita, "
+        f"y el máximo aceptado es {HOLGURA_MAXIMA_MS}. Sondear más a menudo "
+        "cuesta peticiones y no mejora ningún umbral: si hay un motivo nuevo "
+        "para bajarlo, va escrito aquí y en `panel.js`."
     )
 
 
