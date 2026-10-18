@@ -6,19 +6,19 @@
 // tiene que viajar en un archivo.
 
 const CONFIG = {
-  // **Una ruta, no un host.** El sitio y la API se publican bajo el mismo
-  // dominio —`pideutb.iscoutb.dev`— y el proxy del laboratorio enruta `/api`
-  // hacia el contenedor de la API.
+  // **Un host aparte, no una ruta**, y no por gusto.
   //
-  // Que sean el mismo origen no es un detalle de despliegue: hace que las
-  // peticiones del panel dejen de ser peticiones entre orígenes, y con ellas
-  // desaparece toda una clase de fallo. Esta misma semana una configuración de
-  // CORS incompleta dejó el panel roto en el navegador con 250 pruebas en
-  // verde, porque el cliente de pruebas no hace *preflight*.
+  // La primera versión publicaba la API bajo `/api` del mismo dominio, para que
+  // sitio y API compartieran origen y CORS dejara de existir como clase de
+  // problema. En el servidor del laboratorio eso **no funciona**: dos dominios
+  // con el mismo Host colisionan al crear el router de Traefik y solo sobrevive
+  // uno. Comprobado contra el despliegue, y confirmado por la app de referencia
+  // del propio laboratorio, que separa igual (`api-capstonehub.iscoutb.dev`).
   //
-  // La alternativa evaluada era un host aparte (`api-pideutb.iscoutb.dev`), que
-  // mantendría la separación visual a cambio de conservar CORS. Ver ADR-0008.
-  API_PRODUCCION: "/api",
+  // El costo es que CORS vuelve a importar. Ya está implementado y probado
+  // (`test_cors.py`), así que no es trabajo nuevo — pero sí una superficie de
+  // error que el origen único habría eliminado. Ver ADR-0008.
+  API_PRODUCCION: "https://api-pideutb.iscoutb.dev",
 
   API_LOCAL: "http://127.0.0.1:8000",
 

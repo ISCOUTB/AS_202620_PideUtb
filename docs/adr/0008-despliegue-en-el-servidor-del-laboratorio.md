@@ -91,35 +91,66 @@ no cubre son las cuentas del personal, que hay que volver a crear con
 apuntarla de nuevo a Supabase es cambiar una variable en el panel. Esa
 reversibilidad es parte de por qué la decisión se puede tomar ahora.
 
-### 3 · El sitio y la API comparten origen: la API se publica bajo `/api`
+### 3 · El sitio y la API en hosts distintos
 
-La alternativa evaluada era un host aparte, `api-pideutb.iscoutb.dev`.
+`pideutb.iscoutb.dev` para el sitio y `api-pideutb.iscoutb.dev` para la API.
 
-| | Un solo origen (`/api`) | Host aparte |
+**No es la decisión que se tomó primero.** Se intentó el origen único —API bajo
+`/api` del mismo dominio— y la plataforma no lo soporta. Queda escrito entero
+porque el razonamiento sigue siendo correcto y el día que se despliegue en otro
+sitio vuelve a estar sobre la mesa.
+
+| | Un solo origen (`/api`) | Host aparte (lo que se hizo) |
 |---|---|---|
-| CORS | **Desaparece** | Hay que mantenerlo correcto |
+| CORS | Desaparece | **Hay que mantenerlo correcto** |
 | Cookies `HttpOnly` entre sitio y API | Viables | Exigen `SameSite=None` y defensa CSRF |
-| Separación visual | Menor | Mayor |
-| Configuración | `--root-path /api` y recorte de prefijo en el proxy | Ninguna |
+| Configuración | `--root-path /api` y recorte de prefijo | Ninguna |
+| **Funciona en este laboratorio** | **No** | **Sí** |
 
-**Decidió la primera fila.** Esta misma semana, una configuración de CORS
-incompleta dejó el panel **roto en el navegador con 250 pruebas en verde**: el
-cliente de pruebas no hace *preflight*, así que la suite no podía verlo. Una
-clase de fallo que no se puede eliminar con más pruebas se elimina mejor
-quitando la condición que la hace posible.
+**Se decidió por la primera fila, y la plataforma no lo permitió.**
 
-El coste es `--root-path /api`, que es una línea en el arranque.
+El razonamiento era bueno: esta misma semana una configuración de CORS
+incompleta dejó el panel **roto en el navegador con 250 pruebas en verde** —el
+cliente de pruebas no hace *preflight*, así que la suite no podía verlo—, y una
+clase de fallo que no se elimina con más pruebas se elimina mejor quitando la
+condición que la hace posible.
 
-**Y esto dispara una condición ya escrita.**
-[V-12](../violaciones.md#v-12) aceptó guardar el token en `sessionStorage`
-—expuesto a XSS— porque la cookie `HttpOnly` habría exigido `SameSite=None`,
-CORS con credenciales y protección CSRF. Entre las tres condiciones que
-invalidarían esa aceptación está, literalmente: *«el sitio y la API pasan a
-compartir origen»*.
+#### Por qué se revirtió
 
-Acaba de pasar. **V-12 queda abierta para reconsiderar en S13**, no cerrada ni
-silenciada: cambiar el mecanismo de sesión es una decisión de seguridad propia y
-no un efecto colateral de una migración de despliegue.
+**Dos dominios con el mismo Host no funcionan en este Dokploy.** Configuradas
+las dos entradas —`/` hacia `web` y `/api` hacia `api`—, solo una llega a
+existir como router en Traefik: el nombre del router se deriva del host, y la
+segunda pisa a la primera. Observado contra el despliegue real: `/api/health`
+respondía `200` mientras `/` daba el `404 page not found` de Traefik, con nginx
+arrancado y el contenedor recreado.
+
+Lo confirma la aplicación de referencia del propio laboratorio, que separa por
+nombre y no por ruta: `capstonehub.iscoutb.dev` y
+**`api-capstonehub.iscoutb.dev`**.
+
+Se evaluó una tercera vía antes de ceder: que **nginx hiciera de proxy** de
+`/api` hacia el contenedor de la API, conservando el origen único con un solo
+router. Se descartó por un filo operativo concreto — nginx resuelve el nombre
+del contenedor **una vez al arrancar** y cachea la IP, así que un reinicio de la
+API la dejaría inalcanzable hasta recargar nginx. Evitarlo exige `resolver` y
+variables, es decir más configuración de nginx, que es justo lo que menos se
+puede verificar aquí.
+
+#### Lo que cuesta la reversión
+
+**CORS vuelve a importar.** Ya está implementado y probado (`test_cors.py`
+comprueba las dos mitades: que permite lo que el panel necesita y que niega un
+origen cualquiera), así que no es trabajo nuevo — pero sí una superficie de
+error que el origen único habría eliminado del todo. Queda como riesgo
+conocido, no como descuido.
+
+**Y la condición de [V-12](../violaciones.md#v-12) no se dispara.** Una versión
+anterior de este ADR decía que sí, porque entre las tres cosas que invalidarían
+guardar el token en `sessionStorage` está «el sitio y la API pasan a compartir
+origen». No comparten: siguen en orígenes distintos, así que el intercambio que
+V-12 razonó sigue valiendo tal cual y la cookie `HttpOnly` seguiría exigiendo
+`SameSite=None` y defensa CSRF. **V-12 continúa aceptada con sus condiciones
+intactas**, y lo que cambia es solo que una de ellas estuvo a punto de cumplirse.
 
 ## Consecuencias
 

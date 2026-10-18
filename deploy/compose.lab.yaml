@@ -51,15 +51,15 @@ services:
       # evento en vez de verificar firmas contra una cadena conocida (V-11).
       PIDEUTB_SECRETO_PASARELA: ${PIDEUTB_SECRETO_PASARELA}
 
-      # El sitio y la API comparten origen, así que en la práctica no hay
-      # peticiones entre orígenes que autorizar. Se declara igual: el día que
-      # alguien sirva el panel desde otro sitio, esta lista es la que decide, y
-      # una lista vacía falla cerrado.
+      # El sitio vive en otro host, así que **toda** llamada del panel es una
+      # petición entre orígenes y esta lista es la que decide si pasa. No es
+      # decorativa: una lista equivocada deja el panel roto en el navegador con
+      # la suite entera en verde, porque el cliente de pruebas no hace
+      # *preflight*. Ya ocurrió una vez.
       PIDEUTB_ORIGENES_PERMITIDOS: https://pideutb.iscoutb.dev
 
-      # La API se publica bajo `/api` y el proxy recorta ese prefijo. Sin esto,
-      # `/api/docs` genera sus enlaces a `/docs` y la documentación queda rota.
-      PIDEUTB_ROOT_PATH: /api
+      # Sin `PIDEUTB_ROOT_PATH`: la API se sirve en la raíz de su propio host,
+      # no bajo un prefijo que alguien recorte.
 
       # Primera cuenta del panel, y **solo** si la tabla está vacía.
       #
