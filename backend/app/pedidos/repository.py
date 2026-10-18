@@ -166,6 +166,24 @@ def buscar_por_id(pedido_id: int) -> Pedido | None:
     return None if fila is None else _desde_fila(fila)
 
 
+def buscar_ids_pagados() -> list[int]:
+    """Identificadores de los pedidos en estado `pagado`.
+
+    Lo usa la conciliación de `pagos.service` para detectar intentos que
+    quedaron descolgados. Devuelve solo identificadores y no pedidos enteros
+    porque es lo único que hace falta: quien pregunta va a cruzarlos con otra
+    tabla, no a mostrarlos.
+    """
+    if not base_de_datos.hay_base_de_datos():
+        return sorted(
+            p.id for p in _PEDIDOS.values() if p.estado is EstadoPedido.PAGADO
+        )
+
+    with base_de_datos.conexion() as conn, conn.cursor() as cur:
+        cur.execute("SELECT id FROM pedidos WHERE estado = 'pagado' ORDER BY id")
+        return [fila[0] for fila in cur.fetchall()]
+
+
 def buscar_por_establecimiento(establecimiento_id: int) -> list[Pedido]:
     """Pedidos de un establecimiento, del más reciente al más antiguo.
 

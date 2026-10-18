@@ -191,6 +191,16 @@ TRANSICIONES_DEL_MOSTRADOR: dict[EstadoPedido, frozenset[EstadoPedido]] = {
 }
 
 
+def ids_pagados() -> list[int]:
+    """Los pedidos que están pagados, por identificador.
+
+    Es la puerta por la que Pagos puede preguntar sin leer la tabla de Pedidos:
+    [ADR-0001](../../../docs/adr/0001-estilo-arquitectonico.md) permite llamar a
+    la función pública de otro contexto y prohíbe tocar su almacenamiento.
+    """
+    return repository.buscar_ids_pagados()
+
+
 def listar_por_establecimiento(establecimiento_id: int) -> list[PedidoPublicado]:
     """Pedidos de un establecimiento, para el panel del mostrador.
 

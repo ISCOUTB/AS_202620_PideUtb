@@ -690,6 +690,150 @@ pagado ni que haya fallado. Es la degradación aceptada a cambio del
 desacoplamiento, y es preferible a un estado desconocido porque se puede
 consultar y se puede reintentar.
 
+<a id="fallos-parciales"></a>
+
+### 6.7 Fallos parciales de las integraciones
+
+§6.5 lista los fallos **del otro extremo**: la pasarela rechaza, el evento no
+llega, llega repetido. El sistema los ve como respuestas y decide.
+
+Esta sección lista los otros: los que ocurren **a mitad de una operación
+nuestra**, cuando una parte se escribió y la otra no. No los causa nadie de
+fuera; los causa que el sistema esté hecho de piezas que pueden fallar por
+separado.
+
+La diferencia práctica, y es la que importa: **estos no se ven desde fuera**.
+Nadie recibe un error. El pedido queda pagado, el cliente se lleva su comida, y
+la contabilidad dice otra cosa. Por eso la columna que vale no es «qué ve el
+usuario» sino **qué lo hace visible**.
+
+#### Las fronteras que de verdad existen
+
+Antes de analizar fallos conviene decir qué se puede romper, porque el inventario
+corriente está mal:
+
+| Frontera | ¿Cruza la red? | Estado |
+|---|---|---|
+| Navegador → sitio | Sí | HTTPS por el proxy del laboratorio |
+| Navegador → API | Sí | Otro origen: depende de CORS |
+| API → base de datos | **No.** Contenedor vecino, ~1 ms | Desde [ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md) |
+| Pasarela → API (webhook) | Sí, **entrante** | Al-menos-una-vez, firmado |
+| **API → pasarela** | **No existe** | Ver abajo |
+
+**La llamada saliente a la pasarela no existe.** `pagos.service.iniciar_intento`
+guarda una fila y construye una URL con una constante; nada contacta a Wompi. El
+usuario va a esa URL con su navegador, y la pasarela vuelve por el webhook.
+
+Eso tiene una consecuencia directa sobre lo que S11 pide: **no hay ninguna
+integración saliente a la que aplicar reintentos con backoff**. Implementarlos
+exigiría primero inventar la llamada. Queda dicho aquí porque la alternativa
+—una sección sobre backoff que no se aplica a nada— sería peor que su ausencia.
+
+#### La tabla
+
+| # | Fallo parcial | Qué queda roto | Mitigación | Qué lo hace visible |
+|---|---|---|---|---|
+| 1 | **Corte entre las dos escrituras de `procesar_evento`** | Pedido `pagado` con su código; intento todavía `pendiente` | El orden **falla hacia el cliente**, y el reintento de la pasarela lo cierra | `pagos.service.conciliar()` · `test_fallos_parciales.py` (4 casos) |
+| 2 | El evento en proceso se pierde tras el commit | Un suscriptor no se entera del pago | Se publica **después** de persistir: lo peor es no enterarse, no un hecho falso | `test_el_evento_se_publica_despues_de_persistir` |
+| 3 | Un suscriptor revienta | Nada: el cobro ya ocurrió | Aislamiento en `eventos.publicar` | `test_un_suscriptor_que_revienta_no_arrastra_a_los_demas` |
+| 4 | La base de datos no responde | Ninguna operación funciona, **ni ingresar al panel** | `/health` devuelve `503` y la plataforma marca el contenedor enfermo | `test_health.py` · panel del laboratorio |
+| 5 | El contenedor de la API se reinicia a media petición | Esa petición se pierde; el estado está en la base, no en memoria | Sin estado en proceso desde [V-09](../violaciones.md) | `test_repositorios.py` — las mismas aserciones contra ambas implementaciones |
+| 6 | **Se pierde el volumen de datos** | Todo: pedidos, pagos y cuentas | Migraciones y semilla al arrancar; la cuenta inicial se siembra | `test_autenticacion.py::test_el_guion_de_alta_funciona_de_principio_a_fin` |
+| 7 | **El proxy no enruta hacia un contenedor** | El servicio corre y responde `404` desde fuera | La plataforma solo enruta hacia contenedores sanos | §7.5, y el chequeo de salud de cada servicio |
+| 8 | Despliegue mientras hay tráfico | Peticiones en vuelo cortadas | `depends_on: service_healthy` y arranque con migraciones antes de escuchar | `deploy/compose.lab.yaml` |
+| 9 | **Un proxy que no controlamos rechaza al cliente del webhook** | El aviso de pago nunca llega al servidor | Ninguna nuestra: el filtro está delante. El pedido queda en `pendiente_pago`, que es consultable | Medido en [§7.2](#despliegue-topologia): `Python-urllib` recibe `403` antes de entrar |
+
+#### El número 9 no se puede mitigar, solo saber
+
+Los ocho primeros son fallos del sistema, y cada uno tiene algo que hacer. El
+noveno no: **ocurre antes de que la petición exista para nosotros**.
+
+Cloudflare rechaza con `403` a los clientes que identifica como automatismos.
+Medido con una sola petición —no es cuestión de ritmo— un cliente que se
+anuncie como `Python-urllib/3.13` recibe `403` tanto en `GET /health` como en
+`POST /v1/pagos/eventos`, mientras que `python-requests`, `Go-http-client` y un
+navegador entran y reciben el `401` que les corresponde por firma inválida.
+
+**La consecuencia es la que importa.** Si la pasarela —o cualquier integrador
+futuro— usara un cliente con un agente filtrado, sus avisos de pago no llegarían
+nunca, y desde aquí sería **indistinguible** de «el evento no llegó»: el pedido
+quedaría en `pendiente_pago`, correctamente, y nadie sabría por qué.
+
+La mitigación de ese estado ya existe (§6.5, fila cuarta) y es la razón por la
+que esto no es una catástrofe: el pedido se queda en un estado honesto y
+consultable, no en uno desconocido. Pero la **causa** era invisible, y un modo de
+fallo cuya causa no se puede nombrar no se puede diagnosticar.
+
+Queda aquí por eso: no para arreglarlo —no está a nuestro alcance— sino para que
+la próxima vez que un pago «no llegue» exista esta fila que mirar.
+
+#### El número 1, en detalle
+
+Es el único que no se arregla con una decisión ya tomada, así que se explica
+entero.
+
+```python
+pedido, ya_estaba_pagado = pedidos_service.confirmar_pago(intento.pedido_id)
+repository.guardar(intento.model_copy(update={"estado_pago": APROBADO}))
+```
+
+Cada `repository` abre su propia conexión y **confirma al salir**: son dos
+transacciones, no una. Entre ellas hay una ventana.
+
+**El orden está elegido.** Un corte deja a quien pagó con su código en la mano y
+a nosotros con la contabilidad desactualizada. Al revés —marcar el intento
+primero— dejaría a quien pagó **sin código**, que es el fallo que sí se nota y
+el que no se repara solo. Fallar hacia el cliente es la decisión.
+
+**Se cierra solo, casi siempre.** La pasarela entrega al-menos-una-vez: si no
+recibe `2xx`, reintenta, y el reintento rehace las dos escrituras —
+`confirmar_pago` es idempotente y el intento sí llega a marcarse. La ventana es
+transitoria *mientras el otro extremo reintente*. Si se rinde, queda abierta.
+
+**Las cuatro opciones que se evaluaron:**
+
+| Opción | Por qué no |
+|---|---|
+| Una sola transacción compartida | Exige que Pagos pase su conexión a Pedidos. Rompe [ADR-0001](../adr/0001-estilo-arquitectonico.md) en la capa de datos, que es donde más cuesta revertirlo |
+| Invertir el orden | Cambia de sitio el daño y lo empeora: el cliente se queda sin código |
+| Una saga con compensación | **No aplica.** Una saga coordina escrituras en sistemas distintos, donde no hay transacción común. Aquí las dos van a la misma base: no falta un coordinador, falta una transacción |
+| Un *outbox* | Resuelve la pérdida de mensajes, que es el fallo 2, no este |
+
+**Lo que se hizo:** conservar la frontera entre contextos y **hacer la ventana
+visible**. `pagos.service.conciliar()` devuelve las referencias cuyo pedido está
+pagado y cuyo intento sigue pendiente. En un sistema sano la lista está vacía, y
+hay una prueba que lo comprueba — sin ella, una conciliación rota devolvería
+siempre vacío y pasaría por un sistema impecable.
+
+Un desajuste que nadie puede enumerar es indistinguible de no tenerlo.
+
+#### Por qué no hay outbox
+
+El canal `pedidos-pagados` está declarado en
+[`asyncapi.yaml`](../api/asyncapi.yaml), se publica desde `pedidos.service` y
+**no tiene ningún suscriptor en producción**. Los únicos `suscribir()` del
+repositorio están en las pruebas.
+
+Un mecanismo para no perder mensajes que nadie recibe resolvería un problema que
+no se tiene. La decisión queda atada a una prueba —
+`test_el_evento_se_pierde_si_no_hay_nadie_escuchando`— que **falla el día que
+aparezca un suscriptor**, y obliga entonces a revisar esto en vez de heredarlo.
+
+#### La frontera que las pruebas no cubren
+
+Hay una novena fila que no está en la tabla porque no es una integración del
+sistema, sino de su despliegue: **la configuración**.
+
+La puesta en marcha en el servidor del laboratorio encontró **cinco defectos que
+las 282 pruebas no podían ver** — CORS sin `Authorization`, `log_format` en el
+contexto equivocado de nginx, `add_header` sin heredar, `wget --tries` en un
+chequeo de Alpine, y un guion que reventaba tras escribir. Ninguno en código;
+todos en los archivos que unen las piezas.
+
+El patrón es el mismo en los cinco: **la prueba y el entorno real no recorren el
+mismo camino**. `TestClient` no hace *preflight*, pytest no arranca nginx, y
+nadie ejecutaba el guion. Está en [§7.6](#despliegue-deuda) con su mitigación.
+
 ### 6.6 Deuda conocida de esta vista
 
 - El canal `pedidos-pagados` se entrega **en proceso** y no sobrevive a un
@@ -758,7 +902,8 @@ Tampoco hay pieza de **archivos**: no se suben imágenes ni documentos.
         │  HTTPS
         ▼
   ┌─────────────────────────────────────────────────────────────┐
-  │  Cloudflare DNS  ·  *.iscoutb.dev                           │
+  │  Cloudflare  ·  *.iscoutb.dev                               │
+  │  **Proxy, no solo DNS**: termina TLS y filtra automatismos  │
   └───────────────────────────┬─────────────────────────────────┘
                               │
   ┌───────────────────────────▼─────────────────────────────────┐
@@ -798,6 +943,29 @@ Tres cosas que esta vista hace visibles y las anteriores no:
   lo que la hace inalcanzable desde Internet, y también lo que obliga a sembrar
   la primera cuenta del panel desde el arranque
   ([ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md)).
+- **Hay un filtro de automatismos delante de todo, y no es nuestro.**
+  Cloudflare no solo resuelve el nombre: **procesa el tráfico**. Las respuestas
+  llevan sus cabeceras (`Server: cloudflare`, `cf-cache-status`), y rechaza
+  ciertos clientes antes de que lleguen al servidor. Medido:
+
+  | Cliente | `GET /health` | `POST /v1/pagos/eventos` |
+  |---|---|---|
+  | `Python-urllib/3.13` | **403** | **403** |
+  | `python-requests/2.31.0` | 200 | 401 |
+  | `Go-http-client/2.0` | 200 | 401 |
+  | navegador | 200 | 401 |
+
+  No es por ritmo: **una sola petición** con ese agente basta. Está en esta
+  vista porque tiene una consecuencia que ningún diagrama anterior dejaba ver:
+  el webhook es la única ruta por la que **un tercero tiene que alcanzarnos**, y
+  hay un filtro en medio que no controlamos ni configuramos. Ver el fallo 9 de
+  [§6.7](#fallos-parciales).
+
+  *(La documentación de la plataforma describe este registro como «DNS only».
+  Lo medido dice que el tráfico sí pasa por el proxy. Se consigna lo observado,
+  no para contradecir a nadie sino porque el análisis de fallos depende de cuál
+  de las dos cosas sea cierta.)*
+
 - **Sitio y API siguen siendo dos orígenes distintos**, ahora dos subdominios.
   Por eso hace falta CORS (`app/main.py`), con la lista de orígenes por variable
   de entorno y nunca `*`. Se intentó unificarlos bajo un solo host para eliminar
@@ -1003,6 +1171,83 @@ usuario nuevo entienda qué pasó y corrija sin ayuda, que es la medida de
 
 ------------------------------------------------------------------------
 
+<a id="idempotencia"></a>
+
+### 8.5 Idempotencia
+
+Es un concepto transversal y no un detalle de `pagos` porque **lo impone el
+contrato, no la implementación**: `asyncapi.yaml` declara que el canal de la
+pasarela entrega **al-menos-una-vez**, y una entrega al-menos-una-vez
+convierte «el mismo aviso llegará repetido» en una certeza, no en un riesgo.
+
+Un sistema que no lo asume genera dos códigos de canje para un pedido, o dos
+cobros para una compra.
+
+#### Los tres mecanismos, y qué garantiza cada uno
+
+| # | Dónde | Clave de idempotencia | Mecanismo | Qué pasa al repetir |
+|---|---|---|---|---|
+| 1 | `pedidos.confirmar_pago` | `pedido_id` | `UPDATE ... WHERE estado = 'pendiente_pago'` | La segunda no encuentra fila; devuelve `ya_estaba_pagado = True` |
+| 2 | `pagos.procesar_evento` | `referencia_pago` | La referencia la generamos nosotros y se busca antes de actuar | Responde `202` con `duplicado: true` |
+| 3 | `pagos.iniciar_intento` | `pedido_id` | Devuelve el intento pendiente existente en vez de abrir otro | El usuario vuelve al mismo `url_checkout` |
+
+#### El primero es el que sostiene a los otros dos
+
+```python
+confirmado = repository.marcar_pagado(pedido_id, _generar_codigo_canje())
+if confirmado is None:
+    return _publicar(repository.buscar_por_id(pedido_id)), True
+```
+
+La condición **viaja dentro del `UPDATE`**, no en un `if` previo. La diferencia
+no es de estilo:
+
+Con leer–decidir–escribir, dos avisos del mismo pago que lleguen a la vez a dos
+trabajadores distintos **ven los dos «pendiente»** y los dos generan código. El
+resultado son dos códigos válidos para un pedido, y el segundo sobrescribe al
+primero — de modo que el cliente que ya vio el suyo en pantalla se queda con uno
+que no sirve.
+
+Con la condición dentro del `UPDATE`, PostgreSQL serializa: la segunda
+actualización no encuentra fila que cumplir y devuelve `None`. **La base de
+datos es el árbitro**, y no hace falta coordinación entre procesos.
+
+Está probado en las dos implementaciones del repositorio
+(`test_marcar_pagado_dos_veces_devuelve_none_la_segunda`), lo que importa porque
+la de memoria podría cumplirlo por casualidad y la de PostgreSQL es la que corre
+en producción.
+
+#### Lo que *no* es idempotente, a propósito
+
+`pedidos.avanzar_estado` **no lo es**: repetir una transición devuelve `409`.
+
+Es deliberado. Esa operación la dispara una persona pulsando un botón, no un
+sistema reintentando, y en ese contexto el `409` es información útil — significa
+«otra persona ya movió este pedido», que es justo lo que quien atiende necesita
+saber. Hacerla idempotente convertiría un aviso útil en silencio.
+
+La regla general que se sigue: **idempotente donde la entrega es
+al-menos-una-vez; explícito donde hay alguien mirando.**
+
+#### Por qué no hay saga
+
+Una saga coordina una secuencia de escrituras en **sistemas distintos**, donde
+no existe una transacción común, y compensa las ya hechas cuando una falla.
+
+En este sistema no hay tal cosa. Las escrituras de un cobro van todas a la misma
+base de datos: `pedidos` y `pagos_intentos` son dos tablas del mismo PostgreSQL.
+Cuando una secuencia queda a medias —y
+[§6.7](#fallos-parciales) documenta que puede— **no falta un coordinador: falta
+una transacción**. Llamarlo saga sería ponerle un nombre grande a un problema
+local, y además uno que sugiere una solución desproporcionada.
+
+Lo que haría falta una saga es que algún contexto se extrajera a un servicio
+propio con su propia base. Esa decisión está evaluada y descartada en
+[ADR-0009](../adr/0009-no-extraer-un-servicio.md), que incluye lo que costaría
+—entre otras cosas, exactamente esto— si algún día se toma.
+
+---
+
 ## 9. Decisiones de arquitectura
 
 Las decisiones arquitectónicas relevantes se documentan como ADRs en
@@ -1024,6 +1269,7 @@ arquitectura sin abrir nada.
 | [ADR-0006](../adr/0006-componente-generativo.md) | No incorporar un componente generativo, y dejar escrito qué lo cambiaría | [ESC-02](#esc-02) | Aceptada |
 | [ADR-0007](../adr/0007-autenticacion-del-panel.md) | Autenticar el panel con sesiones propias en lugar de Supabase Auth | [ESC-04](#esc-04) | Aceptada |
 | [ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md) | Desplegar en el servidor del laboratorio, con la base de datos dentro del despliegue y bajo un solo origen | [ESC-03](#esc-03) | Aceptada — reemplaza a ADR-0004 |
+| [ADR-0009](../adr/0009-no-extraer-un-servicio.md) | No extraer ningún módulo a un servicio independiente, y dejar escrito qué lo cambiaría | [ESC-02](#esc-02) | Aceptada |
 
 *(Este índice se amplía en cada entrega a medida que surgen nuevas
 decisiones — por ejemplo, la forma de validar el código de canje en el punto de
