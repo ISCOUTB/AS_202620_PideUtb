@@ -45,13 +45,14 @@ ORIGENES_PERMITIDOS = [
 async def ciclo_de_vida(_: FastAPI):
     """Abre el pool al arrancar y lo cierra al apagar.
 
-    Conectar aquí y no en la primera petición evita sumar dos esperas al mismo
-    usuario: con un plan que duerme el servicio, la primera petición de cada
-    pico ya paga el arranque en frío, y pagar además el establecimiento de las
-    conexiones la dejaría esperando el doble.
+    Conectar aquí y no en la primera petición pone el costo en el arranque, que
+    es tiempo que el orquestador ya concede, en lugar de dentro de la petición
+    de alguien. El motivo original era otro —el arranque en frío del proveedor
+    anterior— y desapareció con ADR-0008; la razón que queda no depende de él.
 
-    Cerrarlo al apagar no es cortesía: la capa gratuita de Supabase concede
-    pocas conexiones simultáneas para todo el proyecto, y un despliegue que deja
+    Cerrarlo al apagar no es cortesía: PostgreSQL corre con `max_connections=30`
+    en un contenedor de 160 MB, porque cada conexión reserva memoria aunque esté
+    ociosa (`deploy/compose.lab.yaml`), y un despliegue que deja
     las suyas colgando se las quita al siguiente.
     """
     base_de_datos.abrir_pool()
@@ -174,7 +175,8 @@ def metricas() -> Metricas:
     qué comer, que no ocurre en el servidor. Mide **la parte del presupuesto que
     el servidor sí controla**, en `p95_ms` de `POST /v1/pedidos`. Sirve para
     distinguir un escenario incumplido por lentitud del backend de uno
-    incumplido por el arranque en frío o por el usuario.
+    incumplido fuera de él: la red, el proxy que termina TLS o el tiempo que la
+    persona tarda en decidir.
 
     Es deliberadamente modesto: mide **este** proceso, en una ventana de las
     últimas peticiones, y se reinicia con el servicio. No sustituye a un

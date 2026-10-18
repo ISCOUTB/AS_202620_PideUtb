@@ -50,6 +50,15 @@ La de la semana 10 —autenticación del panel, y los seis defectos que las
 correcciones destaparon— en [`docs/evidencia-s10.md`](docs/evidencia-s10.md).
 La de la semana 11 —fallos parciales, idempotencia y la decisión de no extraer
 ningún servicio— en [`docs/evidencia-s11.md`](docs/evidencia-s11.md).
+La de la semana 12 —consistencia por operación, la caché que se descartó con un
+número y un margen de calidad que estaba agotado sin que nadie lo hubiera
+escrito— en [`docs/evidencia-s12.md`](docs/evidencia-s12.md).
+La de la semana 13 —modelo STRIDE, y dos defensas correctas que juntas dejan
+tumbar el servicio con catorce peticiones por segundo— en
+[`docs/evidencia-s13.md`](docs/evidencia-s13.md).
+La de la semana 14 —la evaluación contra los umbrales, donde medir convirtió una
+preferencia en un defecto: ESC-03 no se cumplía— en
+[`docs/evidencia-s14.md`](docs/evidencia-s14.md).
 
 **Ya no hay arranque en frío.** El despliegue anterior dormía el servicio tras
 15 minutos sin tráfico y tardaba 42,4 s en volver, lo que incumplía
@@ -181,6 +190,9 @@ pytest
 | **`tests/test_contrato_api.py`** | Que el código implemente **exactamente** el contrato publicado |
 | **`tests/test_compatibilidad_contrato.py`** | Que el contrato no rompa a un cliente escrito contra la versión anterior |
 | **`tests/test_expectativas_consumidor.py`** | Que se siga emitiendo lo que el consumidor declaró que lee |
+| **`tests/test_escenarios_de_calidad.py`** | Que las constantes del sitio sigan cumpliendo el umbral del escenario que sostienen |
+| **`tests/test_dependencias.py`** | Que la imagen no instale nada que la aplicación no importe, ni al revés |
+| **`tests/test_aislamiento.py`** | Que la suite dé el mismo resultado sin importar qué tenga exportado quien la ejecuta |
 
 Las tres últimas son las **pruebas de contrato**, y llevan **20 casos negativos**
 —roturas introducidas a propósito— porque una prueba de contrato que no puede

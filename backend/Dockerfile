@@ -2,14 +2,35 @@
 #
 # Dos etapas para que la imagen final no lleve herramientas de compilación.
 #
-# ### Por qué instala desde `requirements-ci.txt` y no desde `requirements.txt`
+# ### Qué lock instala, y por qué hay cuatro
 #
-# Es el lock con hashes, resuelto para Linux y CPython 3.11/3.12 — que es
-# exactamente lo que esta imagen es. `requirements.txt` existe para la
-# instalación local, donde imponer ese lock rompería el entorno de quien
-# trabaja en Windows (ver la cabecera de `requirements.in`).
+# | Archivo | Para qué |
+# |---|---|
+# | `requirements-prod.txt` | **Esta imagen.** 22 paquetes: lo que la aplicación importa |
+# | `requirements-ci.txt` | El pipeline. Los mismos 22 más `pytest`, `httpx` y 6 dependencias suyas |
+# | `requirements-calidad.txt` | Solo el job de cobertura: `pytest-cov` y `coverage` |
+# | `requirements.txt` | Instalación local, con rangos, para no romper Windows |
 #
-# Aquí no hay esa tensión, así que se usa el archivo más estricto:
+# Que sean cuatro no es desorden: cada uno responde a un entorno con
+# restricciones distintas, y la alternativa —un archivo para todo— es la que
+# metió `pytest` en producción.
+#
+# Hasta la S13 esta imagen instalaba el lock de CI, así que llevaba dentro
+# **ocho paquetes que ningún código de la aplicación importa**. Lo destapó la
+# auditoría de dependencias: `pytest<=9.0.2` arrastra GHSA-6w46-j5rx-g56g
+# (moderada, vector local) y estaba en producción sin ejecutarse nunca allí.
+#
+# La vulnerabilidad concreta era menor; la regla incumplida no: en la imagen no
+# debería haber nada que la aplicación no use. Cada paquete de más es superficie
+# que hay que vigilar y que algún día tendrá su propio aviso.
+#
+# `requirements-prod.txt` se deriva del de CI quitando lo que no es alcanzable
+# desde `fastapi`, `uvicorn` ni `psycopg`, y el job `dependencias` del pipeline
+# comprueba en Linux que la aplicación importa con solo esos 22 — porque no hay
+# Docker en la máquina de desarrollo para construir la imagen y verlo
+# (deuda D-01 de arc42 §11).
+#
+# De los tres se elige aquí el más estricto:
 #
 # - `--require-hashes` hace que una dependencia alterada en el camino falle la
 #   construcción en vez de instalarse. Es la misma garantía que ya tenía el
@@ -32,9 +53,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 FROM base AS dependencias
-COPY requirements-ci.txt .
+COPY requirements-prod.txt .
 RUN pip install --prefix=/instalado --require-hashes --only-binary=:all: \
-        -r requirements-ci.txt
+        -r requirements-prod.txt
 
 FROM base
 COPY --from=dependencias /instalado /usr/local

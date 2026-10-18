@@ -1,4 +1,4 @@
-# ADR 0008: Desplegar en el servidor del laboratorio, con la base de datos dentro del despliegue y bajo un solo origen
+# ADR 0008: Desplegar en el servidor del laboratorio, con la base de datos dentro del despliegue y la API en un host aparte
 
 ## Estado
 

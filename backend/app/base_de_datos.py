@@ -1,12 +1,20 @@
 """Conexión a PostgreSQL y el pool que la sostiene.
 
 Este módulo es la razón por la que [ADR-0004](../../docs/adr/0004-plataforma-de-despliegue.md)
-eligió un contenedor con proceso persistente sobre una función sin servidor. El
-argumento decisivo era el pool: un proceso que vive entre peticiones **abre las
-conexiones una vez y las reutiliza**, mientras que una invocación aislada tiene
-que abrir la suya cada vez. Con la capa gratuita de Supabase, que limita las
-conexiones simultáneas, y con un pico de almuerzo concentrado en dos horas, la
-segunda opción agota el límite justo cuando llega el tráfico.
+eligió un contenedor con proceso persistente sobre una función sin servidor, y
+es la parte de esa decisión que **sobrevivió al cambio de plataforma**: el
+proveedor lo eligió de nuevo ADR-0008, el argumento del pool no se tocó.
+
+Un proceso que vive entre peticiones **abre las conexiones una vez y las
+reutiliza**; una invocación aislada tiene que abrir la suya cada vez. Con un
+pico de almuerzo concentrado en dos horas, la segunda opción paga el
+establecimiento de conexión justo cuando llega el tráfico.
+
+El límite concreto cambió de sitio. Antes era la capa gratuita de Supabase, que
+acotaba las conexiones simultáneas de todo el proyecto; hoy PostgreSQL corre en
+un contenedor vecino con **160 MB** (`deploy/compose.lab.yaml`), y cada backend
+suyo cuesta memoria de ese presupuesto. El argumento no se debilitó: cambió de
+dueño.
 
 ### Dos implementaciones, una interfaz
 
@@ -14,18 +22,26 @@ Los `repository.py` de cada contexto llaman a este módulo, pero **siguen
 funcionando sin base de datos**. Cuando `PIDEUTB_DATABASE_URL` no está
 configurada, el sistema usa el almacenamiento en memoria de siempre.
 
-Eso no es indecisión: es lo que permite que las 146 pruebas sigan corriendo en
-un portátil sin PostgreSQL instalado, y que el equipo no quede bloqueado por una
-dependencia de infraestructura. El riesgo —que las dos implementaciones se
+Eso no es indecisión: es lo que permite que la suite siga corriendo en un
+portátil sin PostgreSQL instalado —hoy 228 de las 289 pruebas, y el resto se
+omiten diciéndolo— y que el equipo no quede bloqueado por una dependencia de
+infraestructura. El riesgo —que las dos implementaciones se
 separen— se controla ejecutando **las mismas pruebas contra las dos**
 (`tests/test_repositorios.py`).
 
 ### Por qué el esquema no está en Terraform
 
-`infra/supabase.tf` crea el proyecto, no sus tablas. Un `terraform apply` que
-gestionara el esquema trataría una columna eliminada como un recurso a destruir,
-y borraría datos de producción sin preguntar. Las migraciones van en
-`backend/migraciones/` y se aplican con `scripts/migrar.py`.
+El razonamiento es independiente del proveedor, y conviene conservarlo porque
+sobrevivió a dos: un `terraform apply` que gestionara el esquema trataría una
+columna eliminada como un recurso a destruir, y borraría datos de producción sin
+preguntar. Terraform razona en estado deseado; una migración, en pasos
+aplicados.
+
+Las migraciones van en `backend/migraciones/` y se aplican con
+`scripts/migrar.py`, que el contenedor ejecuta al arrancar
+(`backend/entrypoint.sh`). Desde ADR-0008 la base **vive dentro del
+despliegue**, así que no hay proyecto externo que declarar: `infra/` quedó
+obsoleta entera y lo dice en su README.
 """
 from __future__ import annotations
 
@@ -36,19 +52,33 @@ from typing import Iterator
 
 _LOG = logging.getLogger("pideutb")
 
-#: Cadena de conexión. Ausente = almacenamiento en memoria.
-#:
-#: Llega por variable de entorno y **nunca** se escribe en el repositorio:
-#: contiene la contraseña de la base de datos. Ver `infra/README.md`.
-URL_BASE_DE_DATOS = os.getenv("PIDEUTB_DATABASE_URL", "").strip()
+# La cadena de conexión **no** se guarda en una constante de módulo.
+#
+# Hubo una, `URL_BASE_DE_DATOS`, leída al importar y usada en cero sitios: todo
+# el código pregunta por `hay_base_de_datos()` o lee `os.environ` en el momento.
+# Se retiró en la S14 porque una constante que parece gobernar el
+# comportamiento y no lo gobierna es peor que no tenerla — invita a cambiarla
+# esperando un efecto.
+#
+# Que se lea en cada llamada y no al importar es deliberado, y lo explica
+# `hay_base_de_datos()`: permite a las pruebas activar y desactivar PostgreSQL
+# sin recargar la aplicación.
+#
+# Donde sí vive la cadena es en el entorno, y **nunca** en el repositorio:
+# contiene la contraseña de la base de datos.
 
 #: Conexiones que el pool mantiene abiertas y su techo.
 #:
-#: El techo es bajo a propósito. La capa gratuita de Supabase concede pocas
-#: conexiones simultáneas para **todo** el proyecto, y un pool ambicioso en un
-#: único servicio las acapararía: el resto de herramientas —el panel de
-#: Supabase, una migración, una segunda instancia— se quedarían fuera. Con 512
-#: MB de memoria tampoco hay margen para más.
+#: El techo es bajo a propósito, y el motivo cambió sin que el valor tuviera
+#: que cambiar. Antes era la capa gratuita de Supabase, que acotaba las
+#: conexiones simultáneas de todo el proyecto. Hoy el límite está más cerca:
+#: PostgreSQL corre en un contenedor con **160 MB** y cada conexión es un
+#: proceso suyo con su memoria. Un pool ambicioso no le quitaría sitio a un
+#: panel ajeno; se lo quitaría a la propia base.
+#:
+#: Dicho de otro modo: la restricción dejó de ser una cuota de un tercero y
+#: pasó a ser el presupuesto de ADR-0008, que es más fácil de comprobar y más
+#: difícil de olvidar.
 POOL_MINIMO = int(os.getenv("PIDEUTB_POOL_MINIMO", "1"))
 POOL_MAXIMO = int(os.getenv("PIDEUTB_POOL_MAXIMO", "5"))
 
@@ -75,11 +105,15 @@ def hay_base_de_datos() -> bool:
 def abrir_pool() -> None:
     """Crea el pool. Se llama una vez, al arrancar el proceso.
 
-    `open=True` conecta en el arranque en lugar de en la primera petición. Con
-    un plan que duerme el servicio, la alternativa sería pagar el coste de
-    establecer la conexión dentro de la primera petición de cada pico —la misma
-    que ya sufre el arranque en frío—, sumando dos esperas para el mismo
-    usuario.
+    `open=True` conecta en el arranque en lugar de en la primera petición.
+
+    El motivo original era el arranque en frío del proveedor anterior, que ya
+    hacía esperar a la primera persona de cada pico; sumarle el establecimiento
+    de conexiones la dejaba esperando el doble. Ese arranque en frío desapareció
+    con ADR-0008, y la decisión se queda por una razón que no depende de él:
+    **el costo se paga en el arranque, que es tiempo que el orquestador ya
+    concede** —`start_period: 60s` en `deploy/compose.lab.yaml`— en lugar de
+    dentro de la petición de alguien.
     """
     global _pool
     if _pool is not None or not hay_base_de_datos():

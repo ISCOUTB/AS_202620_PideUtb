@@ -30,9 +30,13 @@ def test_health_declara_el_tipo_real_de_cada_dependencia():
     """El chequeo no puede disfrazar memoria de base de datos.
 
     Es la prueba de la regla que da sentido al módulo: se reporta lo que hay,
-    no lo que se querría tener. El día que la migración a Supabase ocurra, este
-    `memoria` tendrá que cambiar aquí y en `docs/violaciones.md` (V-09), y esta
-    prueba obliga a que ese cambio sea consciente.
+    no lo que se querría tener.
+
+    El `memoria` que se afirma aquí es el del **entorno de pruebas sin
+    `PIDEUTB_DATABASE_URL`**, no el de producción: allí la migración ya ocurrió
+    y `/health` responde `postgresql` en las dos dependencias, comprobado contra
+    el despliegue. Lo que esta prueba sigue protegiendo es que el chequeo no
+    pueda disfrazar una cosa de la otra — que era el fondo de V-09.
     """
     dependencias = client.get("/health").json()["dependencias"]
 

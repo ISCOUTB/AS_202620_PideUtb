@@ -100,6 +100,30 @@ intermitentes. Con 50 ms la prueba sigue detectando una regresión de orden de
 magnitud —que es lo que un cambio arquitectónico equivocado produciría— sin
 volverse inestable.
 
+## 5. La misma medición contra PostgreSQL (S14)
+
+Todo lo anterior se midió contra el almacenamiento **en memoria**, que era el
+único que había. Desde [ADR-0008](adr/0008-despliegue-en-el-servidor-del-laboratorio.md)
+producción tiene una base de datos, así que la cifra que vale es otra:
+
+| | En memoria (S7) | Con PostgreSQL (S14) |
+|---|---|---|
+| p50 | 2,66 ms | **9,37 ms** |
+| **p95** | **3,02 ms** | **11,67 ms** |
+| Máximo | 21,18 ms | 12,62 ms |
+
+Cuadruplica, y era de esperar: hay una consulta real en medio. Lo que importa es
+que **no cambia ningún veredicto**. ESC-02 concede 2 minutos y el servidor pone
+11,67 ms: pasa de usar el 0,0025 % del presupuesto a usar el 0,0097 %.
+
+Dos advertencias sobre esta cifra, por el método:
+
+- Se midió **en el portátil de desarrollo**, que la calibración de
+  [arc42 §10.7](arc42/arc42.md#evaluacion) sitúa **4,5× más lento** que el
+  contenedor de producción. Es una cota superior.
+- El umbral de la prueba de CI sigue en 50 ms, y con 11,67 de p95 mantiene su
+  propósito: detecta una regresión de orden de magnitud sin volverse inestable.
+
 ## Trazabilidad
 
 | Elemento | Referencia |
@@ -109,3 +133,5 @@ volverse inestable.
 | Contextos que atraviesa | [`docs/ddd-contextos.md` §2](ddd-contextos.md) |
 | Deuda que afecta a la medición | [V-09](violaciones.md#v-09) — estado en memoria |
 | Índice de aspectos | [`docs/aspectos.md`](aspectos.md), fila ESC-02 |
+| Evaluación de todos los umbrales | [arc42 §10.7](arc42/arc42.md#evaluacion) |
+| Medición de la cadena de ESC-03 | `backend/scripts/medir_esc03.py` |

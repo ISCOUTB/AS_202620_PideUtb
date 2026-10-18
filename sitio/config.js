@@ -26,13 +26,19 @@ const CONFIG = {
   // en el seed, no hace falta un selector todavía.
   ESTABLECIMIENTO_ID: 1,
 
-  // A partir de cuántos milisegundos se avisa al usuario de que el servicio
-  // está despertando.
+  // A partir de cuántos milisegundos se avisa al usuario de que la comprobación
+  // inicial está tardando.
   //
-  // El plan gratuito de Render duerme el servicio tras 15 minutos sin tráfico
-  // y tarda ~60 s en volver. Sin este aviso, el primer usuario de cada pico de
-  // almuerzo vería una página congelada y asumiría que está rota.
-  MS_ANTES_DE_AVISAR_ARRANQUE_EN_FRIO: 2500,
+  // Nació por el arranque en frío del plan gratuito de Render, que dormía el
+  // servicio tras 15 min sin tráfico. **Esa causa ya no existe**: en el
+  // servidor del laboratorio el contenedor no duerme (ADR-0008). El aviso se
+  // conserva porque sigue habiendo motivos para que `/health` tarde —un
+  // reinicio tras desplegar, una red lenta— y una página congelada sin
+  // explicación se lee como una página rota.
+  //
+  // Lo que **no** se conserva es la causa inventada: el aviso ya no afirma por
+  // qué tarda, porque desde el navegador no se puede saber.
+  MS_ANTES_DE_AVISAR_LENTITUD: 2500,
 
   // Cada cuánto se vuelve a preguntar por el estado del pedido mientras se
   // espera la confirmación del pago.
