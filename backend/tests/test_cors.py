@@ -23,8 +23,14 @@ mano.
 ### Lo que no cubre
 
 Que los **orígenes** configurados en producción sean los correctos. Eso depende
-de `PIDEUTB_ORIGENES_PERMITIDOS` en Render y no del código, así que aquí se
-comprueba contra el primer origen configurado, sea cual sea.
+de la variable `PIDEUTB_ORIGENES_PERMITIDOS` del entorno de despliegue —hoy el
+panel de Dokploy, declarada en `deploy/compose.lab.yaml`— y no del código, así
+que aquí se comprueba contra el primer origen configurado, sea cual sea.
+
+Esa frontera importa y no es teórica: el primer defecto que la puesta en marcha
+del servidor del laboratorio destapó fue justamente un CORS incompleto, que
+ninguna prueba de esta suite podía ver porque `TestClient` no hace *preflight*
+(arc42 §7.6).
 """
 from fastapi.testclient import TestClient
 

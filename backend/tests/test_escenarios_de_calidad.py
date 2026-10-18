@@ -1,26 +1,30 @@
-"""Ata las constantes y los textos del sitio a lo que arc42 promete.
+"""Ata las constantes y los textos del repositorio a lo que es cierto hoy.
 
-Estas pruebas no ejercitan código Python: leen los archivos del sitio y
-comprueban dos cosas que ninguna otra prueba puede ver, porque el sitio es
-estático y no pasa por `TestClient`.
+Estas pruebas no ejercitan código: leen archivos y comprueban dos cosas que
+ninguna otra puede ver, porque no ocurren en tiempo de ejecución.
 
 1. Que los números que sostienen un escenario de calidad sigan cumpliéndolo.
 2. Que ningún texto explique el comportamiento del sistema con una plataforma
    que ya no se usa.
 
-Las dos nacen del mismo hallazgo de la semana 11 (arc42 §7.6): **la
-configuración no viaja por el mismo camino que las pruebas**. La respuesta no es
+Las dos nacen del mismo hallazgo (arc42 §7.6): **la configuración y los
+comentarios no viajan por el mismo camino que las pruebas**. La respuesta no es
 documentarlo mejor, es que falle.
 """
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
 
 RAIZ = Path(__file__).resolve().parents[2]
 SITIO = RAIZ / "sitio"
+
+# ---------------------------------------------------------------------------
+# Umbrales de escenario
+# ---------------------------------------------------------------------------
 
 #: Presupuesto total de ESC-03, en milisegundos.
 #:
@@ -36,26 +40,55 @@ PRESUPUESTO_ESC_03_MS = 10_000
 #: Se elige explícito para que el margen sea discutible en vez de implícito.
 MARGEN_HUMANO_MS = 2_000
 
-#: Archivos del sitio que esta suite inspecciona.
-ARCHIVOS_DEL_SITIO = ("config.js", "app.js", "panel.js", "index.html", "panel.html")
+# ---------------------------------------------------------------------------
+# Rastros de la plataforma anterior
+# ---------------------------------------------------------------------------
+
+#: Dónde se vigila. No se barre el repositorio entero a propósito: `docs/`
+#: contiene evidencias semanales, ADRs reemplazados y comparativas que **deben**
+#: hablar de la plataforma vieja, porque son el registro de cuando era la
+#: actual. Reescribir la historia para que una prueba pase sería peor que el
+#: defecto que la prueba busca.
+AMBITOS = ("backend/app", "backend/scripts", "backend/migraciones", "sitio", "deploy")
 
 #: Archivos cuyo contenido **lo lee una persona**, no solo quien programa.
 #:
-#: En estos, una mención a la plataforma antigua no se arregla con un paréntesis
-#: aclaratorio: el usuario no lee comentarios, lee la frase que le sale en
-#: pantalla. Así que aquí no se permite ni en pasado.
-ARCHIVOS_CON_TEXTO_VISIBLE = ("index.html", "panel.html")
+#: Aquí una mención no se arregla con un paréntesis aclaratorio: el usuario no
+#: lee comentarios, lee la frase que le sale en pantalla.
+EXTENSIONES_VISIBLES = (".html",)
 
-#: Rastros de la plataforma anterior. `\b` importa: «render» es subcadena de
-#: «renderiza», que los scripts usan con todo derecho para hablar de pintar el
-#: DOM, y sin el límite de palabra la prueba da un falso positivo en cuanto
-#: alguien escribe el verbo.
-RASTROS_DE_RENDER = (r"\brender\b", r"plan gratuito", r"duerme el servicio")
+#: `\b` importa: «render» es subcadena de «renderiza», que los scripts usan con
+#: todo derecho para hablar de pintar el DOM.
+RASTROS = (r"\brender\b", r"\bsupabase\b", r"plan gratuito", r"duerme el servicio")
 
-#: Cuántos caracteres alrededor de la mención se admiten para encontrar la
-#: corrección. Un comentario que nombra Render y remite a ADR-0008 cuatrocientas
-#: líneas más abajo no está corrigiendo nada.
-VENTANA_DE_CORRECCION = 400
+#: Señales de que la mención está en pasado y corregida. Basta una cerca.
+#:
+#: Se acepta cualquiera de estas en vez de exigir «ADR-0008» porque lo que
+#: importa no es citar la decisión sino **no presentar la premisa como
+#: vigente**. Un «antes era X, hoy es Y» cumple el objetivo sin nota al pie.
+MARCAS_DE_PASADO = (
+    r"adr-0008", r"anterior", r"ya no", r"dej[óo] de", r"desapareci[óe]",
+    r"nació", r"nacio", r"antes era", r"de entonces", r"obsolet",
+    r"lo era con", r"cambi[óo] de sitio", r"reemplaz",
+)
+
+#: Menciones que no son a la plataforma. `ADR-0007` se titula literalmente
+#: «...en lugar de Supabase Auth», así que nombrarlo es citar una decisión
+#: vigente, no arrastrar una premisa muerta.
+EXCEPCIONES = (r"supabase auth",)
+
+#: Caracteres alrededor de la mención donde se admite la corrección. Un
+#: comentario que remite a ADR-0008 cuatrocientas líneas más abajo no corrige.
+VENTANA = 400
+
+
+def _archivos_vigilados() -> list[str]:
+    """Rutas versionadas dentro de los ámbitos vigilados."""
+    salida = subprocess.run(
+        ["git", "ls-files", *AMBITOS],
+        cwd=RAIZ, capture_output=True, text=True, check=True,
+    ).stdout
+    return [linea for linea in salida.splitlines() if linea.strip()]
 
 
 def _constante(archivo: str, nombre: str) -> int:
@@ -95,7 +128,7 @@ def test_el_margen_de_esc_03_esta_agotado_y_eso_consta():
 
     No es redundante con la anterior: esa impide empeorar, esta documenta que no
     hay hacia dónde empeorar. Si alguien baja el intervalo y crea margen, esta
-    prueba falla y obliga a venir a retirar el riesgo de arc42 §11.
+    prueba falla y obliga a venir a retirar el riesgo R-01 de arc42 §11.
 
     Se escribe así a propósito. Un riesgo que se resuelve y nadie borra de la
     documentación es la otra mitad del problema que esta suite ataca.
@@ -104,55 +137,65 @@ def test_el_margen_de_esc_03_esta_agotado_y_eso_consta():
 
     assert intervalo == PRESUPUESTO_ESC_03_MS - MARGEN_HUMANO_MS, (
         f"MS_ENTRE_REFRESCOS = {intervalo} ms ya no agota el presupuesto de "
-        "ESC-03. Si se bajó a propósito, el riesgo «margen nulo de ESC-03» de "
-        "arc42 §11 hay que actualizarlo o retirarlo."
+        "ESC-03. Si se bajó a propósito, el riesgo R-01 de arc42 §11 hay que "
+        "actualizarlo o retirarlo."
     )
 
 
-@pytest.mark.parametrize("archivo", ARCHIVOS_DEL_SITIO)
-def test_el_sitio_no_presenta_render_como_una_causa_vigente(archivo):
+@pytest.mark.parametrize("archivo", _archivos_vigilados())
+def test_no_se_presenta_una_plataforma_abandonada_como_causa_vigente(archivo):
     """Nombrar la plataforma vieja se permite; afirmarla como causa, no.
 
-    El sistema se desplegaba en el plan gratuito de Render, que dormía el
-    servicio tras 15 minutos sin tráfico. ADR-0008 lo movió al servidor del
-    laboratorio, donde el contenedor **no duerme**, y ADR-0004 quedó reemplazada
-    diciéndolo con todas las letras.
+    El sistema se desplegaba en el plan gratuito de Render con PostgreSQL en
+    Supabase. ADR-0008 lo movió al servidor del laboratorio el 13/10/2026, con
+    la base dentro del despliegue, y ADR-0004 quedó reemplazada **diciendo
+    expresamente** que la plataforma nueva no tiene arranque en frío.
 
-    Lo que no cambió fue el sitio. Durante los cinco días que siguieron
-    —ADR-0008 es del 13/10/2026 y esto se encontró el 18— siguió mostrando a los
-    usuarios «es el arranque en frío del plan gratuito»: no un comentario
-    desactualizado, sino **una causa falsa delante de una persona** que, creyendo
-    que el servicio despierta, espera un minuto que no va a servirle de nada.
+    El código no se enteró, y durante los cinco días siguientes:
+
+    - `sitio/index.html` mostraba a los usuarios «es el arranque en frío del
+      plan gratuito». No un comentario desactualizado: **una causa falsa delante
+      de una persona**, que creyendo que el servicio despertaba esperaba un
+      minuto inútil.
+    - `base_de_datos.py` justificaba el techo del pool con una cuota de
+      conexiones de Supabase. Eso es peor que ruido: una constante cuyo motivo
+      declarado no existe invita a cambiarla por la razón equivocada.
 
     La regla que se verifica no es «no digas Render». Explicar de dónde viene una
-    constante es legítimo y útil. La regla es que la mención venga **con su
-    corrección al lado**, de modo que quien la lea no se quede con la premisa
-    muerta. En los archivos que muestran texto a una persona no se permite
-    siquiera eso, porque nadie lee los comentarios de un HTML.
+    decisión es legítimo y a menudo es lo más valioso del comentario. La regla es
+    que la mención venga **con su corrección cerca**, para que quien la lea no se
+    quede con la premisa muerta.
+
+    `docs/` queda fuera a propósito: las evidencias semanales y los ADR
+    reemplazados tienen que hablar de la plataforma vieja, porque son el
+    registro de cuando era la actual.
     """
-    ruta = SITIO / archivo
-    if not ruta.exists():  # pragma: no cover — depende de los archivos del sitio
-        pytest.skip(f"sitio/{archivo} no existe")
+    ruta = RAIZ / archivo
+    if not ruta.exists():  # pragma: no cover — el índice de git puede adelantarse
+        pytest.skip(f"{archivo} ya no existe en el árbol de trabajo")
 
-    texto = ruta.read_text(encoding="utf-8").lower()
-    visible = archivo in ARCHIVOS_CON_TEXTO_VISIBLE
+    texto = ruta.read_text(encoding="utf-8", errors="replace").lower()
+    visible = ruta.suffix in EXTENSIONES_VISIBLES
 
-    for rastro in RASTROS_DE_RENDER:
+    for rastro in RASTROS:
         for mencion in re.finditer(rastro, texto):
             legible = rastro.replace(r"\b", "")
+            desde = max(0, mencion.start() - VENTANA)
+            hasta = mencion.end() + VENTANA
+            contexto = texto[desde:hasta]
+
+            if any(re.search(e, contexto) for e in EXCEPCIONES):
+                continue
 
             assert not visible, (
-                f"sitio/{archivo} menciona «{legible}», y es un archivo que "
-                "muestra texto a una persona. Aquí la plataforma antigua no "
-                "cabe ni en pasado: el usuario no lee comentarios."
+                f"{archivo} menciona «{legible}», y es un archivo que muestra "
+                "texto a una persona. Aquí la plataforma abandonada no cabe ni "
+                "en pasado: nadie lee los comentarios de un HTML."
             )
 
-            desde = max(0, mencion.start() - VENTANA_DE_CORRECCION)
-            hasta = mencion.end() + VENTANA_DE_CORRECCION
-
-            assert "adr-0008" in texto[desde:hasta], (
-                f"sitio/{archivo} menciona «{legible}» sin corregirla cerca. "
-                "La plataforma cambió con ADR-0008 y el arranque en frío dejó "
-                "de existir: una mención sin esa aclaración se lee como causa "
-                "vigente, que es justo el defecto que esta prueba persigue."
+            assert any(re.search(m, contexto) for m in MARCAS_DE_PASADO), (
+                f"{archivo} menciona «{legible}» sin nada cerca que la sitúe en "
+                "el pasado. La plataforma cambió con ADR-0008: una mención sin "
+                "esa aclaración se lee como causa vigente, y si además sostiene "
+                "una constante, invita a cambiarla por el motivo equivocado."
             )

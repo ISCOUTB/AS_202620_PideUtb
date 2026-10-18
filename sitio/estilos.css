@@ -1,7 +1,7 @@
 /* Estilos del sitio.
-   Sin framework y sin paso de construcción: `render.tf` publica esta carpeta
-   tal cual, y añadir un compilador obligaría a un build que no aporta nada a
-   tres archivos. */
+   Sin framework y sin paso de construcción: el contenedor de nginx sirve esta
+   carpeta tal cual (`deploy/compose.lab.yaml`), y añadir un compilador
+   obligaría a un build que no aporta nada a tres archivos. */
 
 :root {
   --fondo: #0f1115;

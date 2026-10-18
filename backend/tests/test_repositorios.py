@@ -13,8 +13,8 @@ un defecto del código.
 
 La variable es **distinta** de `PIDEUTB_DATABASE_URL` a propósito. Si las
 pruebas leyeran la misma que usa la aplicación, bastaría con tenerla exportada
-en la terminal —que es lo normal mientras se desarrolla contra Supabase— para
-que la suite borrase las tablas de producción. Ese accidente ocurre, y la única
+en la terminal —que es lo normal mientras se desarrolla contra una base real—
+para que la suite borrase las tablas de producción. Ese accidente ocurre, y la única
 defensa fiable es que el nombre no coincida.
 
 En CI la aporta un contenedor de PostgreSQL efímero.
