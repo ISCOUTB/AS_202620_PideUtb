@@ -148,7 +148,15 @@ services:
     expose:
       - "8080"
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/"]
+      # Solo opciones que entiende el `wget` de **busybox**, que es el que trae
+      # Alpine. `--tries` y `--spider` son de GNU wget: con ellas el comando
+      # falla por opción desconocida, el contenedor queda `unhealthy` y la
+      # plataforma deja de enrutar hacia él — con nginx corriendo perfectamente.
+      #
+      # Ese fue el fallo: el sitio respondía `404` de Traefik, no `502`, porque
+      # no llegaba a existir el router. Lo señaló comparar los dos servicios:
+      # el de la API usa Python y funcionaba; este usaba wget y no.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
       interval: 30s
       timeout: 5s
       retries: 3
