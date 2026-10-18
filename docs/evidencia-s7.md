@@ -190,16 +190,16 @@ La rama se borró; el run permanece en el historial.
 
 ## 4. arc42 §6 — Vista de ejecución
 
-Ubicación: [`docs/arc42/arc42.md`](arc42/arc42.md) **líneas 435 a 688**.
+Ubicación: [`docs/arc42/arc42.md`](arc42/arc42.md) **líneas 453 a 706**.
 
 | Subsección | Línea | Contenido |
 |---|---|---|
-| 6.1 Resumen de los flujos y sus fronteras | 450 | Tabla de 6 flujos con protocolo, formato, modo y qué pasa si el otro lado no responde |
-| 6.2 Crear un pedido | 471 | Diagrama de secuencia — síncrono, en proceso |
-| 6.3 Pagar un pedido | 536 | Diagrama de secuencia — dos fases, cruza la frontera asíncrona |
-| 6.4 Consultar el estado | 618 | Diagrama de secuencia — cómo se entera el usuario |
-| 6.5 Modos de fallo | 651 | 9 modos de fallo, cada uno con la prueba que lo cubre |
-| 6.6 Deuda conocida | 675 | Limitaciones del transporte en proceso |
+| 6.1 Resumen de los flujos y sus fronteras | 468 | Tabla de 6 flujos con protocolo, formato, modo y qué pasa si el otro lado no responde |
+| 6.2 Crear un pedido | 489 | Diagrama de secuencia — síncrono, en proceso |
+| 6.3 Pagar un pedido | 554 | Diagrama de secuencia — dos fases, cruza la frontera asíncrona |
+| 6.4 Consultar el estado | 636 | Diagrama de secuencia — cómo se entera el usuario |
+| 6.5 Modos de fallo | 669 | 9 modos de fallo, cada uno con la prueba que lo cubre |
+| 6.6 Deuda conocida | 693 | Limitaciones del transporte en proceso |
 
 La tabla de §6.1, reproducida:
 
@@ -224,7 +224,7 @@ L27  Rel(usuario, frontend, "Consulta menús, pide, paga y recoge", "HTTPS · HT
 L28  Rel(establecimiento, frontend, "Gestiona productos y estados de pedido", "HTTPS · HTML/JSON · síncrono")
 L29  Rel(admin, frontend, "Administra la plataforma", "HTTPS · HTML/JSON · síncrono")
 L31  Rel(frontend, api, "Consume la API v1", "HTTPS · JSON (REST) · síncrono")
-L32  Rel(api, supabase, "Lee/escribe datos, valida identidad", "TCP/TLS · PostgreSQL (pool) · síncrono")
+L32  Rel(api, supabase, "Lee/escribe datos, valida identidad", "PostgreSQL sobre un pool reutilizado · síncrono · ~1 ms")
 L33  Rel(api, wompi, "Abre el intento de cobro", "HTTPS · JSON · síncrono")
 L34  Rel_Back(api, wompi, "Confirma la transacción (webhook firmado)", "HTTPS · JSON + HMAC · ASÍNCRONO")
 ```

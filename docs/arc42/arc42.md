@@ -148,9 +148,13 @@ equipo y a condiciones del proyecto académico.
                                       operación con los que conviven los
                                       escenarios de la sección 10.
 
-  **Base de datos Supabase basada en  Permite utilizar una base de datos
-  PostgreSQL**                        relacional gestionada sin
-                                      administrar infraestructura propia.
+  **Base de datos relacional         La restricción es el **motor**, no el
+  PostgreSQL**                        proveedor. Desde S11 corre en un
+                                      contenedor del propio despliegue
+                                      (ADR-0008); antes fue gestionada en
+                                      Supabase. El código no distingue:
+                                      habla PostgreSQL por una cadena de
+                                      conexión.
 
   **Aplicación web**                  El alcance inicial corresponde a
                                       una plataforma web y no a una
@@ -165,8 +169,14 @@ equipo y a condiciones del proyecto académico.
                                       sin utilizar dinero real durante el
                                       desarrollo académico.
 
-  **Despliegue en Render, plan        Sustituye a la previsión inicial de
-  gratuito**                          Vercel. El motivo decisivo fue el
+  **Despliegue en un contenedor      Desde S11, el servidor del
+  con proceso persistente**           laboratorio (ADR-0008); antes,
+                                      Render, y antes la previsión
+                                      inicial era Vercel. Lo que no ha
+                                      cambiado en ninguno de los tres
+                                      saltos es la forma: un proceso
+                                      persistente y no una función sin
+                                      servidor. El motivo decisivo fue el
                                       manejo de conexiones a la base de
                                       datos: una función sin servidor
                                       abre una conexión nueva en cada
@@ -246,12 +256,18 @@ con sistemas externos necesarios para su funcionamiento.
 -   El **Administrador** administra aspectos generales de la plataforma.
 -   **Wompi** interviene como pasarela de pagos durante el desarrollo
     mediante su ambiente Sandbox.
--   **Supabase** proporciona el servicio de **persistencia** de datos
-    (PostgreSQL gestionado). No provee la autenticación: hasta la semana
-    10 esta sección y el diagrama C4 decían que sí, y era falso. El
-    mecanismo es propio y vive en el módulo `usuarios`; el motivo de no
-    usar Supabase Auth está en
-    [ADR-0007](../adr/0007-autenticacion-del-panel.md).
+-   **No hay más sistemas externos.** La persistencia y la autenticación
+    son propias: PostgreSQL corre como contenedor del mismo despliegue
+    ([ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md))
+    y el mecanismo de sesiones vive en el módulo `usuarios`
+    ([ADR-0007](../adr/0007-autenticacion-del-panel.md)).
+
+    Conviene decir qué decía esto antes, porque es una lección y no un
+    detalle: hasta la semana 10 esta sección y el diagrama C4 afirmaban
+    que **Supabase proveía la autenticación**. Era falso, y del peor
+    modo — describía una protección que no existía mientras el panel no
+    exigía nada. Hasta la semana 11, Supabase sí proveyó la
+    persistencia; desde ADR-0008 ni eso.
 
 <a id="c4-contexto"></a>
 
@@ -287,9 +303,11 @@ Las principales interacciones externas son:
                                       gestionar el proceso de pago en
                                       Sandbox.
 
-  **PideUTB ↔ Supabase**              Almacena y consulta la información
-                                      necesaria para el funcionamiento
-                                      del sistema.
+  **(ninguna más)**                   Desde S11 la base de datos es un
+                                      contenedor del propio despliegue y
+                                      no una interfaz externa. Wompi es
+                                      el único sistema que no
+                                      controlamos.
   -----------------------------------------------------------------------
 
 ------------------------------------------------------------------------
@@ -301,8 +319,8 @@ Las principales interacciones externas son:
 ### 4.1 Decisiones tecnológicas de fondo
 
 Las decisiones tecnológicas base ya fueron fijadas como restricciones en
-la sección 2: FastAPI y Python para el backend, Supabase (PostgreSQL)
-para persistencia, Wompi en Sandbox para pagos, y un
+la sección 2: FastAPI y Python para el backend, PostgreSQL para
+persistencia, Wompi en Sandbox para pagos, y un
 frontend web con HTML/CSS/JavaScript. La estrategia de solución de esta
 sección se centra en **cómo se organiza el código dentro de esas
 restricciones**, es decir, en el estilo arquitectónico interno del
@@ -457,7 +475,7 @@ decide si una integración debe ser síncrona o asíncrona: *si apago el otro la
 |---|---|---|---|---|---|---|
 | 1 | Frontend Web → API | HTTPS | JSON (REST) | Síncrono | [`openapi.yaml`](../api/openapi.yaml) | El usuario no puede operar. Aceptable: sin API no hay producto |
 | 2 | Entre contextos, dentro de la API | Llamada en proceso | Tipos de `contracts` | Síncrono | `menu.contracts`, `pedidos.contracts`, `pagos.contracts` | No puede ocurrir: mismo proceso |
-| 3 | API → Supabase | HTTPS | JSON | Síncrono | *(pendiente — hoy repositorios en memoria)* | La operación falla y se responde error |
+| 3 | API → Base de datos | TCP (red interna) | PostgreSQL sobre un pool reutilizado | Síncrono | `app/base_de_datos.py`, `app/*/repository.py` | La operación falla y se responde error explícito; `/health` devuelve `503`. Incluye no poder iniciar sesión |
 | 4 | API → Wompi (**iniciar** cobro) | HTTPS | JSON | Síncrono | API externa de la pasarela | Error inmediato; el pedido se conserva y se puede reintentar |
 | 5 | Wompi → API (**confirmar** cobro) | HTTPS | JSON firmado (webhook) | **Asíncrono** | [`asyncapi.yaml`](../api/asyncapi.yaml) · `eventos-de-pago` | El pedido queda en `pendiente_pago`, consultable |
 | 6 | API → Panel del establecimiento | Bus en proceso | JSON | **Asíncrono** | [`asyncapi.yaml`](../api/asyncapi.yaml) · `pedidos-pagados` | El cobro se completa igual; el panel se entera al reconectar |
@@ -696,8 +714,17 @@ ejecución (sección 6) qué pasa entre ellas. Esta dice **dónde corre cada una
 quién la crea y qué se rompe cuando el entorno falla** — que es distinto de lo
 que se rompe cuando falla el código.
 
-La decisión de plataforma, con la comparación de la alternativa descartada,
-está en [ADR-0004](../adr/0004-plataforma-de-despliegue.md).
+La decisión de plataforma está en
+[ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md), que
+reemplaza a [ADR-0004](../adr/0004-plataforma-de-despliegue.md) en la elección
+de proveedor —no en su razonamiento de fondo, que sigue vigente: un contenedor
+con proceso persistente y no una función sin servidor.
+
+> **Esta vista describe el despliegue del 18/10/2026 en adelante.** Hasta
+> entonces el sistema corría en Render con PostgreSQL gestionado en Supabase, y
+> los dossiers de las semanas 8 y 9 describen aquello. No se reescriben: eran
+> ciertos cuando se escribieron, y una vista de despliegue que borra su historia
+> pierde el único sitio donde consta por qué se cambió.
 
 <a id="despliegue-piezas"></a>
 
@@ -705,92 +732,128 @@ está en [ADR-0004](../adr/0004-plataforma-de-despliegue.md).
 
 | # | Pieza | Dónde corre | Cómo se crea | Qué pasa si se cae |
 |---|---|---|---|---|
-| 1 | **Sitio** (`sitio/`) | Static site en Render | Terraform, [`infra/render.tf`](../../infra/render.tf) | Nadie puede entrar. La API sigue atendiendo el webhook, así que los pagos en curso se confirman igual |
-| 2 | **API** (`backend/`) | Web service en Render, contenedor con proceso persistente | **A mano** — ver §7.4 | El sitio muestra el aviso de servicio no disponible. Los webhooks de la pasarela se pierden salvo que ella reintente |
-| 3 | **Base de datos** | Proyecto PostgreSQL gestionado en Supabase | Terraform, [`infra/supabase.tf`](../../infra/supabase.tf) | La API responde `503` en `/health` y la plataforma la saca de rotación |
+| 1 | **Sitio** (`sitio/`) | Contenedor `web`, nginx sin privilegios en el puerto 8080 | [`deploy/compose.lab.yaml`](../../deploy/compose.lab.yaml) | Nadie puede entrar. La API sigue atendiendo el webhook, así que los pagos en curso se confirman igual |
+| 2 | **API** (`backend/`) | Contenedor `api`, uvicorn en el 8000 | idem | El sitio no puede pedir nada. Los webhooks de la pasarela se pierden salvo que ella reintente |
+| 3 | **Base de datos** | Contenedor `db`, PostgreSQL 16 sobre un volumen con nombre | idem | La API responde `503` en `/health` y queda marcada enferma. **Y no se puede ni ingresar al panel**: las credenciales viven ahí |
 | 4 | **Protección de rama** | GitHub | Terraform, [`infra/github.tf`](../../infra/github.tf) | Se podría fusionar a `master` sin pipeline en verde |
 | 5 | **Pipeline** | GitHub Actions | [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) | No hay despliegue nuevo; lo desplegado sigue funcionando |
+
+Las tres primeras son **un solo desplegable**: un `docker compose` que la
+plataforma levanta entero. Eso cambia una cosa respecto del despliegue anterior
+y conviene decirla: **la base de datos ya no sobrevive al sistema**. Antes era un
+proyecto gestionado aparte, con su propio ciclo de vida; ahora es un contenedor
+vecino cuyo volumen depende del mismo despliegue (§7.3).
 
 No hay pieza de **trabajos programados**: el sistema no tiene ninguno. Se hace
 constar porque una casilla vacía sin explicación se lee como un olvido.
 
-Tampoco hay pieza de **archivos**: no se suben imágenes ni documentos. Es una
-consecuencia deliberada de que el disco del contenedor sea efímero (§7.3), no
-una funcionalidad pendiente.
+Tampoco hay pieza de **archivos**: no se suben imágenes ni documentos.
 
 <a id="despliegue-topologia"></a>
 
 ### 7.2 Topología y protocolos
 
-Las mismas fronteras de §6.1, ahora con la frontera de despliegue marcada:
-
 ```
   Navegador del usuario
-        │  HTTPS · HTML/CSS/JS
+        │  HTTPS
         ▼
-  ┌──────────────────────┐        ┌───────────────────────────────┐
-  │  Sitio (estático)    │        │  Pasarela Wompi (Sandbox)     │
-  │  Render · CDN        │        │  Infraestructura de terceros  │
-  └──────────┬───────────┘        └───────────────┬───────────────┘
-             │  HTTPS · JSON (REST) · síncrono    │
-             │                                    │  HTTPS · JSON + HMAC
-             ▼                                    │  ASÍNCRONO, entrante
-  ┌──────────────────────────────────────────┐    │
-  │  API (contenedor, proceso persistente)   │◄───┘
-  │  Render · 512 MB · disco efímero         │
-  └──────────┬───────────────────────────────┘
-             │  TCP/TLS · PostgreSQL (pool reutilizado) · síncrono
-             ▼
-  ┌──────────────────────────────────────────┐
-  │  PostgreSQL gestionado · Supabase        │
-  └──────────────────────────────────────────┘
+  ┌─────────────────────────────────────────────────────────────┐
+  │  Cloudflare DNS  ·  *.iscoutb.dev                           │
+  └───────────────────────────┬─────────────────────────────────┘
+                              │
+  ┌───────────────────────────▼─────────────────────────────────┐
+  │  VM Oracle Cloud · compartida entre 23 equipos              │
+  │  ┌───────────────────────────────────────────────────────┐  │
+  │  │  Traefik  ·  certificado comodín *.iscoutb.dev        │  │
+  │  └───┬───────────────────────────────────┬───────────────┘  │
+  │      │ pideutb.iscoutb.dev               │ api-pideutb…     │
+  │      ▼                                   ▼                  │
+  │  ┌──────────┐                   ┌──────────────────┐        │
+  │  │ web      │                   │ api              │◄───────┼──┐
+  │  │ nginx    │                   │ uvicorn  :8000   │        │  │
+  │  │ :8080    │                   └────────┬─────────┘        │  │
+  │  │  64 MB   │                            │  PostgreSQL      │  │
+  │  └──────────┘                            ▼  (pool, ~1 ms)   │  │
+  │       192 MB ─────────────────► ┌──────────────────┐        │  │
+  │                                 │ db · volumen     │        │  │
+  │                                 │ pgdata · 160 MB  │        │  │
+  │                                 └──────────────────┘        │  │
+  │             red aislada del equipo · 512 MB en total        │  │
+  └─────────────────────────────────────────────────────────────┘  │
+                                                                   │
+  ┌──────────────────────────────┐   HTTPS · JSON + HMAC           │
+  │  Pasarela Wompi (Sandbox)    │   ASÍNCRONO, entrante ──────────┘
+  └──────────────────────────────┘
 ```
 
-Dos cosas que esta vista hace visibles y las anteriores no:
+Tres cosas que esta vista hace visibles y las anteriores no:
 
 - **La flecha del webhook entra desde fuera.** La API tiene que ser alcanzable
   públicamente por un tercero, no solo por nuestro sitio. Eso descarta cualquier
-  despliegue detrás de una red privada y obliga a que la ruta `/v1/pagos/eventos`
-  se autentique por firma HMAC y no por origen ([ADR-0003](../adr/0003-estrategia-integracion.md)).
-- **Sitio y API son dos desplegables distintos.** Por eso hace falta CORS
-  (`app/main.py`), que sería innecesario si se sirvieran del mismo origen. La
-  lista de orígenes permitidos llega por variable de entorno y nunca es `*`.
+  despliegue detrás de una red privada y obliga a que `/v1/pagos/eventos` se
+  autentique por firma HMAC y no por origen
+  ([ADR-0003](../adr/0003-estrategia-integracion.md)).
+- **La base de datos no tiene ninguna flecha desde fuera.** El contenedor `db`
+  no publica puertos: solo lo alcanza la API por la red interna del equipo. Es
+  lo que la hace inalcanzable desde Internet, y también lo que obliga a sembrar
+  la primera cuenta del panel desde el arranque
+  ([ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md)).
+- **Sitio y API siguen siendo dos orígenes distintos**, ahora dos subdominios.
+  Por eso hace falta CORS (`app/main.py`), con la lista de orígenes por variable
+  de entorno y nunca `*`. Se intentó unificarlos bajo un solo host para eliminar
+  esa necesidad; la plataforma no lo admite (ADR-0008 §3).
 
 <a id="despliegue-entorno"></a>
 
 ### 7.3 Lo que impone el entorno
 
-Restricciones del plan gratuito que **ya cambiaron el código**. Se listan aquí
-porque son propiedades del despliegue, no del diseño, y quien lea solo las
-secciones 5 y 6 no las vería:
+Restricciones que **ya cambiaron el código o la operación**. Son propiedades del
+despliegue, no del diseño, y quien lea solo las secciones 5 y 6 no las vería:
 
 | Restricción del entorno | Qué obligó a hacer | Dónde está |
 |---|---|---|
-| El servicio se duerme tras 15 min sin tráfico y tarda ~60 s en volver | Pantalla de arranque que avisa al usuario en vez de dejar la página congelada | `sitio/index.html`, `sitio/config.js` |
-| El disco es efímero: nada sobrevive a un despliegue | Los logs van a salida estándar, nunca a un archivo | `app/observabilidad.py` |
-| Sin proceso persistente no hay pool de conexiones | Se descartó el modelo sin servidor | [ADR-0004](../adr/0004-plataforma-de-despliegue.md) |
-| La plataforma decide si enrutar tráfico leyendo el chequeo de salud | `/health` sondea dependencias de verdad y devuelve `503` | `app/salud.py` |
-| 512 MB de memoria | La ventana de latencias tiene tamaño fijo y no crece con el tráfico | `app/observabilidad.py` |
+| **512 MB para todo el equipo** | Repartir el presupuesto pieza por pieza: api 192 · db 160 · web 64, y dejar 96 sin asignar a propósito | [`deploy/compose.lab.yaml`](../../deploy/compose.lab.yaml) |
+| **Sin copia de seguridad garantizada de los volúmenes** | La semilla deja de ser un adorno y pasa a ser el procedimiento de recuperación. Y la primera cuenta se siembra al arrancar, porque un despliegue limpio no deja a nadie dentro | `migraciones/002_datos_semilla.sql`, `scripts/sembrar_usuario_inicial.py` |
+| **La base no es alcanzable desde fuera** | `crear_usuario.py` no sirve contra producción: el alta inicial va por variables de entorno | `scripts/sembrar_usuario_inicial.py` |
+| **El disco del contenedor es efímero** | Los logs van a salida estándar, nunca a un archivo | `app/observabilidad.py` |
+| **Las migraciones tienen que correr solas** | El arranque aplica el esquema antes de escuchar, y si falla el contenedor no arranca | `backend/entrypoint.sh` |
+| La plataforma enruta según el chequeo de salud | `/health` sondea dependencias de verdad y devuelve `503` | `app/salud.py` |
+| 2 compilaciones simultáneas para 23 equipos | Un despliegue puede quedar en cola; se despliega con margen | §7.6 |
+
+**Lo que dejó de imponer el entorno.** El despliegue anterior dormía el servicio
+tras 15 minutos sin tráfico y tardaba **42,4 s** en volver, lo que incumplía
+[ESC-03](#esc-03). Aquí los contenedores no duermen. Esa fila desapareció de
+esta tabla, y con ella el único escenario que el sistema no cumplía.
+
+La pantalla de aviso de arranque en frío sigue en `sitio/index.html`: ya no hace
+falta, pero tampoco molesta, y quitarla sería trabajo sin beneficio mientras el
+código pueda volver a desplegarse en un plan que sí duerma.
 
 <a id="despliegue-limites-iac"></a>
 
 ### 7.4 Qué está declarado y qué no
 
-De las cinco piezas, **cuatro se declaran en [`infra/`](../../infra/) y una no**.
+**El sistema entero está en un archivo**:
+[`deploy/compose.lab.yaml`](../../deploy/compose.lab.yaml), con un `Dockerfile`
+por pieza. Eso es un cambio respecto del despliegue anterior, donde cuatro de
+cinco piezas estaban en Terraform y la API se creaba a mano porque el proveedor
+no sabía gestionar el plan gratuito.
 
-La API se crea a mano porque el proveedor de Terraform de Render no sabe
-gestionar servicios web del plan gratuito
-([issue #105](https://github.com/render-oss/terraform-provider-render/issues/105)).
-Se deja constancia en lugar de escribir un recurso que no funciona: una
-definición de infraestructura que miente es peor que una incompleta, porque
-`terraform plan` diría que todo está en orden.
+Lo que **sigue** en Terraform es la protección de rama de GitHub
+([`infra/github.tf`](../../infra/github.tf)), que no depende de dónde corra el
+sistema.
 
-Tampoco están en Terraform los **secretos** —claves de la pasarela, credenciales
-de la base de datos—. No es una limitación de la herramienta sino una decisión:
-el estado de Terraform guarda en claro todo lo que gestiona, así que declararlos
-ahí los escribiría en un archivo. Se configuran en el panel de cada servicio y
-llegan a la aplicación por variable de entorno. El motivo está anotado en
-[`infra/github.tf`](../../infra/github.tf).
+Lo que **ya no se usa** son `infra/render.tf` e `infra/supabase.tf`. Se
+conservan porque son la evidencia de la semana 8 y el historial de una decisión
+real, pero describen infraestructura que este proyecto ya no tiene: ver la
+advertencia en [`infra/README.md`](../../infra/README.md) antes de ejecutar
+nada ahí.
+
+**Los secretos no están declarados en ninguna parte**, y eso es deliberado. El
+estado de Terraform guarda en claro todo lo que gestiona, y un compose
+versionado se lee en GitHub. Los valores viven en el panel de la plataforma y
+llegan por variable de entorno; el compose solo los referencia con `${...}`. Es
+la lección de [V-11](../violaciones.md#v-11) convertida en estructura.
 
 <a id="despliegue-observabilidad"></a>
 
@@ -798,14 +861,21 @@ llegan a la aplicación por variable de entorno. El motivo está anotado en
 
 | Señal | Dónde se consulta | Qué responde |
 |---|---|---|
-| `GET /health` | Directamente, y la plataforma cada pocos segundos | Si cada dependencia sondeada responde. `503` si alguna no |
-| `GET /metricas` | Directamente | p50, p95 y máximo por operación, sobre la ventana de peticiones recientes |
-| Logs JSON | Panel de la plataforma | Una línea por petición con `request_id`, `status` y `duration_ms` |
+| `GET /health` | `https://api-pideutb.iscoutb.dev/health`, y la plataforma cada 30 s | Si cada dependencia sondeada responde. `503` si alguna no |
+| `GET /metricas` | `https://api-pideutb.iscoutb.dev/metricas` | p50, p95 y máximo por operación, sobre la ventana de peticiones recientes |
+| Logs JSON | Panel de la plataforma, por contenedor | Una línea por petición con `request_id`, `status` y `duration_ms` |
+| Estado de los contenedores | Panel de la plataforma | `healthy` / `unhealthy` por contenedor |
 
-Los tres tienen el mismo límite declarado: **miden un proceso**. La ventana de
-latencias se reinicia con el servicio y no se comparte entre réplicas, igual que
-el resto del estado ([V-09](../violaciones.md)). Es suficiente para responder
-«¿cómo va ahora mismo?» y no pretende ser un sistema de métricas.
+Los tres primeros tienen el mismo límite declarado: **miden un proceso**. La
+ventana de latencias se reinicia con el servicio y no se comparte entre
+réplicas. Es suficiente para responder «¿cómo va ahora mismo?» y no pretende ser
+un sistema de métricas.
+
+El cuarto es nuevo en esta vista y se gana su fila por un motivo concreto: **la
+plataforma no enruta tráfico hacia un contenedor que no esté sano**. Un
+contenedor que corre perfectamente pero cuyo chequeo falla queda invisible para
+el proxy, y lo que se ve desde fuera es un `404` —no un `502`—, que no sugiere
+en absoluto que el problema sea la salud. Ocurrió, y costó una tarde (§7.6).
 
 <a id="despliegue-deuda"></a>
 
@@ -813,10 +883,31 @@ el resto del estado ([V-09](../violaciones.md)). Es suficiente para responder
 
 | # | Qué falta | Consecuencia |
 |---|---|---|
-| 1 | El estado sigue en memoria del proceso ([V-09](../violaciones.md)) | Un reinicio pierde los pedidos en curso. La base de datos está creada, pero los `repository.py` aún no la usan |
-| 2 | La API no está en Terraform | Recrear el entorno desde cero exige un paso manual documentado |
-| 3 | No hay entorno de pruebas separado | Se despliega contra el mismo entorno que se demuestra |
+| 1 | **Los volúmenes no se respaldan** | Perder el volumen borra pedidos, pagos y cuentas. Se recupera el esquema y la semilla al arrancar; lo demás no vuelve |
+| 2 | **La configuración del despliegue no se puede probar antes de desplegar** | No hay Docker en la máquina de desarrollo, así que `docker compose up` no es una opción y los fallos de configuración solo aparecen en el servidor. Ver abajo |
+| 3 | No hay entorno de pruebas separado | El entorno `development` del panel existe y está vacío: se despliega contra el mismo entorno que se demuestra |
 | 4 | No hay alerta automática | El `503` lo ve la plataforma, pero nadie recibe aviso: hay que mirar |
+| 5 | Un cambio de dominio exige recrear el contenedor | `Deploy` no basta si la definición del servicio no cambió; hace falta `Rebuild`. Se olvida, y el síntoma es un `404` que parece un problema de enrutado |
+
+**La deuda número 2 merece su propio párrafo**, porque es la que más costó. El
+despliegue de la semana 11 se encontró **cinco defectos que las 260 pruebas no
+podían ver**, todos en configuración y ninguno en código:
+
+| Defecto | Síntoma | Por qué las pruebas no lo veían |
+|---|---|---|
+| CORS sin `Authorization` ni `DELETE` | Panel roto en el navegador | `TestClient` no hace *preflight* |
+| `log_format` dentro de `server` en nginx | El contenedor reiniciaba en bucle | Configuración de nginx, no código |
+| `add_header` sin heredar en el panel | `X-Frame-Options` ausente, sin síntoma | idem |
+| `wget --tries` en un healthcheck de Alpine | `404` de Traefik con nginx sano | idem |
+| `crear_usuario.py` reventaba tras crear la cuenta | Traceback engañoso | Nadie lo ejecutaba en CI |
+
+**La mitigación es barata y conocida**: instalar Docker en la máquina de
+desarrollo. Los cinco se habrían visto en treinta segundos con un
+`docker compose --env-file deploy/.env -f deploy/compose.lab.yaml up --build`,
+que es exactamente lo que el servidor ejecuta.
+
+Que no esté hecho es una decisión pendiente, no un olvido: está aquí para que se
+decida, no para que se herede.
 
 <a id="seccion-8"></a>
 <a id="lenguaje-ubicuo"></a>

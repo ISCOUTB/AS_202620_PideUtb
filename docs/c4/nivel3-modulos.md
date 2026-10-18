@@ -11,7 +11,7 @@ modulo/
 ├── esquemas_api.py   # lenguaje publicado hacia FUERA DEL SISTEMA (HTTP)
 ├── router.py         # endpoints FastAPI (capa de entrada HTTP)
 ├── service.py        # lógica de negocio + INTERFAZ PÚBLICA del módulo
-└── repository.py     # acceso a datos (Supabase), solo del propio contexto
+└── repository.py     # acceso a datos (PostgreSQL), solo del propio contexto
 ```
 
 Son **tres** superficies distintas y conviene no confundirlas, porque evolucionan
