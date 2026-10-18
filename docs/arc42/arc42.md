@@ -1396,6 +1396,285 @@ tabla por operación.
 
 ---
 
+<a id="amenazas"></a>
+
+### 8.7 Modelo de amenazas (STRIDE)
+
+#### Por qué STRIDE y no una lista de riesgos
+
+Una lista de riesgos contiene lo que se nos ocurrió. STRIDE obliga a hacer
+**seis preguntas a cada elemento**, y el valor está en las que se contestan
+«esto no lo habíamos pensado». De las dieciocho filas de abajo, tres salieron
+así, y una de ellas es la más grave del sistema.
+
+El inventario de elementos y fronteras es el de [§7.2](#despliegue-topologia).
+Lo que importa para este análisis es que hay **tres fronteras de confianza** y
+no cuatro:
+
+| Frontera | Quién está al otro lado | Qué la protege |
+|---|---|---|
+| Navegador → API | Cualquiera en Internet | CORS, sesiones, autorización por establecimiento |
+| Pasarela → API (webhook) | Un tercero, por una ruta pública | Firma HMAC, y falla en cerrado sin secreto |
+| Panel de Dokploy → contenedores | Quien tenga esa cuenta | Nada nuestro: es la plataforma |
+| ~~API → base de datos~~ | — | **Dejó de cruzar la red** con ADR-0008 |
+
+La cuarta se tachó esta semana 11 y conviene recordarlo aquí: mientras la base
+estuvo en Supabase, cada consulta salía a Internet. Hoy es un contenedor vecino
+en una red privada, y eso **elimina** una clase entera de amenazas en lugar de
+mitigarla.
+
+#### S — Suplantación de identidad
+
+| # | Amenaza | Mitigación | Verificada por |
+|---|---|---|---|
+| S-1 | Alguien se hace pasar por la pasarela y marca pedidos como pagados | Firma HMAC sobre el cuerpo. **Sin secreto la API se niega a arrancar la verificación**, no la salta ([V-11](../violaciones.md#v-11)) | `test_un_evento_sin_firma_valida_se_rechaza` · `test_una_firma_hecha_con_otro_secreto_no_sirve` · `test_firmar_se_niega_en_vez_de_usar_una_cadena_vacia` |
+| S-2 | Alguien se hace pasar por personal del mostrador | Token de sesión de 32 bytes de `secrets`, guardado **hasheado**: una fuga de la tabla no da acceso | `test_el_token_se_guarda_hasheado_y_no_en_claro` · `test_un_token_inventado_no_abre_nada` · `test_dos_tokens_seguidos_no_se_repiten` |
+| S-3 | Reutilizar un evento válido capturado | No hay marca de tiempo ni nonce en la firma, así que **se puede repetir**. No importa: el efecto es idempotente por referencia, y el segundo intento no genera un segundo código | `test_el_mismo_evento_repetido_no_genera_un_segundo_codigo` |
+| S-4 | Una sesión caducada o de un usuario dado de baja sigue sirviendo | La consulta de sesión exige `expira_en > now()` **y** `u.activo` en la misma cláusula | `test_una_sesion_caducada_no_sirve` · `test_un_usuario_desactivado_no_puede_entrar` |
+
+S-3 es la fila que se contesta «no está mitigado y no hace falta». Vale
+escribirla porque la respuesta no es evidente: lo que hace inofensiva la
+repetición no es una defensa contra repetición, es la idempotencia que se
+construyó por otro motivo ([§8.5](#idempotencia)).
+
+#### T — Manipulación de datos
+
+| # | Amenaza | Mitigación | Verificada por |
+|---|---|---|---|
+| T-1 | El cliente manipula el precio de lo que pide | El precio **no viaja en la petición**: se lee del catálogo y se congela en el pedido ([V-06](../violaciones.md#v-06)) | `test_el_pedido_conserva_el_precio_aunque_cambie_el_catalogo` |
+| T-2 | El cliente elige a qué establecimiento va su pedido | Se deriva del ítem, no del cuerpo ([V-01](../violaciones.md#v-01)) | `test_establecimiento_se_deriva_del_item_y_no_del_cliente` |
+| T-3 | El mostrador marca un pedido como pagado sin cobro | `confirmar_pago` **no está expuesta**: la única vía es el webhook firmado | `test_el_mostrador_no_puede_marcar_un_pedido_como_pagado` |
+| T-4 | Inyección de SQL | Todos los valores viajan como parámetros. Las dos consultas con `f-string` interpolan `_COLUMNAS`, que es una **constante literal del módulo**, nunca entrada | Revisado en la S13; no hay concatenación de entrada |
+| T-5 | Una dependencia alterada en el camino | `--require-hashes --only-binary=:all:` en la imagen y en CI | Job `dependencias` del pipeline |
+| T-6 | Escucha o alteración entre la API y la base | Red privada de contenedores, sin publicar puertos. **No hay TLS**, y no se añade: dejó de cruzar Internet | `deploy/compose.lab.yaml` — solo `expose`, nunca `ports` |
+
+#### R — Repudio
+
+| # | Amenaza | Mitigación | Verificada por |
+|---|---|---|---|
+| R-1 | **Nadie puede decir qué persona avanzó un pedido** | **Ninguna.** `avanzar_estado` recibe `establecimiento_id`, no el usuario: el sistema sabe *qué mostrador* movió un pedido, no *quién* | — |
+
+Es una de las tres que aparecieron por preguntar. Y es relevante, no formal: el
+`codigo_canje` **da derecho a comida**, y la transición a `entregado` es el
+momento en que ese derecho se consume. Si un pedido aparece entregado y el
+cliente dice que no lo recogió, hoy no hay forma de saber quién lo marcó.
+
+No se corrige esta semana. Añadir el usuario a la transición toca la firma de
+`avanzar_estado`, el repositorio, el esquema y el contrato, y es un cambio de
+modelo de datos, no un endurecimiento. Queda como [R-08](#riesgos) con su coste.
+
+#### I — Revelación de información
+
+| # | Amenaza | Mitigación | Verificada por |
+|---|---|---|---|
+| I-1 | Enumerar los pedidos de otro establecimiento | **`404`, no `403`**: un `403` confirmaría que el pedido existe. En la cola sí es `403`, porque ahí no hay nada que enumerar | `test_avanzar_el_pedido_de_otro_establecimiento_da_404` · `test_el_personal_que_pide_otro_recibe_403` |
+| I-2 | Averiguar qué correos tienen cuenta | Un solo `401` para correo inexistente y contraseña errada, **y derivación contra un hash de descarte** para que los tiempos no hablen | `test_una_contrasena_incorrecta_y_un_correo_desconocido_dan_el_mismo_error` |
+| I-3 | Otro origen lee respuestas del panel | CORS con lista explícita, sin comodín y sin credenciales automáticas | `test_un_origen_cualquiera_no_recibe_permiso` · `test_no_hay_comodin_de_origen` · `test_no_se_permiten_credenciales_automaticas` |
+| I-4 | El código de canje o una contraseña acaban en los registros | Nada sensible se registra. El guion de alta **no imprime** la contraseña | `test_el_sembrado_no_imprime_la_contrasena` · revisado en la S13: ningún `_LOG` toca código, token ni secreto |
+| I-5 | El secreto de la pasarela en el repositorio | Guardia automática en CI, además de la rotación de [V-11](../violaciones.md#v-11) | `test_el_secreto_no_aparece_en_el_codigo_fuente` · `test_el_guardia_de_secretos_detecta_lo_que_dice_detectar` |
+| I-6 | El token de sesión en `sessionStorage` lo lee un XSS | Aceptado y documentado en [V-12](../violaciones.md#v-12). Acotado: el panel no renderiza HTML de terceros, y la sesión muere al cerrar la pestaña | — |
+| I-7 | **`GET /metricas` es público** | **Ninguna.** Publica p50, p95, máximo y número de muestras por operación a quien lo pida | — |
+
+I-7 es la segunda que apareció por preguntar. Lo que revela es modesto —el
+inventario de operaciones ya está en `openapi.yaml`, que es público a propósito—
+pero el **volumen de tráfico** no estaba publicado en ninguna parte, y es
+información del negocio: cuántos pedidos se hacen y a qué horas.
+
+No se cierra todavía porque cerrarlo tiene un coste concreto: `/metricas` es la
+fuente de las mediciones de [§8.6](#consistencia) y del seguimiento de ESC-02, y
+hoy se consulta sin credenciales desde fuera. Ponerle sesión significa decidir
+quién la tiene. Queda como [R-09](#riesgos).
+
+#### D — Denegación de servicio
+
+| # | Amenaza | Mitigación | Verificada por |
+|---|---|---|---|
+| DoS-1 | **Agotar la CPU pidiendo iniciar sesión** | **Ninguna nuestra.** Ver abajo: es la más grave del modelo | — |
+| DoS-2 | Agotar el pool de conexiones | `TIMEOUT_POOL_S = 5`: la petición se rinde en vez de encolarse para alguien que ya se fue | `base_de_datos.py` |
+| DoS-3 | Saturar la base con conexiones | `max_connections=30` contra un pool que abre 5 como máximo | `deploy/compose.lab.yaml` |
+| DoS-4 | Tumbar un contenedor | `restart: unless-stopped` en los tres, y chequeos de salud que impiden enrutar a uno que no responde | `deploy/compose.lab.yaml` |
+
+##### DoS-1, en detalle: dos defensas que se estorban
+
+Es la tercera que apareció por preguntar, y la única del modelo que calificaría
+como grave. Sale de juntar tres hechos que, por separado, son decisiones
+correctas:
+
+1. **`POST /v1/sesiones` es caro a propósito.** Deriva scrypt, y eso cuesta unos
+   35 ms de CPU en producción. Es la defensa de [ADR-0007](../adr/0007-autenticacion-del-panel.md)
+   contra probar contraseñas en serie.
+2. **No hay límite de intentos.** Declarado en ese mismo ADR: hacerlo bien exige
+   almacenamiento compartido entre instancias.
+3. **El contenedor tiene 0,5 CPU de tope** ([ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md)).
+
+La aritmética:
+
+```
+0,5 CPU  =  500 ms de CPU por segundo de reloj
+          ÷ 35 ms por derivación
+          ≈ 14 peticiones por segundo saturan el contenedor
+```
+
+Catorce. Y lo que lo convierte de molestia en amenaza es el detalle que ninguna
+de las tres decisiones anticipó: **el atacante no necesita una cuenta.** La
+defensa contra ataques de tiempo (I-2) deriva contra un hash de descarte cuando
+el correo no existe, así que un correo inventado cuesta **lo mismo** que uno
+real.
+
+Dicho de otro modo: para proteger los tiempos de respuesta se hizo que cualquiera
+pueda obligar al servidor a trabajar. Las dos defensas son correctas por separado
+y se estorban juntas.
+
+**Lo que hoy lo contiene es algo que no es nuestro, y que la semana 11 anotó como
+un problema.** Cloudflare rechaza con `403` a los clientes que identifica como
+automatismos (fallo 9 de [§6.7](#fallos-parciales)): un ataque con el cliente
+HTTP por defecto de un guion no llega. Eso no es una mitigación —no la
+controlamos, no la configuramos y un atacante que ponga un `User-Agent` de
+navegador la pasa— pero explica por qué el riesgo es real y no ha ocurrido.
+
+La corrección está en la S14, porque **tiene un número que medir antes**: un
+límite de intentos por IP en memoria del proceso funcionaría hoy, con una sola
+instancia, y dejaría de funcionar en silencio con dos — exactamente el modo de
+fallo de R-03. Elegir entre eso y subir el coste de scrypt (que empeora DoS-1 en
+vez de mejorarlo) exige medir las dos cosas.
+
+#### E — Elevación de privilegios
+
+| # | Amenaza | Mitigación | Verificada por |
+|---|---|---|---|
+| E-1 | Quien pueda escribir una variable de entorno se crea una cuenta | El sembrado actúa **solo con la tabla vacía**: en un sistema en marcha no hace nada | `test_el_sembrado_no_toca_un_sistema_que_ya_tiene_cuentas` · `test_el_sembrado_sin_variables_no_hace_nada` |
+| E-2 | Personal de un establecimiento opera sobre otro | El establecimiento sale **de la sesión**, no del parámetro | `test_el_establecimiento_sale_de_la_sesion_y_no_del_parametro` · `test_el_personal_opera_sobre_el_suyo_lo_pida_o_no` |
+| E-3 | Entregar un pedido sin presentar el código | `avanzar_estado` exige el código para pasar a `entregado`, comparado con `compare_digest` | `test_entregar_sin_el_codigo_no_se_puede` · `test_el_codigo_no_se_puede_reutilizar` |
+| E-4 | Los dos roles pueden lo mismo | Cierto hoy, y **declarado** en vez de descubierto | `test_hoy_los_dos_roles_pueden_operar_el_panel` |
+
+#### Priorización
+
+Ordenadas por lo que de verdad pasaría, no por la categoría:
+
+| Prioridad | Amenaza | Por qué ahí | Dónde se trata |
+|---|---|---|---|
+| **1** | DoS-1 · agotar la CPU con inicios de sesión | 14 peticiones por segundo tumban el servicio, sin cuenta y sin credenciales. Lo contiene un proxy ajeno | [R-07](#riesgos), S14 |
+| **2** | R-1 · no se sabe quién entregó un pedido | Afecta a lo único que vale dinero: el canje. No es explotable, es **no auditable** | [R-08](#riesgos) |
+| **3** | I-7 · `/metricas` público | Revela volumen de negocio. Bajo impacto, corrección con coste | [R-09](#riesgos) |
+| **4** | I-6 · token en `sessionStorage` | Ya evaluado y aceptado con su acotación | [V-12](../violaciones.md#v-12) |
+| **5** | S-3 · repetición de eventos | Mitigado de hecho por la idempotencia | — |
+
+Lo que **no** está en esta lista también es resultado: de las dieciocho filas,
+catorce tienen una mitigación con una prueba que la verifica. No porque se haya
+trabajado en seguridad esta semana, sino porque las violaciones V-01 a V-12 de
+las semanas anteriores eran, casi todas, amenazas de este modelo encontradas de
+una en una.
+
+---
+
+<a id="datos-personales"></a>
+
+### 8.8 Datos personales y retención
+
+#### Lo que el sistema guarda de una persona
+
+La respuesta es más corta de lo que suele ser, y es una propiedad de la
+arquitectura y no una casualidad:
+
+| Tabla | Dato personal | Forma |
+|---|---|---|
+| `usuarios` | `correo` del personal | En claro. Es el identificador de acceso |
+| `usuarios` | Contraseña | **Nunca**: solo su derivación scrypt con sal propia |
+| `sesiones` | Token | **Nunca**: solo su hash |
+| `pedidos` | — | **Nada.** Ni nombre, ni teléfono, ni correo, ni identificador de dispositivo |
+
+La fila que importa es la última. **Un cliente de PideUTB no es un registro: es
+quien tiene un código de canje.** Pide sin cuenta, sin dejar datos y sin que el
+sistema pueda relacionar dos de sus pedidos entre sí.
+
+Eso no se decidió como política de privacidad; salió de
+[ADR-0002](../adr/0002-propiedad-datos-establecimiento.md) y del alcance del
+producto. Pero el efecto es que la minimización de datos no hay que
+implementarla: **el dato que no se recoge no se puede filtrar, ni hay que
+borrarlo, ni hay que explicar quién lo ve.**
+
+La contrapartida, y conviene decirla: el `codigo_canje` pasa a ser un
+**portador** —quien lo tenga come— así que su manejo es el control relevante.
+Por eso se genera con `secrets`, es único en la tabla, y se exige al entregar.
+
+#### Retención
+
+| Dato | Cuánto vive | Quién lo limpia |
+|---|---|---|
+| `sesiones` vigentes | 8 horas (`HORAS_DE_SESION`), para cubrir un turno | Caducan solas; la consulta de sesión las descarta |
+| `sesiones` caducadas | **Para siempre** | `borrar_sesiones_caducadas()` existe y **no la llama nadie** |
+| `pedidos` | **Para siempre** | Nadie |
+| `usuarios` | Hasta que se desactiven | Nadie; `activo = false` en vez de borrado |
+
+Las dos filas de «para siempre» son honestas y no urgentes, por el motivo de
+arriba: lo que se acumula no contiene datos de clientes. Una sesión caducada es
+un hash inútil —`buscar_usuario_de_sesion` la descarta por `expira_en`— así que
+es **higiene y no seguridad**, y su función lo dice en el propio docstring en vez
+de dar a entender que alguien la ejecuta.
+
+Los pedidos acumulados son, de hecho, el registro contable del sistema: borrarlos
+sería perder la auditoría del dinero. Lo que falta no es borrado sino una
+política escrita de cuánto conservar, y eso depende de un requisito que nadie ha
+dado.
+
+---
+
+<a id="secretos"></a>
+
+### 8.9 Gestión de secretos
+
+#### Los cuatro que existen
+
+| Secreto | Dónde vive | Quién lo ve |
+|---|---|---|
+| `PIDEUTB_SECRETO_PASARELA` | Entorno del panel de Dokploy | Quien tenga esa cuenta |
+| `POSTGRES_PASSWORD` · `PIDEUTB_DATABASE_URL` | Ídem | Ídem |
+| `PIDEUTB_USUARIO_INICIAL_CONTRASENA` | Ídem | Ídem |
+| `SONAR_TOKEN` | Secretos de GitHub Actions | Quien administre el repositorio |
+
+Ninguno está en el repositorio, y eso lo comprueba una prueba en cada push
+(`test_el_secreto_no_aparece_en_el_codigo_fuente`) que a su vez tiene su propia
+prueba de que sabe detectar lo que dice detectar. La historia de por qué existe
+esa guardia está en [V-11](../violaciones.md#v-11): el secreto de la pasarela
+**estuvo** escrito en el código.
+
+#### Las dos propiedades que se eligieron, y valen más que la lista
+
+**Fallar en cerrado.** Sin `PIDEUTB_SECRETO_PASARELA` la API no verifica firmas
+con una cadena vacía: se niega a firmar. La diferencia es que un despliegue mal
+configurado **no arranca aceptando cualquier evento**, que es el modo de fallo
+que convierte un olvido en una brecha.
+
+**Derivar y no cifrar.** Ni las contraseñas ni los tokens se guardan de forma
+reversible. Cifrar implica poder descifrar, y nadie necesita recuperar una
+contraseña original: solo comprobar si la que llega produce la misma derivación.
+Una fuga de `usuarios` o de `sesiones` no da acceso a nada.
+
+#### Lo que falta, y es concreto
+
+**La contraseña inicial se queda en el panel.** `PIDEUTB_USUARIO_INICIAL_CONTRASENA`
+cumple su función una sola vez —el primer arranque con la tabla vacía— y después
+sigue ahí, en claro, legible para cualquiera que entre al panel. El diseño del
+sembrado ya acota el daño (E-1: con la tabla poblada no hace nada), pero una
+contraseña que sigue siendo válida y visible mucho después de usarse es una
+credencial olvidada.
+
+Lo correcto es cambiarla desde el panel y vaciar la variable. Y ahí aparece lo
+otro:
+
+**No hay forma de restablecer una contraseña.** Comprobado en la S13: no existe
+ruta en el contrato ni guion que lo haga. `crear_usuario.py` crea cuentas y
+necesita acceso a la base, que **el despliegue no concede** —la base no publica
+puertos y el panel no da terminal—. Así que:
+
+- Cambiar la contraseña inicial hoy **no se puede** sin recrear el despliegue.
+- Una contraseña perdida deja el panel inaccesible por el mismo motivo.
+
+Las dos cosas son la misma carencia, y es la que hace que la primera no se pueda
+arreglar. Quedan como [R-10](#riesgos) y la deuda D-04 de la misma sección.
+
+---
+
 ## 9. Decisiones de arquitectura
 
 Las decisiones arquitectónicas relevantes se documentan como ADRs en
@@ -1658,6 +1937,10 @@ solo se vigila leyendo esta tabla se hereda sin revisarse.
 | **R-04** | **`GET /metricas` dejaría de significar lo que dice** con más de un proceso: la ventana es por proceso y no agregable | Hoy: 1 proceso | Medio: se decide con esas cifras, incluida la de no cachear | Ninguna automática. Declarado en [§8.6](#consistencia) |
 | **R-05** | **Un proceso por servicio, sin redundancia.** `restart: unless-stopped` recupera, pero no evita la caída | 1 réplica de cada uno | Medio: la cuota de 4 contenedores impide duplicar | `GET /health` y el chequeo del compose |
 | **R-06** | **Un proxy que no controlamos filtra clientes automatizados.** Si la pasarela usara un agente filtrado, sus avisos no llegarían y sería indistinguible de «el evento no llegó» | `Python-urllib` recibe `403` en una sola petición | Medio: el pedido queda en `pendiente_pago`, estado honesto y consultable | Medido en [§7.2](#despliegue-topologia). No mitigable desde aquí: ver fallo 9 de [§6.7](#fallos-parciales) |
+| **R-07** | **Agotar la CPU pidiendo iniciar sesión.** `POST /v1/sesiones` es caro a propósito y no hay límite de intentos | **≈14 peticiones/s** saturan 0,5 CPU · 35 ms por derivación | **Alto: el servicio deja de responder**, y el atacante no necesita cuenta | Ninguna automática. Modelada como DoS-1 en [§8.7](#amenazas) |
+| **R-08** | **No se puede saber qué persona avanzó un pedido.** `avanzar_estado` recibe el establecimiento, no el usuario | — | Medio: afecta a la auditoría del canje, que es lo que vale dinero | Ninguna: el dato no se guarda |
+| **R-09** | **`GET /metricas` es público** y publica el volumen de tráfico por operación | — | Bajo: el inventario de operaciones ya es público; el volumen no lo era | Ninguna automática |
+| **R-10** | **La contraseña inicial sigue en el panel, en claro, mucho después de usarse** | 1 uso real, vigente indefinidamente | Medio: es una credencial válida y visible. No se puede rotar por la deuda D-04 | Ninguna |
 
 #### R-01 y R-02 en detalle, que son los dos que tienen número
 
@@ -1696,6 +1979,41 @@ No se toca esta semana. Subir los parámetros endurece también el arranque del
 panel y afecta a `POST /v1/sesiones`, que ya es la operación más lenta del
 sistema: es una decisión con dos medidas que corresponde a la S13, no un ajuste
 de constante.
+
+#### R-07 es el que sale de juntar tres decisiones correctas
+
+Ninguna de las tres está mal por separado, y es lo que lo hace interesante:
+
+1. `POST /v1/sesiones` deriva scrypt, que cuesta **~35 ms de CPU**. Es la
+   defensa de ADR-0007 contra probar contraseñas en serie.
+2. **No hay límite de intentos.** Declarado en ese mismo ADR, porque hacerlo
+   bien exige almacenamiento compartido entre instancias.
+3. El contenedor tiene **0,5 CPU** de tope (ADR-0008).
+
+```
+500 ms de CPU por segundo ÷ 35 ms por derivación ≈ 14 peticiones/s
+```
+
+Y el detalle que ninguna anticipó: **el atacante no necesita una cuenta.** La
+defensa contra ataques de tiempo deriva contra un hash de descarte cuando el
+correo no existe, de modo que un correo inventado cuesta lo mismo que uno real.
+Para proteger los tiempos de respuesta se hizo que cualquiera pueda obligar al
+servidor a trabajar.
+
+Lo que hoy lo contiene no es nuestro: Cloudflare rechaza a los clientes que
+identifica como automatismos (R-06, y el fallo 9 de [§6.7](#fallos-parciales)).
+Es decir, **lo que la semana 11 anotó como un obstáculo es lo que la semana 13
+encuentra conteniendo su amenaza más grave.** No cuenta como mitigación —no la
+controlamos y un `User-Agent` de navegador la pasa— pero explica por qué el
+riesgo es real y no ha ocurrido.
+
+Se trata en la S14 y no aquí porque hay que medir antes: un límite por IP en
+memoria del proceso funcionaría hoy con una sola instancia y **dejaría de
+funcionar en silencio con dos**, que es el modo de fallo de R-03. Subir el coste
+de scrypt, la otra opción, empeora R-07 mientras mejora R-02.
+
+Las dos correcciones apuntan en direcciones opuestas, y eso es exactamente lo
+que hay que resolver con un número delante.
 
 ### 11.2 Deuda técnica
 

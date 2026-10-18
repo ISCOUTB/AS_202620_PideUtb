@@ -53,6 +53,9 @@ ningún servicio— en [`docs/evidencia-s11.md`](docs/evidencia-s11.md).
 La de la semana 12 —consistencia por operación, la caché que se descartó con un
 número y un margen de calidad que estaba agotado sin que nadie lo hubiera
 escrito— en [`docs/evidencia-s12.md`](docs/evidencia-s12.md).
+La de la semana 13 —modelo STRIDE, y dos defensas correctas que juntas dejan
+tumbar el servicio con catorce peticiones por segundo— en
+[`docs/evidencia-s13.md`](docs/evidencia-s13.md).
 
 **Ya no hay arranque en frío.** El despliegue anterior dormía el servicio tras
 15 minutos sin tráfico y tardaba 42,4 s en volver, lo que incumplía
@@ -185,6 +188,7 @@ pytest
 | **`tests/test_compatibilidad_contrato.py`** | Que el contrato no rompa a un cliente escrito contra la versión anterior |
 | **`tests/test_expectativas_consumidor.py`** | Que se siga emitiendo lo que el consumidor declaró que lee |
 | **`tests/test_escenarios_de_calidad.py`** | Que las constantes del sitio sigan cumpliendo el umbral del escenario que sostienen |
+| **`tests/test_dependencias.py`** | Que la imagen no instale nada que la aplicación no importe, ni al revés |
 
 Las tres últimas son las **pruebas de contrato**, y llevan **20 casos negativos**
 —roturas introducidas a propósito— porque una prueba de contrato que no puede
