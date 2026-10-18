@@ -192,6 +192,23 @@ def test_marcar_pagado_deja_el_pedido_pagado_y_con_codigo(implementacion):
     assert pedidos_repo.buscar_por_id(pedido.id).codigo_canje == "ABC123"
 
 
+def test_buscar_ids_pagados_solo_devuelve_los_pagados(implementacion):
+    """Lo que la conciliación de fallos parciales usa para cruzar los contextos.
+
+    Es la mitad de Pedidos del detector de [arc42 §6.7](../../docs/arc42/arc42.md#fallos-parciales):
+    Pagos pregunta por esta vía en lugar de leer la tabla `pedidos`, que
+    [ADR-0001](../../docs/adr/0001-estilo-arquitectonico.md) le prohíbe tocar.
+    """
+    sin_pagar = _crear_pedido()
+    pagado = _crear_pedido()
+    pedidos_repo.marcar_pagado(pagado.id, "PAGADO1")
+
+    ids = pedidos_repo.buscar_ids_pagados()
+
+    assert pagado.id in ids
+    assert sin_pagar.id not in ids
+
+
 def test_marcar_pagado_dos_veces_devuelve_none_la_segunda(implementacion):
     """El comportamiento que sostiene la promesa de idempotencia de ADR-0003.
 
@@ -233,6 +250,46 @@ def _intento(pedido_id: int, referencia: str, estado=EstadoPago.PENDIENTE) -> In
         estado_pago=estado,
         url_checkout=f"https://sandbox.example/{referencia}",
     )
+
+
+def test_buscar_pendientes_de_pedidos_filtra_por_estado_y_por_pedido(implementacion):
+    """La otra mitad del detector de fallos parciales.
+
+    Devuelve los intentos **pendientes** de los pedidos que se le pasan, que es
+    justo lo que hay que cruzar con los pedidos ya pagados para encontrar los
+    que quedaron descolgados (`pagos.service.conciliar`).
+
+    Recibe identificadores en lugar de hacer el `JOIN` en SQL a propósito: un
+    cruce entre `pagos_intentos` y `pedidos` dentro del repositorio de Pagos
+    sería leer la tabla de otro contexto, que es lo que ADR-0001 prohíbe.
+    """
+    descolgado = _crear_pedido()
+    resuelto = _crear_pedido()
+    ajeno = _crear_pedido()
+    pagos_repo.guardar(_intento(descolgado.id, "ref-descolgada"))
+    pagos_repo.guardar(_intento(resuelto.id, "ref-resuelta", EstadoPago.APROBADO))
+    pagos_repo.guardar(_intento(ajeno.id, "ref-ajena"))
+
+    encontrados = pagos_repo.buscar_pendientes_de_pedidos([descolgado.id, resuelto.id])
+
+    referencias = [i.referencia_pago for i in encontrados]
+    assert referencias == ["ref-descolgada"], (
+        "tiene que traer solo los pendientes, y solo de los pedidos pedidos"
+    )
+
+
+def test_buscar_pendientes_sin_pedidos_no_consulta_nada(implementacion):
+    """Una lista vacía no es «todos».
+
+    Sin este caso, `WHERE pedido_id = ANY('{}')` devolvería cero filas por
+    casualidad y nadie notaría que la función se llamó sin sentido. Peor: una
+    implementación descuidada podría interpretar la lista vacía como «sin
+    filtro» y devolver **todos** los intentos pendientes del sistema.
+    """
+    pedido = _crear_pedido()
+    pagos_repo.guardar(_intento(pedido.id, "ref-1"))
+
+    assert pagos_repo.buscar_pendientes_de_pedidos([]) == []
 
 
 def test_un_intento_guardado_se_encuentra_por_su_referencia(implementacion):

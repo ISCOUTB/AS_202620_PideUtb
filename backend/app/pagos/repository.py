@@ -86,6 +86,41 @@ def buscar_por_referencia(referencia_pago: str) -> IntentoPago | None:
     return None if fila is None else _desde_fila(fila)
 
 
+def buscar_pendientes_de_pedidos(pedido_ids: list[int]) -> list[IntentoPago]:
+    """Intentos que siguen `pendiente` para pedidos que se le indiquen.
+
+    Existe para detectar la ventana de inconsistencia que describe
+    [arc42 §6.7](../../../docs/arc42/arc42.md#fallos-parciales): `procesar_evento`
+    escribe en dos transacciones —primero el pedido, después el intento— y un
+    corte entre ambas deja el pedido pagado con su intento todavía pendiente.
+
+    Recibe los identificadores en lugar de cruzar las dos tablas en SQL **a
+    propósito**. Un `JOIN` entre `pagos_intentos` y `pedidos` dentro de este
+    repositorio sería que el contexto Pagos leyera la tabla de Pedidos, que es
+    exactamente lo que [ADR-0001](../../../docs/adr/0001-estilo-arquitectonico.md)
+    prohíbe. El cruce lo hace quien tiene derecho a preguntar a los dos: el
+    servicio, llamando a la interfaz pública de cada contexto.
+    """
+    if not pedido_ids:
+        return []
+
+    if not base_de_datos.hay_base_de_datos():
+        return [
+            intento for intento in _INTENTOS.values()
+            if intento.pedido_id in pedido_ids
+            and intento.estado_pago is EstadoPago.PENDIENTE
+        ]
+
+    with base_de_datos.conexion() as conn, conn.cursor() as cur:
+        cur.execute(
+            f"SELECT {_COLUMNAS} FROM pagos_intentos "
+            "WHERE pedido_id = ANY(%s) AND estado_pago = 'pendiente' "
+            "ORDER BY pedido_id",
+            (pedido_ids,),
+        )
+        return [_desde_fila(fila) for fila in cur.fetchall()]
+
+
 def buscar_pendiente_de_pedido(pedido_id: int) -> IntentoPago | None:
     """Intento aún sin resolver para un pedido, si lo hay.
 

@@ -48,6 +48,8 @@ La de la semana 9 —generación verificada, auditoría de erosión y de depende
 en [`docs/evidencia-s9.md`](docs/evidencia-s9.md).
 La de la semana 10 —autenticación del panel, y los seis defectos que las
 correcciones destaparon— en [`docs/evidencia-s10.md`](docs/evidencia-s10.md).
+La de la semana 11 —fallos parciales, idempotencia y la decisión de no extraer
+ningún servicio— en [`docs/evidencia-s11.md`](docs/evidencia-s11.md).
 
 **Ya no hay arranque en frío.** El despliegue anterior dormía el servicio tras
 15 minutos sin tráfico y tardaba 42,4 s en volver, lo que incumplía

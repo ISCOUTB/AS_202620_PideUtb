@@ -202,6 +202,51 @@ def procesar_evento(
     return _pedido_de(intento.pedido_id), ya_estaba_resuelto
 
 
+def conciliar() -> list[str]:
+    """Referencias de pago que quedaron descolgadas, si las hay.
+
+    Devuelve los intentos que siguen en `pendiente` **aunque su pedido ya esté
+    pagado**. En un sistema sano la lista está vacía.
+
+    ### Por qué puede no estarlo
+
+    `procesar_evento` escribe en dos sitios y **no en una sola transacción**:
+    primero pide a Pedidos que confirme —lo que genera el código de canje— y
+    después marca el intento como aprobado. Entre las dos hay una ventana. Si el
+    proceso muere ahí, o si la segunda escritura falla, el pedido queda pagado y
+    su intento pendiente.
+
+    El orden está elegido y no es casual: **falla hacia el cliente**. Así, un
+    corte deja a alguien que pagó con su código en la mano y a nosotros con la
+    contabilidad desactualizada. Al revés —marcar el intento primero— dejaría a
+    quien pagó sin código, que es el fallo que sí se nota y el que no se puede
+    reparar solo.
+
+    ### Por qué no se cierra con una transacción única
+
+    Se puede, y se evaluó. Exigiría que Pagos y Pedidos compartieran una
+    conexión, es decir que un contexto pasara su transacción al otro. Eso rompe
+    [ADR-0001](../../../docs/adr/0001-estilo-arquitectonico.md), que es lo único
+    que hoy mantiene separados los contextos, y lo rompe en el sitio más difícil
+    de revertir: la capa de datos.
+
+    Se prefirió **conservar la frontera y hacer la ventana visible**, que es lo
+    que hace esta función. El detalle del descarte, con las cuatro opciones
+    evaluadas, está en
+    [arc42 §6.7](../../../docs/arc42/arc42.md#fallos-parciales).
+
+    ### Por qué no es una saga
+
+    Una saga coordina escrituras en **sistemas distintos**, donde no existe una
+    transacción común y hay que compensar. Aquí las dos escrituras van a la
+    misma base de datos: no falta un coordinador, falta una transacción. Llamar
+    saga a esto sería ponerle un nombre grande a un problema local.
+    """
+    pagados = pedidos_service.ids_pagados()
+    descolgados = repository.buscar_pendientes_de_pedidos(pagados)
+    return [intento.referencia_pago for intento in descolgados]
+
+
 def _pedido_de(pedido_id: int) -> PedidoPublicado:
     pedido = pedidos_service.obtener_pedido(pedido_id)
     if pedido is None:
