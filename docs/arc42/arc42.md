@@ -1248,6 +1248,154 @@ propio con su propia base. Esa decisión está evaluada y descartada en
 
 ---
 
+<a id="consistencia"></a>
+
+### 8.6 Consistencia por operación
+
+#### Lo primero: dónde NO hay consistencia eventual
+
+El sistema tiene **una sola base de datos, sin réplicas de lectura**. Todas las
+escrituras y todas las lecturas van al mismo PostgreSQL, por el mismo pool.
+
+De ahí se sigue algo que conviene decir antes de la tabla, porque es la respuesta
+a la mitad de las preguntas: **las diez operaciones de dominio son fuertemente
+consistentes**. Una lectura posterior a una escritura confirmada ve esa escritura,
+siempre, sin ventanas. No hay réplica que alcanzar ni caché que invalidar.
+
+Las otras dos del contrato —`/health` y `/metricas`— no leen la base en absoluto,
+y la segunda por eso no tiene garantía que dar: se explica más abajo, porque es
+menos trivial de lo que parece.
+
+Eso no es una virtud del diseño: es una consecuencia del tamaño del sistema, y
+vale mientras lo siga siendo. Lo que lo cambiaría está al final de la sección.
+
+#### La tabla
+
+| Operación | Garantía | Concurrencia | Notas |
+|---|---|---|---|
+| `GET /v1/menu/items/{id}` | **Fuerte** | — | Lectura directa |
+| `GET /v1/menu/establecimientos/{id}/items` | **Fuerte** | — | Orden estable fijado en el repositorio, no por el almacenamiento |
+| `POST /v1/pedidos` | **Fuerte**, atómica | El identificador lo asigna la secuencia de la base | El precio se congela en el pedido: una subida posterior no reescribe lo ya pedido |
+| `GET /v1/pedidos/{id}` | **Fuerte** · lee-lo-que-escribiste | — | Lo que el cliente ve desfasado es por el sondeo, no por el almacén (abajo) |
+| `GET /v1/pedidos` | **Fuerte** | — | Filtrada por el establecimiento de la sesión |
+| `POST /v1/pedidos/{id}/estado` | **Fuerte**, atómica | `UPDATE ... WHERE estado = <el esperado>` | **No idempotente a propósito**: repetir da `409`, que es información útil para quien atiende |
+| `POST /v1/pagos/intentos` | **Fuerte** · **idempotente por pedido** | Restricción única: un solo intento pendiente por pedido | Pulsar «Pagar» dos veces devuelve el mismo intento |
+| `POST /v1/pagos/eventos` | **Al-menos-una-vez** entrante · **idempotente por referencia** | `UPDATE ... WHERE estado = 'pendiente_pago'` | La única operación con entrega repetida garantizada. Ver [§8.5](#idempotencia) |
+| `POST` / `DELETE /v1/sesiones` | **Fuerte** | El cierre borra **una** sesión, no todas las del usuario | — |
+| `GET /health` | **Fuerte** · del proceso | — | No consulta la base: responde si *este* proceso vive |
+| `GET /metricas` | **Ni fuerte ni eventual: no es estado compartido** | — | La única del contrato que no sale de la base (abajo) |
+
+Dos filas merecen ampliarse, y son las dos que menos lo parecen.
+
+#### `GET /metricas` no tiene garantía de consistencia, y no es un descuido
+
+Las otras once operaciones responden en función de lo que hay en PostgreSQL. Esta
+no: los percentiles los acumula **una ventana en la memoria del proceso** que
+atiende la petición. De ahí se siguen tres cosas que conviene decir, porque
+afectan a cómo se usan los números de esta misma sección:
+
+- **Se pierden al reiniciar.** Un despliegue pone el contador a cero. Las cifras
+  medidas aquí valen para la ventana en que se tomaron, y por eso se anotan con
+  su `n` y su fecha en vez de como constantes del sistema.
+- **No son agregables.** Hoy hay un solo proceso, así que la pregunta no se
+  plantea; el día que hubiera dos, cada uno respondería lo suyo y `p50` dejaría
+  de significar «el p50 del sistema» sin que nada avisara.
+- **Por eso mismo sirven para lo que se usan aquí**: comparar el tiempo de
+  servidor con la ida y vuelta vista desde fuera. Para eso basta un proceso.
+
+Es la única operación del sistema donde «¿a qué instancia pregunté?» cambiaría la
+respuesta. Hoy no hay dos instancias, pero el día que las haya este endpoint es
+lo primero que miente — y mentiría en silencio.
+
+#### El desfase que el usuario percibe no está en los datos
+
+El panel del mostrador refresca su cola **cada 8 segundos**, y la pantalla del
+cliente consulta su pedido **cada 3** mientras espera el pago.
+
+Eso significa que lo que una persona ve puede estar hasta 8 segundos
+desactualizado. Es fácil llamar a eso «consistencia eventual» y sería **falso**:
+el almacén responde el dato correcto en cada consulta. Lo que está desfasado es
+**la última vez que alguien preguntó**.
+
+La distinción no es académica, porque las dos cosas se arreglan en sitios
+distintos:
+
+| | Dónde vive | Cómo se reduce |
+|---|---|---|
+| Desfase de sondeo | `sitio/panel.js`, `sitio/config.js` | Bajar el intervalo, o empujar desde el servidor |
+| Consistencia eventual | El almacenamiento | No se puede «bajar»: se diseña alrededor |
+
+Hoy el sistema **no tiene** lo segundo. Confundirlos llevaría a resolver con
+arquitectura un problema que es un número en un archivo de configuración.
+
+#### Estrategia de caché: no hay, y el motivo es un número
+
+La pregunta no es si una caché *ayudaría* —casi siempre ayuda algo— sino
+**cuánto**, comparado con lo que cuesta.
+
+Medido contra el despliegue el 18/10/2026, sobre `GET /v1/menu/establecimientos/1/items`:
+
+| | |
+|---|---|
+| Ida y vuelta completa, desde fuera | **328 ms** (p50, n=12; mín. 281, máx. 775) |
+| De eso, tiempo de servidor (`/metricas`) | **1,79 ms** (p50, n=26) |
+| Proporción | **0,55 %** |
+
+Una caché de aplicación optimiza el tiempo de servidor. Aunque fuera perfecta
+—cero milisegundos— llevaría la experiencia de 328 ms a 326. **Eso no se percibe,
+y de hecho no se distingue del ruido**: la propia medición varía entre 281 y 775
+ms. Los otros 326 ms son red, TLS y el proxy, y ninguna caché nuestra los toca.
+
+Y lo que costaría sí es real: **invalidación**. Una carta cacheada que no se
+invalida al cambiar un precio muestra precios viejos, y un pedido creado contra
+un precio viejo es una discrepancia con dinero de por medio. Se estaría
+cambiando un problema que no existe por uno que sí.
+
+**La operación más lenta del sistema es `POST /v1/sesiones`, con 37,15 ms de p50**
+(n=24, p95 48,74), y es lenta por diseño: es scrypt derivando la contraseña
+([ADR-0007](../adr/0007-autenticacion-del-panel.md)). Cachear eso sería desarmar
+la defensa que hace caro probar contraseñas — es el único sitio del sistema donde
+**tardar es la función**, no un costo.
+
+*(Ese 37 ms dejó al descubierto otra cosa, que no es de esta semana pero se
+anota donde se encontró: ADR-0007 eligió el parámetro de coste midiendo **100 ms
+en el portátil de desarrollo**, y el servidor hace la misma derivación en unos
+35. La defensa en producción vale, medida, bastante menos de lo que el ADR
+sugiere. Se trata en [§11](#riesgos), con los números.)*
+
+**Decisión: ninguna caché de aplicación.** Lo que sí hay es lo que no cuesta
+nada:
+
+- `config.js` se sirve con `no-cache`: lleva la dirección de la API y un
+  navegador que lo guarde seguiría llamando a donde la API ya no está.
+- El resto de estáticos los cachea el navegador con las cabeceras por defecto de
+  nginx, que es suficiente para tres archivos.
+
+**Qué cambiaría esta decisión**, y es comprobable sin discutirlo: que el tiempo
+de servidor deje de ser el 0,5 %. `GET /metricas` publica el p50 y el p95 por
+operación, así que basta compararlo con la ida y vuelta medida desde fuera. El
+día que el servidor sea una fracción apreciable, la caché pasa a tener algo que
+optimizar.
+
+#### Qué cambiaría la fila de arriba del todo
+
+La consistencia fuerte de todas las operaciones depende de que haya **una sola
+base sin réplicas**. Dejaría de ser cierta si:
+
+- Se añadiera una réplica de lectura para repartir carga. Ahí aparecería el
+  desfase de replicación, y las lecturas tendrían que elegir entre fresca y
+  barata.
+- Se extrajera un contexto a un servicio con base propia — evaluado y descartado
+  en [ADR-0009](../adr/0009-no-extraer-un-servicio.md), precisamente porque
+  convertiría una transacción local en una saga.
+- Se añadiera una caché, que es una réplica con otro nombre.
+
+Las tres están hoy descartadas con su motivo, y las tres tienen el mismo
+síntoma: lo que hoy se puede afirmar en una línea pasaría a necesitar una
+tabla por operación.
+
+---
+
 ## 9. Decisiones de arquitectura
 
 Las decisiones arquitectónicas relevantes se documentan como ADRs en
@@ -1268,12 +1416,15 @@ arquitectura sin abrir nada.
 | [ADR-0005](../adr/0005-maquina-de-estados-del-mostrador.md) | Declarar las transiciones del mostrador como dato y excluir el pago de ellas | [ESC-03](#esc-03) | Aceptada |
 | [ADR-0006](../adr/0006-componente-generativo.md) | No incorporar un componente generativo, y dejar escrito qué lo cambiaría | [ESC-02](#esc-02) | Aceptada |
 | [ADR-0007](../adr/0007-autenticacion-del-panel.md) | Autenticar el panel con sesiones propias en lugar de Supabase Auth | [ESC-04](#esc-04) | Aceptada |
-| [ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md) | Desplegar en el servidor del laboratorio, con la base de datos dentro del despliegue y bajo un solo origen | [ESC-03](#esc-03) | Aceptada — reemplaza a ADR-0004 |
+| [ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md) | Desplegar en el servidor del laboratorio, con la base de datos dentro del despliegue y la API en un host aparte | [ESC-03](#esc-03) | Aceptada — reemplaza a ADR-0004 |
 | [ADR-0009](../adr/0009-no-extraer-un-servicio.md) | No extraer ningún módulo a un servicio independiente, y dejar escrito qué lo cambiaría | [ESC-02](#esc-02) | Aceptada |
+| [ADR-0010](../adr/0010-notificar-al-panel-por-sondeo.md) | Notificar al panel por sondeo, y conservar el canal de eventos como costura sin suscriptores | [ESC-03](#esc-03) | Aceptada — revisa ADR-0003 con evidencia de producción |
 
 *(Este índice se amplía en cada entrega a medida que surgen nuevas
-decisiones — por ejemplo, la forma de validar el código de canje en el punto de
-entrega, prevista para la siguiente.)*
+decisiones. Dos de las de arriba **revisan** a otras en vez de añadirse: ADR-0008
+reemplaza la plataforma que eligió ADR-0004, y ADR-0010 revisa ADR-0003 a la luz
+de lo que el sistema desplegado hace de verdad. Una decisión revisada no se
+borra: se deja con su razonamiento y se anota qué premisa dejó de ser cierta.)*
 
 ------------------------------------------------------------------------
 
@@ -1484,10 +1635,84 @@ impacto medio y riesgo bajo.
 
 ------------------------------------------------------------------------
 
+<a id="riesgos"></a>
+
 ## 11. Riesgos y deuda técnica
 
-*(Pendiente — se documentará a medida que se identifiquen riesgos
-concretos durante la implementación de `pagos` y `usuarios`.)*
+Esta sección estuvo vacía hasta la S12, y conviene decir por qué se llena ahora
+y no antes: **los riesgos que vale la pena anotar son los que se pueden medir.**
+Una lista escrita al empezar habría contenido lo que se temía; esta contiene lo
+que se comprobó, con el número al lado y, donde existe, la prueba que avisa si
+cambia.
+
+La columna «cómo se detecta» es la que decide si una fila sirve. Un riesgo que
+solo se vigila leyendo esta tabla se hereda sin revisarse.
+
+### 11.1 Riesgos
+
+| ID | Riesgo | Medida | Impacto | Cómo se detecta |
+|---|---|---|---|---|
+| **R-01** | **El margen de ESC-03 está agotado.** El sondeo del panel consume 8 de los 10 s que el escenario concede | 8000 ms de 10 000 · 2 s para la persona | Alto si el umbral se endurece o alguien sube el intervalo | `test_escenarios_de_calidad.py` rompe la construcción |
+| **R-02** | **scrypt protege menos de lo que ADR-0007 afirma**, y no hay límite de intentos | 100 ms medidos en el portátil · ~35 ms en producción | Alto: es la única barrera contra probar contraseñas en serie | Ninguna automática todavía. Se trata en la S13 |
+| **R-03** | **El bus de eventos en proceso fallaría en silencio con más de un proceso** de API | Hoy: 1 proceso | Alto *si ocurre*: un panel no se enteraría de que no se entera | `test_el_evento_se_pierde_si_no_hay_nadie_escuchando` obliga a revisar al aparecer un suscriptor |
+| **R-04** | **`GET /metricas` dejaría de significar lo que dice** con más de un proceso: la ventana es por proceso y no agregable | Hoy: 1 proceso | Medio: se decide con esas cifras, incluida la de no cachear | Ninguna automática. Declarado en [§8.6](#consistencia) |
+| **R-05** | **Un proceso por servicio, sin redundancia.** `restart: unless-stopped` recupera, pero no evita la caída | 1 réplica de cada uno | Medio: la cuota de 4 contenedores impide duplicar | `GET /health` y el chequeo del compose |
+| **R-06** | **Un proxy que no controlamos filtra clientes automatizados.** Si la pasarela usara un agente filtrado, sus avisos no llegarían y sería indistinguible de «el evento no llegó» | `Python-urllib` recibe `403` en una sola petición | Medio: el pedido queda en `pendiente_pago`, estado honesto y consultable | Medido en [§7.2](#despliegue-topologia). No mitigable desde aquí: ver fallo 9 de [§6.7](#fallos-parciales) |
+
+#### R-01 y R-02 en detalle, que son los dos que tienen número
+
+**R-01.** [ESC-03](#esc-03) concede 10 segundos desde que un pedido se paga hasta
+que el encargado lo ha visualizado y cambiado de estado. El estímulo es *recibir
+un pedido pagado* y la respuesta incluye *visualizarlo*, así que el tiempo que la
+cola tarda en mostrarlo cuenta dentro del plazo. Con el sondeo en 8000 ms quedan
+2 segundos para que una persona vea el pedido y pulse.
+
+Lo que hacía el riesgo peligroso no era el número sino **que no estuviera
+escrito**: la constante citaba ESC-03 por las «3 interacciones», no por los 10
+segundos. Subirla para aliviar carga era un cambio de una línea sin error
+visible. Bajarla crearía margen, pero multiplica las peticiones de cada panel
+abierto, y eso es una decisión de producto que se toma con el número delante
+—está en [ADR-0010](../adr/0010-notificar-al-panel-por-sondeo.md)— no una
+corrección que se cuele en un arreglo de documentación.
+
+**R-02.** [ADR-0007](../adr/0007-autenticacion-del-panel.md) eligió los
+parámetros de scrypt (N=2¹⁴, r=8, p=1) midiendo **100 ms de mediana en el
+portátil de desarrollo**, y dejó constancia de que la cifra depende de la
+máquina. Esa cautela es la que salva al ADR, porque la máquina resultó ser otra:
+
+| | Derivación | Intentos por segundo y núcleo |
+|---|---|---|
+| Portátil de desarrollo (15 repeticiones) | **100 ms** | ~10 |
+| Producción *(37,15 ms de p50 de `POST /v1/sesiones`, menos ~2 ms de las dos consultas)* | **~35 ms** | **~29** |
+
+Los parámetros son constantes del código (`credenciales.py`), idénticos en los
+dos entornos: la diferencia es puramente de máquina. Y como **no hay límite de
+intentos** —decisión declarada en ADR-0007, porque hacerlo bien exige
+almacenamiento compartido entre instancias— el costo de la derivación *es* toda
+la defensa. En producción vale **unas tres veces menos** de lo que el
+razonamiento del ADR asumía.
+
+No se toca esta semana. Subir los parámetros endurece también el arranque del
+panel y afecta a `POST /v1/sesiones`, que ya es la operación más lenta del
+sistema: es una decisión con dos medidas que corresponde a la S13, no un ajuste
+de constante.
+
+### 11.2 Deuda técnica
+
+| ID | Deuda | Qué cuesta | Qué la pagaría |
+|---|---|---|---|
+| **D-01** | **No se puede ejecutar el despliegue en local**: no hay Docker en la máquina de desarrollo | Cinco defectos de configuración llegaron a producción invisibles para 282 pruebas ([§7.6](#despliegue-deuda)) | Instalar Docker y correr `deploy/compose.lab.yaml`. Los cinco se habrían visto en treinta segundos |
+| **D-02** | **El canal de eventos no tiene suscriptores.** `publicar()` es una operación nula | Quien lea `publicar(...)` asume que algo pasa después | Evaluado en [ADR-0010](../adr/0010-notificar-al-panel-por-sondeo.md): se conserva como costura, y la trampa se desactiva nombrándola |
+| **D-03** | **ESC-03 no se ha vuelto a medir en la plataforma nueva.** La medición de ~0,7 s en caliente es de Render | No se sabe si el escenario se cumple hoy, solo que debería | Remedir en la S14, que es donde toca |
+| **D-04** | **No hay forma de restablecer una contraseña en producción.** La cuenta inicial se siembra una vez | Una contraseña perdida deja el panel inaccesible sin tocar la base | Se analiza en la S13 |
+
+D-01 es la que explica a las demás. El patrón está en
+[§7.6](#despliegue-deuda) y se resume en una frase: **la prueba y el entorno real
+no recorren el mismo camino.** Los defectos que produce no dan error: dan un
+sistema que parece sano. Dos de esta semana —un aviso que explicaba al usuario
+una plataforma abandonada, y un ADR cuyo título afirmaba una decisión que se
+había revertido— son de la misma familia, aunque no sean de configuración:
+**afirmaciones que nadie volvió a comprobar contra la realidad.**
 
 ------------------------------------------------------------------------
 

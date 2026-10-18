@@ -475,9 +475,11 @@ $("salir").addEventListener("click", () => lanzar(salir()));
 $("refrescar").addEventListener("click", () => lanzar(cargarCola()));
 $("cancelar-canje").addEventListener("click", () => $("dialogo-canje").close("cancelar"));
 
-// No se refresca mientras la pestaña está oculta: con el plan gratuito, cada
-// petición evitada es tráfico que no consume la cuota, y un panel en segundo
-// plano no lo está mirando nadie.
+// No se refresca mientras la pestaña está oculta. El motivo original era la
+// cuota de tráfico del plan gratuito; hoy el límite es otro —la API corre con
+// 0,5 CPU de tope (ADR-0008)— pero la conclusión no cambia: un panel
+// en segundo plano no lo está mirando nadie, y sondear para nadie gasta el
+// presupuesto de quien sí está delante.
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     clearInterval(temporizador);
