@@ -154,11 +154,18 @@ Lo que decide no es gusto arquitectónico sino aritmética:
 
 | | Hoy | Con `pagos` extraído |
 |---|---|---|
-| Contenedores | **3** de 4 permitidos | **5** de 4 |
-| Memoria | **416 MB** de 512 | **704 MB** de 512 |
+| **Contenedores** | **3** de 4 permitidos | **5** de 4 |
+| Memoria | **416 MB** de 512 *(medido)* | **~704 MB** de 512 *(estimado)* |
 
 Un servicio con base propia son dos contenedores más. Con la cuota del servidor
 del laboratorio, extraer `pagos` **no es caro: es imposible**.
+
+**La fila que decide es la primera**, y las dos cifras no son de la misma clase:
+el 416 es la suma de los límites declarados en `deploy/compose.lab.yaml`, y el
+704 es una estimación —`pagos` a ~128 MB por el piso del runtime, más ~160 del
+PostgreSQL que necesitaría—. Si `pagos` pidiera lo mismo que `api` serían 768;
+en los dos casos pasa de 512, así que la conclusión no depende del estimado.
+El desglose está en [ADR-0009](adr/0009-no-extraer-un-servicio.md).
 
 Y el argumento de fondo, que vale aunque la cuota cambie: **extraer `pagos`
 crearía exactamente los problemas que esta semana pide analizar** —una

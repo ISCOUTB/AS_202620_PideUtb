@@ -79,17 +79,48 @@ ganar nada de las seis filas de la tabla anterior.
 | | Monolito modular (hoy) | `pagos` extraído |
 |---|---|---|
 | **Contenedores** | **3** de 4 permitidos | **5** de 4 — *web, api, db, pagos, pagos-db* |
-| **Memoria** | **416 MB** de 512 | **704 MB** de 512 |
+| Memoria | **416 MB** de 512 *(medido)* | **~704 MB** de 512 *(estimado, ver abajo)* |
 | Transacción entre contextos | Local | Saga + compensación |
 | Modos de fallo nuevos | — | Red entre servicios, timeouts, reintentos, backoff |
 | Despliegue | Uno | Dos, con orden entre ellos |
 
-Las dos primeras filas no son detalles de implementación: **con la cuota del
-servidor del laboratorio, extraer `pagos` es imposible**, no caro.
+**La fila que decide es la primera, y conviene decir por qué no es la segunda.**
 
 Un servicio con base propia son dos contenedores más —el proceso y su
-PostgreSQL—, y eso deja cinco donde la cuota permite cuatro. Aunque la memoria
-alcanzara, el límite de contenedores lo impide por sí solo.
+PostgreSQL—, y eso deja **cinco donde la cuota permite cuatro**. Ese argumento
+es binario: no estima nada, no depende de ninguna medición y no admite
+discusión. Con la cuota del servidor del laboratorio, extraer `pagos` **no es
+caro: es imposible**.
+
+#### De dónde sale cada número de memoria, porque no son de la misma clase
+
+El **416 es medido** y se puede comprobar: es la suma de los tres límites
+declarados en [`deploy/compose.lab.yaml`](../../deploy/compose.lab.yaml).
+
+```
+api 192 MB  +  db 160 MB  +  web 64 MB  =  416 de 512
+```
+
+El **704 es una estimación**, y la primera versión de este ADR lo presentaba sin
+decirlo — tres cifras significativas que parecían una medición. Su composición:
+
+| | | Por qué |
+|---|---|---|
+| Lo que ya hay | 416 MB | Medido |
+| `pagos` | **~128 MB** | El piso no es la lógica de negocio: es el runtime —Python, uvicorn, psycopg— que `api` ya paga con 192. Un servicio que hace menos no baja de ahí por hacer menos |
+| `pagos-db` | **~160 MB** | El mismo piso que la base actual, que además necesitó `max_connections=30` para caber en él |
+| | **~704 MB** | |
+
+**Los 128 MB son el número débil**: nadie ha construido ese servicio, así que es
+un supuesto, no una medición. Si resultara que necesita lo mismo que `api`
+—192 MB, que es lo que cuesta hoy el mismo stack— serían **768**.
+
+Y ahí está lo que importa: **en los dos casos pasa de 512**, así que la
+conclusión no depende de la precisión del estimado. Un argumento cuya validez
+sobrevive al peor caso de su propia incertidumbre es más fuerte que uno con un
+número bonito.
+
+Aun así, el que se cita en una defensa debería ser el conteo de contenedores.
 
 Y si compartiera la base de datos para ahorrarse uno, no sería una extracción:
 dos servicios escribiendo en el mismo almacén tienen el acoplamiento del
