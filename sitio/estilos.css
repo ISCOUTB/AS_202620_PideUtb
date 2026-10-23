@@ -1,115 +1,318 @@
-/* Estilos del sitio.
+/* Sistema visual de PideUTB.
    Sin framework y sin paso de construcción: el contenedor de nginx sirve esta
    carpeta tal cual (`deploy/compose.lab.yaml`), y añadir un compilador
-   obligaría a un build que no aporta nada a tres archivos. */
+   obligaría a un build que no aporta nada a tres archivos.
+
+   ===========================================================================
+   LA REGLA QUE GOBIERNA LA PALETA, Y POR QUÉ NO ES NEGOCIABLE
+   ===========================================================================
+
+   Los tres colores son los de la Universidad Tecnológica de Bolívar, tomados
+   de su sitio. Pero **dos de los tres no pueden llevar texto**, y eso no es
+   una opinión de diseño: es su contraste medido contra blanco (WCAG 2.1).
+
+     azul   #093AD8   8,05:1   AAA  → texto, botones, enlaces
+     cian   #0FC5EF   2,05:1   ✗    insuficiente incluso para texto grande
+     verde  #71EC37   1,53:1   ✗    insuficiente
+     tinta  #0B1020  18,93:1   AAA  → el texto del cuerpo
+
+   Sobre tinta oscura la relación se invierte y los dos pasan con holgura:
+   cian 9,24:1 y verde 12,40:1, los dos AAA. De ahí la regla:
+
+     **El cian y el verde son colores de SUPERFICIE, nunca de TINTA.**
+
+   Se usan como fondo de algo que lleva texto oscuro encima —una etiqueta de
+   estado, el recuadro del código de canje, una barra de acento— y jamás como
+   color de letra sobre blanco. Para los casos en que hace falta *letra* de
+   esos tonos existen las variantes oscurecidas (`--cian-tinta`, 6,03:1, y
+   `--verde-tinta`, 4,81:1), que es la única forma de usarlos legiblemente.
+
+   Aplicar la marca sin medir habría producido una página bonita en la captura
+   e ilegible en el mostrador, que es donde se usa con prisa y a contraluz. */
 
 :root {
-  --fondo: #0f1115;
-  --superficie: #181c23;
-  --borde: #2a303a;
-  --texto: #e8eaed;
-  --tenue: #9aa3af;
-  --acento: #3d8bfd;
-  --ok: #34c759;
-  --aviso: #ffb020;
-  --error: #ff5c5c;
-  --radio: 10px;
+  /* --- Marca --------------------------------------------------------- */
+  --azul: #093ad8;
+  --azul-hundido: #0730ab;   /* Pulsado y hover: el mismo tono, más grave. */
+  --azul-niebla: #e8edfd;    /* Fondo de apoyo: el azul al 8 % sobre blanco. */
+  --cian: #0fc5ef;
+  --verde: #71ec37;
+  --cian-tinta: #086c83;     /* 6,03:1 sobre blanco — cuando hace falta letra. */
+  --verde-tinta: #3e811e;    /* 4,81:1 sobre blanco. */
+
+  /* --- Neutros -------------------------------------------------------- */
+  --tinta: #0b1020;
+  --tinta-media: #4a5365;    /* 7,73:1 sobre blanco — secundario y aun asi AAA. */
+  --tinta-tenue: #6b7486;    /* 4,70:1 — metadatos, nunca información esencial. */
+  --papel: #ffffff;
+  --fondo: #f5f5f5;
+  --linea: #e3e6ec;
+  --linea-fuerte: #cfd4de;
+
+  /* --- Estados -------------------------------------------------------- */
+  --aviso: #9a5b00;          /* 4,98:1 sobre --aviso-fondo, que es donde se usa. */
+  --aviso-fondo: #fff4e0;
+  --error: #b3261e;          /* 5,72:1 sobre --error-fondo, que es donde se usa. */
+  --error-fondo: #fdecea;
+
+  /* --- Ritmo ----------------------------------------------------------
+     Escala de 4 px. Que los espacios salgan de una escala y no de números
+     sueltos es la diferencia entre una interfaz que respira y una que parece
+     un formulario de pruebas. */
+  --e1: 4px;  --e2: 8px;  --e3: 12px; --e4: 16px;
+  --e5: 24px; --e6: 32px; --e7: 48px; --e8: 64px;
+
+  --radio: 12px;
+  --radio-chico: 8px;
+  --radio-pildora: 999px;
+
+  /* --- Elevación ------------------------------------------------------
+     Dos niveles y nada más. Una sombra por componente convierte la jerarquía
+     en ruido. */
+  --sombra: 0 1px 2px rgb(11 16 32 / 6%), 0 2px 8px rgb(11 16 32 / 4%);
+  --sombra-alta: 0 4px 12px rgb(11 16 32 / 8%), 0 12px 32px rgb(11 16 32 / 8%);
+
+  --foco: 0 0 0 3px rgb(9 58 216 / 35%);
 }
 
-@media (prefers-color-scheme: light) {
+/* El tema oscuro se conserva para quien lo tenga puesto en su sistema. La
+   marca es luminosa, así que el claro es el principal; aquí el azul se aclara
+   porque #093AD8 sobre un fondo oscuro cae por debajo del mínimo legible. */
+@media (prefers-color-scheme: dark) {
   :root {
-    --fondo: #f7f8fa;
-    --superficie: #ffffff;
-    --borde: #dfe3e8;
-    --texto: #1b1f24;
-    --tenue: #616a75;
+    --azul: #6f93ff;
+    --azul-hundido: #9db4ff;
+    --azul-niebla: #16203c;
+    --cian-tinta: #5ad7f5;
+    --verde-tinta: #93e86a;
+
+    --tinta: #e9ecf3;
+    --tinta-media: #aeb6c6;
+    --tinta-tenue: #8a93a6;
+    --papel: #161a24;
+    --fondo: #0d1016;
+    --linea: #272d3a;
+    --linea-fuerte: #39404f;
+
+    --aviso: #f0b45e;
+    --aviso-fondo: #2a2113;
+    --error: #ff8a80;
+    --error-fondo: #2c1614;
+
+    --sombra: 0 1px 2px rgb(0 0 0 / 40%), 0 2px 8px rgb(0 0 0 / 30%);
+    --sombra-alta: 0 4px 12px rgb(0 0 0 / 45%), 0 12px 32px rgb(0 0 0 / 40%);
+    --foco: 0 0 0 3px rgb(111 147 255 / 45%);
   }
 }
 
-* { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; }
 
 body {
   margin: 0;
-  padding: 0 16px 48px;
+  padding: 0 var(--e4) var(--e8);
   background: var(--fondo);
-  color: var(--texto);
-  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--tinta);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-header, main, footer { max-width: 680px; margin: 0 auto; }
+header, main, footer { max-width: 720px; margin: 0 auto; }
 
-header { padding: 32px 0 8px; }
-h1 { margin: 0; font-size: 2rem; letter-spacing: -0.02em; }
-.lema { margin: 4px 0 0; color: var(--tenue); }
+/* --- Cabecera de marca ----------------------------------------------------
+   El filete de tres colores es lo único decorativo de la hoja, y se gana el
+   sitio: es lo que hace que la página se lea como «de la UTB» antes de leer
+   una sola palabra. Los tres tonos aparecen ahí, donde no tienen que sostener
+   texto, que es justo donde la paleta puede usarse entera. */
 
-h2 { font-size: 1.35rem; margin: 28px 0 12px; }
-h3 { font-size: 1.05rem; margin: 24px 0 10px; }
+header {
+  padding: var(--e6) 0 var(--e5);
+  position: relative;
+}
+
+header::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: var(--e4);
+  height: 4px;
+  border-radius: var(--radio-pildora);
+  background: linear-gradient(90deg,
+    var(--azul) 0 42%, var(--cian) 42% 74%, var(--verde) 74% 100%);
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.9rem, 1.4rem + 2.2vw, 2.6rem);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  color: var(--azul);
+}
+
+.lema {
+  margin: var(--e2) 0 var(--e5);
+  color: var(--tinta-media);
+  font-size: 1.02rem;
+}
+
+h2 {
+  font-size: 1.5rem; font-weight: 750;
+  letter-spacing: -0.02em;
+  margin: var(--e6) 0 var(--e4);
+}
+
+h3 {
+  font-size: 1.08rem; font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: var(--e5) 0 var(--e3);
+}
 
 /* Solo una pantalla visible a la vez. */
 .pantalla { display: none; }
-.pantalla.activa { display: block; }
+.pantalla.activa { display: block; animation: entrar 0.22s ease-out; }
 .oculto { display: none !important; }
 
-/* --- Carta --- */
-.items { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+@keyframes entrar {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* --- Carta ---------------------------------------------------------------
+   Cada ítem es una tarjeta con elevación en vez de un borde: la sombra separa
+   del fondo sin dibujar una caja, y la lista deja de parecer una tabla. */
+
+.items { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--e3); }
 
 .item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 14px 16px;
-  background: var(--superficie);
-  border: 1px solid var(--borde);
+  display: flex; align-items: center; gap: var(--e4);
+  padding: var(--e4) var(--e4) var(--e4) var(--e5);
+  background: var(--papel);
   border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  position: relative; overflow: hidden;
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
 }
+
+/* Filete de acento a la izquierda. Es el gesto que hace que una lista de
+   tarjetas se lea como producto y no como salida de un endpoint. */
+.item::before {
+  content: "";
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 4px; background: var(--cian);
+}
+
+.item:hover { box-shadow: var(--sombra-alta); transform: translateY(-1px); }
 
 .item-datos { flex: 1; min-width: 0; }
-.item-nombre { font-weight: 600; }
-.item-precio { color: var(--tenue); font-variant-numeric: tabular-nums; }
 
-.item.agotado { opacity: 0.55; }
+.item-nombre {
+  font-weight: 650; font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+.item-precio {
+  color: var(--tinta-media);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  margin-top: 2px;
+}
+
+/* El agotado sigue siendo una tarjeta: pierde la elevacion y el color del
+   filete, no la forma. Sin fondo propio se leia como un hueco en la lista en
+   vez de como un plato que hoy no hay. */
+.item.agotado {
+  box-shadow: none;
+  background: var(--papel);
+  border: 1px solid var(--linea);
+}
+.item.agotado::before { background: var(--linea-fuerte); }
+.item.agotado .item-nombre { color: var(--tinta-tenue); }
+.item.agotado:hover { box-shadow: none; transform: none; }
+
 .etiqueta-agotado {
-  font-size: 0.8rem; color: var(--aviso);
-  border: 1px solid var(--aviso); border-radius: 999px; padding: 2px 10px;
+  font-size: 0.78rem; font-weight: 650;
+  letter-spacing: 0.02em; text-transform: uppercase;
+  color: var(--aviso); background: var(--aviso-fondo);
+  border-radius: var(--radio-pildora);
+  padding: var(--e1) var(--e3);
+  white-space: nowrap;
 }
 
-/* --- Botones --- */
+/* --- Botones -------------------------------------------------------------
+   48 px de alto mínimo: el cliente pide de pie y el mostrador con una mano.
+   Es la medida táctil cómoda, no la mínima de 44. */
+
 button {
-  font: inherit; cursor: pointer;
-  border-radius: var(--radio);
-  border: 1px solid transparent;
-  padding: 10px 18px;
-  background: var(--acento); color: #fff;
-  transition: filter 0.15s ease;
+  font: inherit; font-weight: 650; cursor: pointer;
+  letter-spacing: -0.01em;
+  min-height: 48px;
+  padding: var(--e3) var(--e5);
+  border-radius: var(--radio-chico);
+  border: 1.5px solid transparent;
+  background: var(--azul); color: #fff;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.08s ease;
 }
-button:hover:not(:disabled) { filter: brightness(1.12); }
-button:disabled { opacity: 0.5; cursor: not-allowed; }
-button:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+
+button:hover:not(:disabled) { background: var(--azul-hundido); }
+button:active:not(:disabled) { transform: translateY(1px); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+button:focus-visible {
+  outline: none;
+  box-shadow: var(--foco);
+}
 
 .secundario {
-  background: transparent; color: var(--tenue);
-  border-color: var(--borde); margin-top: 20px;
+  background: transparent; color: var(--azul);
+  border-color: var(--linea-fuerte);
+  margin-top: var(--e5);
+}
+.secundario:hover:not(:disabled) {
+  background: var(--azul-niebla);
+  border-color: var(--azul);
 }
 
-.metodos { display: flex; gap: 10px; flex-wrap: wrap; }
+/* Base de 12rem y no de 10: con 10 los dos botones entraban a la fuerza en
+   375 px y «Pagar con Nequi» partia en dos lineas junto a uno de una sola.
+   Con 12 no caben, se apilan a ancho completo, y cada uno se lee de un
+   vistazo — que es lo que hace falta en la pantalla de pagar. */
+.metodos { display: flex; gap: var(--e3); flex-wrap: wrap; margin-top: var(--e4); }
+.metodos button { flex: 1 1 12rem; }
 
-/* --- Resumen --- */
+/* --- Resumen del pedido --------------------------------------------------- */
+
 .resumen {
-  margin: 0; padding: 16px;
-  background: var(--superficie);
-  border: 1px solid var(--borde);
+  margin: 0; padding: var(--e5);
+  background: var(--papel);
   border-radius: var(--radio);
-  display: grid; grid-template-columns: auto 1fr; gap: 6px 16px;
+  box-shadow: var(--sombra);
+  display: grid; grid-template-columns: auto 1fr; gap: var(--e2) var(--e5);
 }
-.resumen dt { color: var(--tenue); }
-.resumen dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
-.resumen .total { font-weight: 700; font-size: 1.1rem; }
+.resumen dt { color: var(--tinta-media); }
+.resumen dd {
+  margin: 0; text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
 
-/* --- Espera --- */
-.cargando { text-align: center; padding: 48px 0 8px; }
+/* El total se separa con una línea y crece: es la cifra que se mira antes de
+   pagar, y debe encontrarse sin leer las demás. */
+.resumen .total {
+  font-weight: 800; font-size: 1.25rem;
+  letter-spacing: -0.02em;
+  padding-top: var(--e3);
+  border-top: 1px solid var(--linea);
+}
+.resumen dt.total { color: var(--tinta); }
+
+/* --- Espera --------------------------------------------------------------- */
+
+.cargando { text-align: center; padding: var(--e8) 0 var(--e2); }
 
 .girando {
-  width: 34px; height: 34px; margin: 0 auto 16px;
-  border: 3px solid var(--borde);
-  border-top-color: var(--acento);
+  width: 38px; height: 38px; margin: 0 auto var(--e5);
+  border: 3px solid var(--linea);
+  border-top-color: var(--azul);
   border-radius: 50%;
   animation: girar 0.9s linear infinite;
 }
@@ -118,42 +321,101 @@ button:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
 /* Respeta a quien pidió menos movimiento en su sistema. */
 @media (prefers-reduced-motion: reduce) {
   .girando { animation-duration: 3s; }
+  .pantalla.activa { animation: none; }
+  .item:hover { transform: none; }
+  button:active:not(:disabled) { transform: none; }
 }
 
-.nota { color: var(--tenue); font-size: 0.9rem; }
+.nota { color: var(--tinta-tenue); font-size: 0.9rem; }
 
-/* --- Código de canje --- */
+/* --- Código de canje -----------------------------------------------------
+   Es el momento alto de la aplicación: lo que el cliente enseña para recoger
+   su comida. Se trata como un billete —superficie verde, tinta oscura, borde
+   troquelado— y es el sitio donde el verde de la marca puede usarse entero,
+   porque ahí es fondo y no letra. */
+
 .codigo-canje {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 2.4rem; letter-spacing: 0.28em;
-  text-align: center; padding: 22px 16px;
-  background: var(--superficie);
-  border: 2px dashed var(--ok);
+  font-size: clamp(2rem, 1.2rem + 3.6vw, 2.9rem);
+  font-weight: 700;
+  letter-spacing: 0.22em; text-indent: 0.22em;
+  text-align: center;
+  padding: var(--e6) var(--e4);
+  color: var(--tinta);
+  background: var(--verde);
   border-radius: var(--radio);
-  margin: 16px 0;
+  margin: var(--e5) 0;
+  box-shadow: var(--sombra);
+  position: relative;
 }
 
-.estado-linea { display: flex; align-items: center; gap: 10px; margin: 12px 0; }
-.punto { width: 10px; height: 10px; border-radius: 50%; flex: none; }
-.punto.ok { background: var(--ok); }
-.punto.espera { background: var(--aviso); }
-.punto.mal { background: var(--error); }
+/* Las dos muescas laterales del billete. Decorativas y baratas: dos radiales
+   del color del fondo. */
+.codigo-canje::before,
+.codigo-canje::after {
+  content: "";
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--fondo);
+}
+.codigo-canje::before { left: -10px; }
+.codigo-canje::after  { right: -10px; }
 
-/* --- Error --- */
+@media (prefers-color-scheme: dark) {
+  /* El verde de marca sigue siendo el fondo del billete también en oscuro: es
+     la seña de identidad del momento de recoger, y con tinta encima mantiene
+     sus 12,4:1. Lo que cambia es la muesca, que imita el fondo de la página. */
+  .codigo-canje { color: #0b1020; }
+}
+
+/* --- Estados -------------------------------------------------------------- */
+
+.estado-linea {
+  display: flex; align-items: center; gap: var(--e3);
+  margin: var(--e3) 0;
+  padding: var(--e3) var(--e4);
+  background: var(--papel);
+  border-radius: var(--radio-chico);
+  box-shadow: var(--sombra);
+}
+
+.punto {
+  width: 10px; height: 10px; border-radius: 50%; flex: none;
+  box-shadow: 0 0 0 4px rgb(11 16 32 / 5%);
+}
+.punto.ok     { background: var(--verde-tinta); }
+.punto.espera { background: var(--cian); }
+.punto.mal    { background: var(--error); }
+
+/* El punto de espera late, para distinguir «esperando» de «terminado» sin
+   depender del color — que es lo que no ve quien no distingue tonos. */
+.punto.espera { animation: latir 1.6s ease-in-out infinite; }
+@keyframes latir {
+  50% { box-shadow: 0 0 0 7px rgb(15 197 239 / 22%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .punto.espera { animation: none; }
+}
+
+/* --- Error ---------------------------------------------------------------- */
+
 .error {
-  margin: 20px 0; padding: 14px 16px;
-  border: 1px solid var(--error);
-  border-left-width: 4px;
-  border-radius: var(--radio);
-  background: color-mix(in srgb, var(--error) 10%, transparent);
+  margin: var(--e5) 0; padding: var(--e4) var(--e5);
+  border-radius: var(--radio-chico);
+  border-left: 4px solid var(--error);
+  background: var(--error-fondo);
+  color: var(--error);
+  font-weight: 500;
 }
+
+/* --- Pie ------------------------------------------------------------------ */
 
 footer {
-  margin-top: 48px; padding-top: 20px;
-  border-top: 1px solid var(--borde);
-  color: var(--tenue); font-size: 0.9rem;
+  margin-top: var(--e8); padding-top: var(--e5);
+  border-top: 1px solid var(--linea);
+  color: var(--tinta-tenue); font-size: 0.9rem;
 }
-footer a { color: var(--acento); }
+footer a { color: var(--azul); text-underline-offset: 3px; }
 
 /* --- Panel del mostrador -------------------------------------------------
    Comparte hoja con la vista del cliente a propósito: son la misma aplicación
@@ -161,25 +423,39 @@ footer a { color: var(--acento); }
    primer cambio. */
 
 .barra {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  margin: 20px 0 16px;
+  display: flex; align-items: center; gap: var(--e3); flex-wrap: wrap;
+  margin: var(--e5) 0 var(--e4);
 }
-.barra label { color: var(--tenue); font-size: 0.92rem; }
-.barra input {
-  font: inherit; padding: 8px 10px;
-  color: var(--texto); background: var(--superficie);
-  border: 1px solid var(--borde); border-radius: var(--radio);
+.barra label { color: var(--tinta-media); font-size: 0.92rem; font-weight: 500; }
+
+.barra input, .campo input {
+  font: inherit; padding: var(--e3) var(--e4);
+  min-height: 48px;
+  color: var(--tinta); background: var(--papel);
+  border: 1.5px solid var(--linea-fuerte);
+  border-radius: var(--radio-chico);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+.barra input:focus, .campo input:focus {
+  outline: none;
+  border-color: var(--azul);
+  box-shadow: var(--foco);
+}
+
 .barra .secundario { margin-top: 0; }
 
 /* La hora de última carga queda a la derecha: es información de contexto, no
    algo que haya que leer en cada vistazo. */
 .barra .nota { margin-left: auto; }
 
-.pedido { flex-wrap: wrap; gap: 10px 12px; }
+/* Cada pedido de la cola es una tarjeta, igual que en la carta: el mostrador
+   y el cliente miran el mismo objeto y conviene que se parezca. */
+.pedido { flex-wrap: wrap; gap: var(--e3) var(--e4); }
+.pedido::before { background: var(--azul); }
 
-.acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+.acciones { display: flex; gap: var(--e2); flex-wrap: wrap; }
 .acciones .secundario { margin-top: 0; }
+.acciones button { min-height: 44px; padding: var(--e2) var(--e4); }
 
 /* En pantallas estrechas los botones pasan debajo y ocupan el ancho: el
    mostrador se usa con una mano y con prisa. */
@@ -193,13 +469,9 @@ footer a { color: var(--acento); }
    ya había; lo único propio es que cada campo lleva su etiqueta encima, para
    que en móvil no se amontonen en una sola línea. */
 
-.campo { display: flex; flex-direction: column; gap: 4px; }
-.campo label { color: var(--tenue); font-size: 0.92rem; }
-.campo input {
-  font: inherit; padding: 8px 10px; min-width: 14rem;
-  color: var(--texto); background: var(--superficie);
-  border: 1px solid var(--borde); border-radius: var(--radio);
-}
+.campo { display: flex; flex-direction: column; gap: var(--e1); }
+.campo label { color: var(--tinta-media); font-size: 0.92rem; font-weight: 500; }
+.campo input { min-width: 14rem; }
 
 .barra-ingreso { align-items: flex-end; }
 .barra-ingreso button { margin-top: 0; }
@@ -211,27 +483,33 @@ footer a { color: var(--acento); }
 /* --- Diálogo del código de recogida -------------------------------------- */
 
 dialog {
-  color: var(--texto); background: var(--superficie);
-  border: 1px solid var(--borde); border-radius: var(--radio);
-  padding: 24px; max-width: 24rem; width: calc(100% - 32px);
+  color: var(--tinta); background: var(--papel);
+  border: none; border-radius: var(--radio);
+  box-shadow: var(--sombra-alta);
+  padding: var(--e6); max-width: 26rem; width: calc(100% - var(--e6));
 }
 
 /* Sin esto el fondo queda blanco en el tema oscuro: `::backdrop` no hereda
    del documento. */
-dialog::backdrop { background: rgb(0 0 0 / 55%); }
+dialog::backdrop { background: rgb(11 16 32 / 55%); }
 
-dialog h2 { margin: 0 0 8px; font-size: 1.15rem; }
-dialog .campo { margin: 16px 0; }
-dialog .acciones { margin-top: 20px; }
+dialog h2 { margin: 0 0 var(--e2); font-size: 1.25rem; }
+dialog .campo { margin: var(--e5) 0; }
+dialog .acciones { margin-top: var(--e5); }
 
 /* El código se escribe en mayúsculas y espaciado: se dicta en voz alta, y a
    esa letra se la confunde menos. La conversión es visual — el servidor
    compara sin distinguir la caja — así que no cambia lo que se envía. */
 input.codigo-canje {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 1.5rem; letter-spacing: 0.18em; text-transform: uppercase;
-  text-align: center; padding: 12px;
+  font-size: 1.6rem; letter-spacing: 0.18em; text-indent: 0.18em;
+  text-transform: uppercase;
+  text-align: center; padding: var(--e4);
+  background: var(--papel); color: var(--tinta);
+  box-shadow: none;
 }
+input.codigo-canje::before,
+input.codigo-canje::after { content: none; }
 
 /* El ingreso se apila en pantallas estrechas: cada campo ocupa el ancho y
    «Entrar» queda debajo, en vez de encogido junto a la contraseña. Es la
