@@ -42,17 +42,17 @@
 
   /* --- Neutros -------------------------------------------------------- */
   --tinta: #0b1020;
-  --tinta-media: #4a5365;    /* 7,2:1 — texto secundario que sigue siendo AAA. */
-  --tinta-tenue: #6b7486;    /* 4,6:1 — metadatos, nunca información esencial. */
+  --tinta-media: #4a5365;    /* 7,73:1 sobre blanco — secundario y aun asi AAA. */
+  --tinta-tenue: #6b7486;    /* 4,70:1 — metadatos, nunca información esencial. */
   --papel: #ffffff;
   --fondo: #f5f5f5;
   --linea: #e3e6ec;
   --linea-fuerte: #cfd4de;
 
   /* --- Estados -------------------------------------------------------- */
-  --aviso: #9a5b00;          /* 4,9:1 — ámbar oscurecido hasta ser legible. */
+  --aviso: #9a5b00;          /* 4,98:1 sobre --aviso-fondo, que es donde se usa. */
   --aviso-fondo: #fff4e0;
-  --error: #b3261e;          /* 6,1:1 */
+  --error: #b3261e;          /* 5,72:1 sobre --error-fondo, que es donde se usa. */
   --error-fondo: #fdecea;
 
   /* --- Ritmo ----------------------------------------------------------

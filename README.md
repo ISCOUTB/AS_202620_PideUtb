@@ -143,6 +143,7 @@ El backend sigue un estilo de **monolito modular**, organizado en cuatro **conte
 | [`docs/adr/`](docs/adr/) | Decisiones de arquitectura (ADR) con su trazabilidad |
 | [`docs/calidad-sonarcloud.md`](docs/calidad-sonarcloud.md) | Análisis estático, cobertura y Quality Gate |
 | [`docs/c4/`](docs/c4/) | Diagramas C4 niveles 1, 2 y 3 en Mermaid |
+| [`docs/sistema-de-diseno.md`](docs/sistema-de-diseno.md) | **Sistema de diseño**: principios, los colores de la UTB con su contraste medido, componentes, patrones y las seis pantallas de referencia |
 | [`docs/comparativa-arquitectura.md`](docs/comparativa-arquitectura.md) | Matrices comparativas por criterio y por escenario |
 | [`docs/linea-base.md`](docs/linea-base.md) | Línea base de rendimiento de `POST /pedidos` y su protección en CI |
 | [`docs/ddd-contextos.md`](docs/ddd-contextos.md) | Contextos delimitados, lenguaje ubicuo y tabla módulo → datos con dueño único |
