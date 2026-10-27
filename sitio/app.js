@@ -223,9 +223,13 @@ async function cargarCarta() {
  * inventa una: aparece solo en «Todas».
  */
 function dibujarCategorias() {
+  // `localeCompare` y no `sort()` a secas: el orden por defecto compara
+  // unidades UTF-16, así que «adiciones» caería detrás de «Zumos» por ir en
+  // minúscula, y la ñ quedaría donde no le toca. En una carta en español eso
+  // se ve en cuanto alguien escribe «Añadidos».
   const presentes = [...new Set(
     cartaCompleta.map((i) => i.categoria).filter(Boolean)
-  )].sort();
+  )].sort((a, b) => a.localeCompare(b, "es"));
 
   const barra = $("categorias");
   barra.replaceChildren();
