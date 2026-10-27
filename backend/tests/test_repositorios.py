@@ -29,13 +29,15 @@ import pytest
 
 from app import base_de_datos
 from app.menu import repository as menu_repo
+from app.menu.models import ItemMenu
 from app.pagos import repository as pagos_repo
 from app.pagos.contracts import EstadoPago, MetodoDePago
 from app.pagos.models import IntentoPago
 from app.pedidos import repository as pedidos_repo
 from app.pedidos.contracts import EstadoPedido
-from app.pedidos.models import LineaPedido
+from app.pedidos.models import LineaPedido, Pedido
 from app.usuarios import repository as usuarios_repo
+from app.usuarios.models import Establecimiento, Usuario
 
 RAIZ = Path(__file__).resolve().parent.parent
 MIGRACIONES = RAIZ / "migraciones"
@@ -109,6 +111,14 @@ def test_la_carta_de_un_establecimiento_llega_ordenada(implementacion):
     assert [i.nombre for i in items] == ["Arepa de huevo", "Jugo de mango"]
     # El precio es un entero en centavos (V-07), no un decimal.
     assert items[0].precio_centavos == 400000
+
+    # La categoría se lee de la fila, no se deduce. Se comprueba el valor y no
+    # solo que no sea nulo porque `categoria` y `descripcion` son del mismo
+    # tipo: intercambiarlas en `_desde_fila` no daría error, daría datos
+    # cruzados, y la comprobación estructural de más abajo no lo vería.
+    assert [i.categoria for i in items] == ["Asados", "Bebidas"]
+    assert items[0].descripcion is None
+    assert items[0].imagen is None
 
 
 def test_un_item_agotado_se_lee_como_agotado(implementacion):
@@ -332,6 +342,65 @@ def test_un_pedido_puede_reintentar_tras_un_rechazo(implementacion):
     pagos_repo.guardar(_intento(pedido.id, "ref-2"))
 
     assert pagos_repo.buscar_pendiente_de_pedido(pedido.id).referencia_pago == "ref-2"
+
+
+# ---------------------------------------------------------------------------
+# Lo que el SELECT pide y lo que el modelo tiene son la misma lista
+# ---------------------------------------------------------------------------
+#
+# Esta sección nació de un fallo real: se añadieron `imagen`, `categoria` y
+# `descripcion` a `ItemMenu` y a la tabla, pero no a la lista de columnas del
+# `SELECT`. La suite entera siguió en verde —ninguna aserción nombraba los
+# campos nuevos— y la API devolvía `null` en los tres contra PostgreSQL. En
+# memoria funcionaba, que es lo que hizo tardar en verlo.
+#
+# La defensa no es acordarse de escribir una aserción por campo. Es esta: la
+# lista de columnas y los campos del modelo tienen que ser **la misma lista en
+# el mismo orden**, porque `_desde_fila` lee la tupla por posición. Añadir un
+# campo sin añadir su columna rompe aquí, sin que nadie tenga que acordarse.
+
+# Campos que el modelo tiene y la fila no, con el motivo. Cada entrada es una
+# excepción consciente: si se vacía esta lista, la comprobación es exacta.
+CAMPOS_QUE_NO_SON_COLUMNAS = {
+    # Las líneas viven en `pedido_lineas`; `_desde_fila` las recibe aparte.
+    "lineas",
+}
+
+
+@pytest.mark.parametrize(
+    "nombre, columnas, modelo",
+    [
+        ("menu_items", menu_repo._COLUMNAS, ItemMenu),
+        ("pagos_intentos", pagos_repo._COLUMNAS, IntentoPago),
+        ("pedidos", pedidos_repo._COLUMNAS, Pedido),
+        ("pedido_lineas", pedidos_repo._COLUMNAS_LINEA, LineaPedido),
+        ("establecimientos", usuarios_repo._COLUMNAS, Establecimiento),
+        ("usuarios", usuarios_repo._COLUMNAS_USUARIO, Usuario),
+    ],
+)
+def test_el_select_pide_exactamente_los_campos_del_modelo(nombre, columnas, modelo):
+    """No necesita PostgreSQL: compara dos declaraciones del propio código."""
+    del_sql = [c.strip() for c in columnas.split(",")]
+    del_modelo = [
+        campo for campo in modelo.model_fields if campo not in CAMPOS_QUE_NO_SON_COLUMNAS
+    ]
+
+    faltan = [c for c in del_modelo if c not in del_sql]
+    assert not faltan, (
+        f"{nombre}: el modelo tiene {faltan} y el SELECT no los pide. "
+        "Contra PostgreSQL llegarían vacíos; en memoria no se nota."
+    )
+
+    sobran = [c for c in del_sql if c not in del_modelo]
+    assert not sobran, f"{nombre}: el SELECT pide {sobran}, que el modelo no tiene"
+
+    # El orden importa porque `_desde_fila` indexa la tupla por posición: dos
+    # columnas del mismo tipo intercambiadas no darían error, darían datos
+    # cruzados.
+    assert del_sql == del_modelo, (
+        f"{nombre}: las columnas están en otro orden que los campos; "
+        "`_desde_fila` lee por posición"
+    )
 
 
 # ---------------------------------------------------------------------------

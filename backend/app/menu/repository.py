@@ -27,7 +27,10 @@ _ITEMS_SEED = {
     4: ItemMenu(id=4, establecimiento_id=3, nombre="Café americano", precio_centavos=200000, disponible=True),
 }
 
-_COLUMNAS = "id, establecimiento_id, nombre, precio_centavos, disponible"
+_COLUMNAS = (
+    "id, establecimiento_id, nombre, precio_centavos, disponible, "
+    "imagen, categoria, descripcion"
+)
 
 
 def _desde_fila(fila) -> ItemMenu:
@@ -37,6 +40,9 @@ def _desde_fila(fila) -> ItemMenu:
         nombre=fila[2],
         precio_centavos=fila[3],
         disponible=fila[4],
+        imagen=fila[5],
+        categoria=fila[6],
+        descripcion=fila[7],
     )
 
 
