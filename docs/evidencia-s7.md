@@ -46,8 +46,8 @@ efectiva es `prefix` del router más el path del decorador.
 | `/v1/pedidos` (GET) · L262 | `pedidos/router.py:23` `/v1/pedidos` | `:57-58` `""` | ✔ |
 | `/v1/pedidos/{pedido_id}/estado` · L354 | `pedidos/router.py:23` `/v1/pedidos` | `:101-102` `"/{pedido_id}/estado"` | ✔ |
 | `/v1/pedidos/{pedido_id}` · L438 | `pedidos/router.py:23` `/v1/pedidos` | `:51-52` `"/{pedido_id}"` | ✔ |
-| `/v1/pagos/intentos` · L462 | `pagos/router.py:20` `/v1/pagos` | `:23-24` `"/intentos"` | ✔ |
-| `/v1/pagos/eventos` · L495 | `pagos/router.py:20` `/v1/pagos` | `:40-41` `"/eventos"` | ✔ |
+| `/v1/pagos/intentos` · L462 | `pagos/router.py:21` `/v1/pagos` | `:24-25` `"/intentos"` | ✔ |
+| `/v1/pagos/eventos` · L495 | `pagos/router.py:21` `/v1/pagos` | `:41-42` `"/eventos"` | ✔ |
 
 **10 paths declarados, 12 operaciones implementadas, ninguna de más.**
 `/v1/pedidos` y `/v1/sesiones` aparecen dos veces cada uno porque tienen dos
@@ -72,7 +72,7 @@ Los prefijos, literales:
 ```python
 backend/app/menu/router.py:20      router = APIRouter(prefix="/v1/menu",     tags=["menu"])
 backend/app/pedidos/router.py:23   router = APIRouter(prefix="/v1/pedidos",  tags=["pedidos"])
-backend/app/pagos/router.py:20     router = APIRouter(prefix="/v1/pagos",    tags=["pagos"])
+backend/app/pagos/router.py:21     router = APIRouter(prefix="/v1/pagos",    tags=["pagos"])
 backend/app/usuarios/router.py:16  router = APIRouter(prefix="/v1/sesiones", tags=["sesiones"])
 ```
 

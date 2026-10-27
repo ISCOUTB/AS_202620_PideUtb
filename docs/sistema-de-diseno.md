@@ -583,8 +583,8 @@ mejora ningún umbral.
 
 ## Pantallas de referencia
 
-Seis pantallas: cuatro del cliente y dos del mostrador. Son todas las que hoy
-existen.
+Siete pantallas: cuatro del cliente, dos del mostrador y una que no es de
+PideUTB. Son todas las que hoy existen.
 
 <a id="p-carta"></a>
 
@@ -682,12 +682,31 @@ color—, y `aria-checked` lo dice a quien usa lector de pantalla.
 
     Esperando la confirmación del pago…
 
-    El pago se hace en la pasarela. Cuando
-    termine, esta pantalla lo sabrá sola.
+    La pasarela confirma por su cuenta. Si
+    tarda, tu pedido sigue guardado.
+
+[ Ir a la pasarela y pagar ]   ← solo con pasarela simulada
+
+[ Consultar más tarde      ]
 ```
 
 La espera **no bloquea**: el pedido ya existe y es consultable. Si el aviso nunca
 llega, queda en «pendiente de pago», que es un estado honesto y no un error.
+
+El enlace a la pasarela aparece **solo cuando el checkout vive en este mismo
+sitio**, es decir cuando el despliegue tiene
+[pasarela simulada](#p-pasarela). Contra una de verdad, un despliegue redirige:
+la persona sale del sitio y vuelve. Aquí no se redirige porque salir perdería el
+pedido recién creado, así que se abre en otra pestaña y esta se queda
+sondeando. La distinción la hace el origen de la URL que devuelve la API, no una
+segunda bandera en el frontend que pudiera contradecirla.
+
+**Lo que esta pantalla todavía no sabe decir.** Un pago *rechazado* deja el
+pedido en «pendiente de pago», igual que un pago que aún no ha confirmado, y la
+API no publica el estado del cobro: desde aquí los dos casos son
+indistinguibles, así que un rechazo deja la rueda girando. No es un efecto de la
+pasarela simulada —pasa igual con una real— sino un hueco del contrato, anotado
+en arc42 §11.
 
 <a id="p-codigo"></a>
 
@@ -775,6 +794,50 @@ nada y cualquiera con el enlace movía pedidos de cualquier establecimiento
 ([V-10](violaciones.md#v-10)).
 
 <a id="implementacion"></a>
+
+<a id="p-pasarela"></a>
+
+### La pasarela de pruebas
+
+```
+PASARELA DE PRUEBAS
+Confirmá tu pago
+                                ← sin el filete de tres colores
+┌──────────────────────────────────┐
+│  Comercio              PideUTB   │
+│  Método                  Nequi   │
+│  Referencia      pago-4-c49f83   │
+│  ──────────────────────────────  │
+│  Total               $ 26.000    │
+└──────────────────────────────────┘
+
+[ Pagar              ]   ← gris, no azul
+[ Rechazar el pago   ]
+```
+
+**No es una pantalla de PideUTB.** Representa al sistema que cobra, y por eso
+es la única que rompe la identidad: hereda `estilos.css` entero y solo cambia
+el acento, de `--azul` a un gris de 11,2:1, y le quita a la cabecera el filete
+de tres colores. Vestida de azul, una demostración enseñaría a PideUTB
+cobrándose a sí mismo, que es justo lo que no ocurre.
+
+Existe para poder recorrer el flujo completo sin una cuenta de comercio, y solo
+aparece donde el despliegue define `PIDEUTB_URL_PASARELA_SIMULADA`.
+
+**Lo que no hace es lo que la justifica.** Pulsar «Pagar» no devuelve el pedido
+pagado: avisa a PideUTB y nada más. Quien pagó se entera por su propia consulta
+desde la [pantalla de espera](#p-espera), igual que con una pasarela real. Si la
+respuesta del botón trajera el código de canje, la demostración enseñaría una
+arquitectura distinta de la que
+[ADR-0003](adr/0003-estrategia-integracion.md) describe —el sondeo y la
+idempotencia dejarían de ejercitarse justo en la pantalla donde se mira—, y por
+eso hay una prueba que falla si alguien «simplifica» el simulador en esa
+dirección.
+
+Los dos botones van apilados y a ancho completo: «Pagar» y «Rechazar» no deben
+quedar al alcance del mismo pulgar.
+
+---
 
 ## Implementación
 

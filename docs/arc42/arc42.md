@@ -2125,6 +2125,8 @@ solo se vigila leyendo esta tabla se hereda sin revisarse.
 | **R-08** | **No se puede saber qué persona avanzó un pedido.** `avanzar_estado` recibe el establecimiento, no el usuario | — | Medio: afecta a la auditoría del canje, que es lo que vale dinero | Ninguna: el dato no se guarda |
 | **R-09** | **`GET /metricas` es público** y publica el volumen de tráfico por operación | — | Bajo: el inventario de operaciones ya es público; el volumen no lo era | Ninguna automática |
 | **R-10** | **La contraseña inicial sigue en el panel, en claro, mucho después de usarse** | 1 uso real, vigente indefinidamente | Medio: es una credencial válida y visible. No se puede rotar por la deuda D-04 | Ninguna |
+| **R-11** | **Un pago rechazado es indistinguible de uno que aún no ha confirmado**, para quien lo hizo. El rechazo se guarda en el intento, y el intento no se publica | El pedido queda en `pendiente_pago` en los dos casos | Medio: quien pagó mal se queda esperando sin saber que tiene que reintentar. **No lo causa la pasarela simulada**: pasa igual con una real | Ninguna automática. El hueco es del contrato, no del código |
+| **R-12** | **Con `PIDEUTB_URL_PASARELA_SIMULADA` definida, cualquiera que alcance `/v1/pagos/simulador/{ref}` puede dar un pedido por pagado** | Sin la variable la ruta responde `404` · hoy está definida solo en el despliegue de demostración, desde el panel | **Alto donde esté encendida**: el código de canje es lo que vale dinero | `test_sin_configurar_el_simulador_no_existe` fija que apagada no existe. Que esté apagada en producción **no lo vigila nada**: es configuración |
 
 #### R-01 y R-02 en detalle, que son los dos que tienen número
 
@@ -2145,6 +2147,40 @@ discutible. Se bajó el sondeo a 5 000 ms —4,68 s para la persona, 46 s de CPU
 por turno y panel— y la medición quedó ejecutable en `medir_esc03.py`, que
 devuelve código de error si el umbral deja de cumplirse. El detalle está en
 [§10.7](#evaluacion).
+
+#### R-11 y R-12 en detalle, que son los dos que trajo la pasarela simulada
+
+**R-11 es un hueco del contrato, no un defecto de implementación.** `procesar_evento`
+guarda el rechazo donde corresponde —el intento pasa a `rechazado`— y deja el
+pedido en `pendiente_pago`, que es lo correcto: un cobro rechazado no cancela un
+pedido, permite reintentarlo. Lo que falta es que el cliente pueda enterarse. El
+contrato publica el pedido y no el intento, así que desde el sitio «rechazado» y
+«todavía no» son la misma respuesta, y la pantalla de espera sigue girando.
+
+Se comprobó en el navegador contra PostgreSQL: con el intento en `rechazado`, el
+sondeo no cambia de pantalla.
+
+La corrección conocida es publicar el estado del cobro —un `GET` del intento, o
+el estado del pago dentro del pedido— y es un cambio de contrato con subida de
+versión, no un arreglo local. Se anota en vez de improvisarse porque el estado
+que hoy se devuelve **no es incorrecto**, solo incompleto, y la diferencia
+importa: no hay nada que reparar, hay algo que añadir.
+
+**R-12 es el precio de poder demostrar el flujo.** La pasarela simulada existe
+porque no hay cuenta de comercio: sin ella no se puede recorrer pedido → cobro →
+código de canje, ni en una sustentación ni desarrollando sin red.
+
+La barrera es que **la operación no existe sin su variable**: `simular_evento`
+comprueba `PIDEUTB_URL_PASARELA_SIMULADA` antes de hacer nada y la ruta responde
+`404` —el mismo código que daría una ruta inexistente, y no `403`, que
+confirmaría que está ahí y solo falta configurarla—. La ruta además queda fuera
+de `openapi.yaml` (`include_in_schema=False`): no es parte del contrato, es un
+doble del sistema externo.
+
+Lo que **ninguna prueba puede vigilar** es que la variable esté vacía en un
+despliegue con cobros reales, porque eso es configuración y no código. Por eso
+está anotado aquí y por eso `deploy/compose.lab.yaml` no la fija: se enciende
+desde el panel y se apaga borrándola, sin desplegar.
 
 **R-02.** [ADR-0007](../adr/0007-autenticacion-del-panel.md) eligió los
 parámetros de scrypt (N=2¹⁴, r=8, p=1) midiendo **100 ms de mediana en el
