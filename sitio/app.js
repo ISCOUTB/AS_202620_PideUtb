@@ -640,12 +640,8 @@ async function pagar(metodo) {
     // la pantalla de espera y se consulta el pedido, que es la única forma de
     // enterarse de algo que llega por otro canal.
     mostrar("espera");
+    ofrecerLaPasarela(intento.url_checkout);
     consultarEstadoPeriodicamente();
-
-    // En un despliegue real aquí se redirige a `intento.url_checkout`. En
-    // Sandbox se deja el enlace visible para poder demostrar el flujo sin
-    // abandonar la página durante la sustentación.
-    console.info("Checkout de la pasarela:", intento.url_checkout);
   } catch (e) {
     const mensajes = {
       404: "El pedido ya no existe.",
@@ -654,6 +650,39 @@ async function pagar(metodo) {
     };
     fallar(mensajes[e.status] || `No se pudo iniciar el pago: ${e.message}`);
   }
+}
+
+/**
+ * Pone a la vista el enlace al checkout, si el checkout es nuestro.
+ *
+ * Un despliegue con pasarela de verdad redirige: la persona sale del sitio,
+ * paga en otro dominio y vuelve. Aquí no se redirige **porque la pasarela
+ * simulada vive en este mismo sitio**, y salir de la página perdería el pedido
+ * que se acaba de crear; se abre en otra pestaña y esta se queda sondeando.
+ *
+ * La distinción se hace por origen y no por una variable de configuración
+ * aparte: la API ya decide a dónde mandar a pagar, y una segunda bandera en el
+ * frontend podría contradecirla.
+ */
+function ofrecerLaPasarela(urlCheckout) {
+  const enlace = $("ir-a-pasarela");
+
+  let esNuestra = false;
+  try {
+    esNuestra = new URL(urlCheckout, location.href).origin === location.origin;
+  } catch {
+    // Una URL que no se puede analizar no es la nuestra.
+  }
+
+  enlace.classList.toggle("oculto", !esNuestra);
+
+  if (!esNuestra) {
+    // Contra una pasarela real, aquí iría la redirección.
+    console.info("Checkout de la pasarela:", urlCheckout);
+    return;
+  }
+
+  enlace.href = urlCheckout;
 }
 
 // --------------------------------------------------------------------------
@@ -816,6 +845,18 @@ $("pagar").addEventListener("click", () => lanzar(pagarCarrito()));
 $("ver-pedido").addEventListener("click", verPedido);
 
 $("volver-a-carta").addEventListener("click", volverALaCarta);
+
+// Al volver a esta pestaña se consulta ya, sin esperar al siguiente sondeo.
+//
+// No sustituye al sondeo ni lo acelera: el intervalo sigue siendo el que es, y
+// la confirmación llegaría igual sin esto. Lo que evita es la espera muerta de
+// hasta un intervalo entero justo después de pagar en la otra pestaña, que es
+// cuando más se mira la pantalla.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  if (temporizadorConsulta === null) return;
+  lanzar(consultarEstado());
+});
 
 $("dejar-de-esperar").addEventListener("click", () => {
   detenerConsultas();

@@ -87,6 +87,13 @@
         La pasarela confirma por su cuenta. Si tarda, tu pedido sigue guardado.
       </p>
     </div>
+    <!-- Solo aparece cuando el checkout vive en este mismo sitio, es decir
+         cuando el despliegue tiene pasarela simulada. Contra una pasarela de
+         verdad, un despliegue real redirige en vez de ofrecer un enlace. -->
+    <a id="ir-a-pasarela" class="boton oculto" target="_blank" rel="noopener">
+      Ir a la pasarela y pagar
+    </a>
+
     <button id="dejar-de-esperar" class="secundario">Consultar más tarde</button>
   </section>
 

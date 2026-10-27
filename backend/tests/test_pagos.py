@@ -63,6 +63,15 @@ def _enviar_evento(referencia: str, estado: str, firma: str | None = "válida"):
     return client.post("/v1/pagos/eventos", content=cuerpo, headers=cabeceras)
 
 
+PASARELA_SIMULADA = "http://127.0.0.1:8080/pasarela.html"
+
+
+@pytest.fixture
+def con_pasarela_simulada(monkeypatch):
+    """Enciende la pasarela de mentira para una prueba."""
+    monkeypatch.setenv("PIDEUTB_URL_PASARELA_SIMULADA", PASARELA_SIMULADA)
+
+
 # --------------------------------------------------------------------------
 # Operación síncrona
 # --------------------------------------------------------------------------
@@ -307,3 +316,141 @@ def test_un_suscriptor_que_falla_no_tumba_el_cobro():
         )
     finally:
         eventos.limpiar()
+
+
+# --------------------------------------------------------------------------
+# La pasarela simulada
+#
+# Existe para poder recorrer el flujo entero sin una cuenta de comercio. Lo que
+# estas pruebas vigilan no es que funcione —eso es lo fácil— sino las dos cosas
+# que la harían peligrosa o inútil:
+#
+# 1. Que **no exista** donde no está configurada. Es la única barrera entre un
+#    despliegue de producción y cualquiera que pueda dar un pedido por pagado.
+# 2. Que **no se salte el canal asíncrono**. Si la respuesta del botón trajera
+#    el pedido ya pagado, la demostración enseñaría una arquitectura distinta
+#    de la que ADR-0003 describe, y el sondeo y la idempotencia dejarían de
+#    ejercitarse justo donde se miran.
+# --------------------------------------------------------------------------
+
+def test_sin_configurar_el_simulador_no_existe():
+    """`404`, el mismo que daría una ruta inexistente.
+
+    Un `403` confirmaría que la ruta está ahí y que solo falta la
+    configuración adecuada, que es más información de la que hace falta dar.
+    """
+    pedido = _crear_pedido()
+    intento = _abrir_intento(pedido["pedido_id"])
+
+    respuesta = client.post(
+        f"/v1/pagos/simulador/{intento['referencia_pago']}",
+        json={"estado_pago": "aprobado"},
+    )
+
+    assert respuesta.status_code == 404
+    assert client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()["estado"] == (
+        "pendiente_pago"
+    ), "un simulador apagado no puede haber cambiado nada"
+
+
+def test_sin_configurar_se_cobra_por_la_pasarela_de_verdad():
+    """Sin la variable, `url_checkout` sigue apuntando fuera."""
+    pedido = _crear_pedido()
+    intento = _abrir_intento(pedido["pedido_id"])
+
+    assert intento["url_checkout"].startswith("https://sandbox.wompi.co/")
+
+
+def test_configurada_manda_a_pagar_a_la_pasarela_simulada(con_pasarela_simulada):
+    """Y lleva el importe y el método, que es lo que la página tiene que pintar."""
+    pedido = _crear_pedido(item_id=1, cantidad=2)
+    intento = _abrir_intento(pedido["pedido_id"], metodo="nequi")
+
+    url = intento["url_checkout"]
+    assert url.startswith(PASARELA_SIMULADA + "?")
+    assert f"referencia={intento['referencia_pago']}" in url
+    assert f"monto={pedido['total_centavos']}" in url
+    assert "metodo=nequi" in url
+
+
+def test_el_simulador_no_devuelve_el_pedido_pagado_a_quien_pulsa(
+    con_pasarela_simulada,
+):
+    """**La prueba que protege ADR-0003.**
+
+    Quien pulsa «Pagar» en la pasarela recibe un acuse de recibo, igual que lo
+    recibiría la pasarela real. No recibe el código de canje: ese viaja por el
+    otro canal, y para verlo hay que consultar el pedido.
+
+    Si alguien «simplifica» el simulador para que devuelva el pedido ya pagado
+    —que es la forma más natural de hacerlo si no se piensa en el ADR—, esta
+    prueba falla.
+    """
+    pedido = _crear_pedido()
+    intento = _abrir_intento(pedido["pedido_id"])
+
+    respuesta = client.post(
+        f"/v1/pagos/simulador/{intento['referencia_pago']}",
+        json={"estado_pago": "aprobado"},
+    )
+
+    assert respuesta.status_code == 202, "acuse de recibo, no resultado"
+    assert "codigo_canje" not in respuesta.json()
+
+    # El código existe, pero hay que ir a buscarlo.
+    consultado = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()
+    assert consultado["estado"] == "pagado"
+    assert consultado["codigo_canje"]
+
+
+def test_el_simulador_rechaza_igual_que_la_pasarela(con_pasarela_simulada):
+    """Un rechazo deja el pedido esperando pago, no lo cancela."""
+    pedido = _crear_pedido()
+    intento = _abrir_intento(pedido["pedido_id"])
+
+    respuesta = client.post(
+        f"/v1/pagos/simulador/{intento['referencia_pago']}",
+        json={"estado_pago": "rechazado"},
+    )
+
+    assert respuesta.status_code == 202
+    consultado = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()
+    assert consultado["estado"] == "pendiente_pago"
+    assert consultado["codigo_canje"] is None
+
+
+def test_pulsar_dos_veces_no_genera_dos_codigos(con_pasarela_simulada):
+    """Entra por `procesar_evento`, así que hereda su idempotencia.
+
+    No es una garantía nueva: es la comprobación de que el simulador usa la
+    misma puerta y no una propia.
+    """
+    pedido = _crear_pedido()
+    intento = _abrir_intento(pedido["pedido_id"])
+    ruta = f"/v1/pagos/simulador/{intento['referencia_pago']}"
+
+    primera = client.post(ruta, json={"estado_pago": "aprobado"})
+    segunda = client.post(ruta, json={"estado_pago": "aprobado"})
+
+    assert primera.json()["duplicado"] is False
+    assert segunda.json()["duplicado"] is True
+
+    codigo = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()["codigo_canje"]
+    assert codigo, "el código se generó una vez"
+
+
+def test_una_referencia_inventada_no_crea_nada(con_pasarela_simulada):
+    respuesta = client.post(
+        "/v1/pagos/simulador/pago-inventado", json={"estado_pago": "aprobado"}
+    )
+    assert respuesta.status_code == 404
+
+
+def test_el_simulador_no_aparece_en_la_documentacion(con_pasarela_simulada):
+    """No es parte del contrato: es un doble del sistema externo.
+
+    Publicarlo lo congelaría en una versión del contrato y obligaría a
+    mantenerlo como si alguien de fuera pudiera depender de él.
+    """
+    rutas = client.get("/openapi.json").json()["paths"]
+    assert not [r for r in rutas if "simulador" in r]

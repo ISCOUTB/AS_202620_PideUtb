@@ -17,6 +17,7 @@ import hashlib
 import hmac
 import os
 import secrets
+from urllib.parse import urlencode
 
 from app.pagos import repository
 from app.pagos.contracts import EstadoPago, IntentoPagoPublicado, MetodoDePago
@@ -49,6 +50,45 @@ _SECRETO_PASARELA = os.getenv("PIDEUTB_SECRETO_PASARELA", "")
 
 _URL_CHECKOUT = "https://sandbox.wompi.co/checkout"
 
+#: Dirección de una pasarela **de mentira**, o cadena vacía si no la hay.
+#:
+#: Cuando está puesta, `url_checkout` apunta a ella en vez de a Wompi y se
+#: habilita `simular_evento`. Sirve para poder recorrer el flujo entero —crear
+#: el pedido, pagarlo, ver el código— sin una cuenta de pasarela, que es lo que
+#: hace falta para una demostración y para desarrollar sin red.
+#:
+#: **No es un modo de prueba del cobro real: es otro cobrador.** La diferencia
+#: importa: con la variable puesta, cualquiera que alcance el simulador puede
+#: dar un pedido por pagado. Por eso no tiene valor por defecto, igual que el
+#: secreto, y por eso el despliegue de producción no la define.
+def _url_pasarela_simulada() -> str:
+    """Se lee en cada llamada, por lo mismo que `_secreto`."""
+    return os.getenv("PIDEUTB_URL_PASARELA_SIMULADA", "").strip()
+
+
+def _url_de_checkout(
+    referencia: str, monto_centavos: int, metodo: MetodoDePago
+) -> str:
+    """A dónde mandar a quien va a pagar.
+
+    La pasarela simulada recibe el importe y el método como parámetros porque
+    es lo que hace una de verdad: el widget de Wompi también se abre con el
+    monto y la referencia en la URL. Son datos del pedido, no de la persona.
+
+    Lo que se manda ahí **solo decide lo que se pinta**. La confirmación viaja
+    por referencia y el importe que cuenta es el que está guardado, así que
+    cambiar `monto` a mano en la barra de direcciones no cambia lo que se
+    cobra ni lo que queda registrado.
+    """
+    simulada = _url_pasarela_simulada()
+    if not simulada:
+        return f"{_URL_CHECKOUT}/{referencia}"
+
+    parametros = urlencode(
+        {"referencia": referencia, "monto": monto_centavos, "metodo": metodo.value}
+    )
+    return f"{simulada}?{parametros}"
+
 
 class PedidoNoEncontradoError(Exception):
     pass
@@ -65,6 +105,10 @@ class ReferenciaDesconocidaError(Exception):
 # --------------------------------------------------------------------------
 # Verificación de la firma del webhook
 # --------------------------------------------------------------------------
+
+class PasarelaSimuladaApagadaError(RuntimeError):
+    """Se intentó usar la pasarela de mentira donde no la hay."""
+
 
 class SecretoNoConfiguradoError(RuntimeError):
     """No hay `PIDEUTB_SECRETO_PASARELA`, así que no se puede verificar nada."""
@@ -155,7 +199,7 @@ def iniciar_intento(pedido_id: int, metodo: MetodoDePago) -> IntentoPagoPublicad
         monto_centavos=pedido.total_centavos,
         metodo=metodo,
         estado_pago=EstadoPago.PENDIENTE,
-        url_checkout=f"{_URL_CHECKOUT}/{referencia}",
+        url_checkout=_url_de_checkout(referencia, pedido.total_centavos, metodo),
     )
     return _publicar(repository.guardar(intento))
 
@@ -200,6 +244,39 @@ def procesar_evento(
     # `pendiente`: la pasarela informa de un cambio que no resuelve nada. Se
     # acusa recibo y no se toca el pedido — actuar aquí sería adivinar.
     return _pedido_de(intento.pedido_id), ya_estaba_resuelto
+
+
+def simular_evento(
+    referencia_pago: str, estado_pago: EstadoPago
+) -> tuple[PedidoPublicado, bool]:
+    """Lo que haría la pasarela, cuando la pasarela somos nosotros.
+
+    Entra por la **misma** puerta que un aviso real: `procesar_evento`. No es
+    un atajo que marque el pedido como pagado, y la diferencia es el motivo de
+    que esta función exista en vez de un `if` en el frontend.
+
+    [ADR-0003](../../../docs/adr/0003-estrategia-integracion.md) dice que la
+    confirmación llega por un canal asíncrono y que el cliente se entera
+    consultando. Si la simulación devolviera el pedido ya pagado en la misma
+    respuesta del botón, la demostración enseñaría una arquitectura distinta de
+    la que está escrita: el sondeo, la idempotencia y la ventana de
+    `conciliar` dejarían de ejercitarse justo en la pantalla donde se mira.
+
+    Aquí el botón solo dispara el evento. Quien lo pulsó sigue sin saber nada
+    hasta que su propia consulta le diga que el pedido cambió de estado, que es
+    exactamente lo que pasa con una pasarela real.
+
+    No lleva firma porque en esta configuración **no hay dos partes**: firmar
+    con el secreto para verificarlo acto seguido no demuestra nada. Lo que
+    protege es que la operación no existe sin
+    `PIDEUTB_URL_PASARELA_SIMULADA`.
+    """
+    if not _url_pasarela_simulada():
+        raise PasarelaSimuladaApagadaError(
+            "No hay pasarela simulada en este despliegue."
+        )
+
+    return procesar_evento(referencia_pago, estado_pago)
 
 
 def conciliar() -> list[str]:

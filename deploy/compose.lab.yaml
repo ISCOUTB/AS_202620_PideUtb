@@ -51,6 +51,19 @@ services:
       # evento en vez de verificar firmas contra una cadena conocida (V-11).
       PIDEUTB_SECRETO_PASARELA: ${PIDEUTB_SECRETO_PASARELA}
 
+      # Pasarela simulada. **Vacía por defecto, y aquí no se decide.**
+      #
+      # Con un valor, PideUTB manda a pagar a una página de su propio sitio con
+      # dos botones en vez de a Wompi, y habilita la ruta que esa página usa
+      # para avisar del resultado. Donde esté definida, cualquiera que alcance
+      # esa ruta puede dar un pedido por pagado.
+      #
+      # Este despliegue es el de la demostración y todavía no tiene cuenta de
+      # comercio, así que hoy se enciende desde el panel. El día que haya
+      # cobros de verdad, se borra del panel y la ruta vuelve a no existir, sin
+      # tocar este archivo ni desplegar nada.
+      PIDEUTB_URL_PASARELA_SIMULADA: ${PIDEUTB_URL_PASARELA_SIMULADA:-}
+
       # El sitio vive en otro host, así que **toda** llamada del panel es una
       # petición entre orígenes y esta lista es la que decide si pasa. No es
       # decorativa: una lista equivocada deja el panel roto en el navegador con

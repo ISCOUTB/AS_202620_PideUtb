@@ -476,6 +476,35 @@ button:focus-visible {
   box-shadow: var(--foco);
 }
 
+/* Un enlace que actúa como botón.
+   Sigue siendo `<a>` y no `<button>` porque **navega**: con un botón se
+   perdería abrir en otra pestaña, el menú contextual y el teclado medio del
+   navegador. Lo que se copia es el aspecto, no la semántica. */
+.boton {
+  display: block;
+  width: 100%;
+  margin-top: var(--e5);
+  padding: var(--e3) var(--e5);
+  min-height: 48px;
+  box-sizing: border-box;
+  text-align: center;
+  text-decoration: none;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 24px;
+  border-radius: var(--radio-chico);
+  border: 1.5px solid transparent;
+  background: var(--azul); color: #fff;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.boton:hover { background: var(--azul-hundido); }
+
+.boton:focus-visible {
+  outline: none;
+  box-shadow: var(--foco);
+}
+
 .secundario {
   background: transparent; color: var(--azul);
   border-color: var(--linea-fuerte);

@@ -44,6 +44,17 @@ class EventoPagoRequest(BaseModel):
     ocurrido_en: str | None = None
 
 
+class EventoSimuladoRequest(BaseModel):
+    """Lo que pulsa quien usa la pasarela de mentira: aprobar o rechazar.
+
+    No lleva `evento` ni `referencia_pago` —que sí lleva el webhook real—
+    porque aquí no hay un emisor externo del que haya que creerse nada: la
+    referencia va en la ruta y el tipo de evento solo puede ser uno.
+    """
+
+    estado_pago: EstadoPago
+
+
 class AcuseDeEventoResponse(BaseModel):
     """Acuse de recibo, no confirmación de efecto.
 

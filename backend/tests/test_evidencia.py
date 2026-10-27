@@ -35,9 +35,9 @@ CITAS = [
     ("backend/app/pedidos/router.py", 52, '"/{pedido_id}"'),
     ("backend/app/pedidos/router.py", 102, '"/{pedido_id}/estado"'),
     ("backend/app/usuarios/router.py", 16, 'prefix="/v1/sesiones"'),
-    ("backend/app/pagos/router.py", 20, 'prefix="/v1/pagos"'),
-    ("backend/app/pagos/router.py", 24, '"/intentos"'),
-    ("backend/app/pagos/router.py", 41, '"/eventos"'),
+    ("backend/app/pagos/router.py", 21, 'prefix="/v1/pagos"'),
+    ("backend/app/pagos/router.py", 25, '"/intentos"'),
+    ("backend/app/pagos/router.py", 42, '"/eventos"'),
 
     # §1 — Los paths del contrato
     ("docs/api/openapi.yaml", 85, "/health:"),
