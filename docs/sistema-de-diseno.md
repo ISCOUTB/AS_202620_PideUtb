@@ -375,10 +375,11 @@ mismo objeto.
 
 ```
 ┃┌──────────────────────────────────────┐
-┃│  Arepa de huevo                      │   filete de acento, 4 px
-┃│  $ 4.000              ┌──────────┐   │   --cian en la carta
-┃│                       │  Pedir   │   │   --azul en la cola
-┃└───────────────────────└──────────┘───┘
+┃│  ┌────┐  Punta de anca               │   filete de acento, 4 px
+┃│  │foto│  Término medio, 250 g   ┌──┐ │   --cian en la carta
+┃│  └────┘  $ 26.000               │+ │ │   --azul en la cola
+┃└─────────────────────────────────└──┘─┘
+   64 px
 ```
 
 | Estado | Apariencia |
@@ -390,6 +391,83 @@ mismo objeto.
 
 **El agotado conserva la tarjeta.** Quitarle el fondo lo convertía en un hueco en
 la lista en vez de en un plato que hoy no hay.
+
+**La foto va a la izquierda, no arriba.** En una lista vertical, una imagen a
+todo lo ancho empuja el precio fuera de la pantalla y obliga a desplazarse para
+comparar dos cosas.
+
+**Sin foto se dibuja la inicial, no un hueco.** `imagen` es nulo mientras el
+archivo no exista, y ese estado es el normal al cargar una carta nueva. El
+marcador va sobre `--azul-niebla` con la inicial en `--azul` para que se lea
+como una pieza del sistema y no como una imagen rota.
+
+### Filtro por categoría
+
+```
+( Todas )( Adiciones )( Asados )( Bebid…
+└── elegida: --azul macizo        └── se corta a propósito
+```
+
+Pastillas en una fila que se desplaza. En móvil son más anchas que la pantalla a
+propósito: **el corte en el borde derecho es lo que dice que hay más**.
+Envolverlas en dos filas gasta alto y pierde esa señal.
+
+Las categorías salen de los datos, no de una lista fija: añadir una en la base la
+hace aparecer sin tocar el marcado. Un producto sin categoría no inventa una,
+aparece solo en «Todas». **Con una sola categoría el filtro no se dibuja**, porque
+un control que no filtra nada ocupa sitio sin hacer nada.
+
+| Estado | Apariencia |
+|---|---|
+| Normal | `--papel`, borde `--linea-fuerte`, texto `--tinta-media` |
+| Elegida (`aria-pressed="true"`) | `--azul` macizo, texto blanco |
+
+### Control de cantidad
+
+```
+sin nada en el carrito          con cantidad
+┌────┐                      ┌────┐ 2 ┌────┐
+│ +  │                      │ −  │   │ +  │
+└────┘                      └────┘   └────┘
+ 44 px                         118 px en total
+```
+
+Los dos ocupan el mismo sitio: **la acción siguiente está siempre donde estaba la
+anterior**, así que el dedo no tiene que buscar.
+
+Dice `+` y no «Agregar» por una medida, no por estética: con la palabra el botón
+ocupaba 111 px de los 343 de una pantalla de 375, dejaba 97 px para el nombre, y
+nueve de los diez productos de una carta real partían en dos líneas. El signo
+deja 171 px y los acepta todos. La palabra no se pierde, va en `aria-label`.
+
+El grupo `−/n/+` vuelve a dejar 97 px, así que **por debajo de 520 px baja a su
+propia fila**, alineado a la derecha. Por encima cabe al lado. El corte es el
+mismo 520 px que ya usa el resto de la hoja: las cuentas dan 443, pero un segundo
+punto de ruptura a 77 px del primero cuesta más de mantener de lo que ahorra.
+
+El `+` se apaga en 50, que es el tope que el contrato declara por línea: el botón
+se apaga antes en vez de dejar pedir algo que la API va a rechazar con `422`.
+
+### Barra del carrito
+
+```
+┌──────────────────────────────────────────────┐
+│ 3 productos                 [ Ver mi pedido ]│
+│ $ 60.000                                     │
+└──────────────────────────────────────────────┘
+       fija abajo, solo en la carta
+```
+
+Fija abajo porque es donde el pulgar llega sin recolocar la mano, y porque
+acompaña mientras se recorre la carta.
+
+**Desaparece con el carrito vacío** en vez de quedarse diciendo «0 productos», y
+**desaparece fuera de la carta**: en la pantalla del pedido repetiría la cuenta y
+el total que ya están ahí arriba, y se comería 104 px de los 812 de un teléfono.
+
+El fondo llega de borde a borde —una barra fija recortada se lee como un error—
+pero su contenido se alinea con la columna de 720 px del resto de la página. Sin
+eso, en un monitor la cuenta queda a 1 200 px del botón.
 
 ### Código de canje
 
@@ -519,19 +597,36 @@ Pide desde el celular y recoge sin fila.
 
 Carta
 
-┃ Arepa de huevo                [ Pedir ]
-┃ $ 4.000
+( Todas )( Adiciones )( Asados )( Bebid…
 
-┃ Jugo de mango natural         [ Pedir ]
-┃ $ 3.000
+┃ ┌──┐ Pechuga asada              ┌──┐
+┃ │  │ Con papa criolla y ensalada│+ │
+┃ └──┘ $ 18.000                   └──┘
 
-│ Empanada de carne            ( Agotado )
-│ $ 3.500
+┃ ┌──┐ Punta de anca
+┃ │ P│ Término medio, 250 g
+┃ └──┘ $ 26.000
+┃                       ┌──┐ 2 ┌──┐
+┃                       │− │   │+ │
+┃                       └──┘   └──┘
+
+│ ┌──┐ Costilla BBQ
+│ │ C│ Media libra en salsa  ( Agotado )
+│ └──┘ $ 24.000
+
+┌──────────────────────────────────────┐
+│ 3 productos          [ Ver mi pedido ]│
+│ $ 60.000                              │
+└──────────────────────────────────────┘
 ```
 
-Una tarjeta por ítem, el precio bajo el nombre en `--tinta-media`, y la acción a
-la derecha. Los agotados **no se ocultan**: saber que algo existe y hoy no hay es
-información, y ocultarlo haría que el cliente lo busque.
+Una tarjeta por ítem: foto a la izquierda, nombre, descripción en `--tinta-tenue`
+y precio, y el control a la derecha. Los agotados **no se ocultan**: saber que
+algo existe y hoy no hay es información, y ocultarlo haría que el cliente lo
+busque.
+
+La segunda tarjeta muestra el estado con cantidad en móvil, con el control en su
+fila. La barra de abajo aparece con el primer producto.
 
 <a id="p-pedido"></a>
 
@@ -540,22 +635,42 @@ información, y ocultarlo haría que el cliente lo busque.
 ```
 Tu pedido
 
+┃ Punta de anca        ┌──┐ 2 ┌──┐
+┃ 2 × $ 26.000         │− │   │+ │
+┃                      └──┘   └──┘
+
+┃ Limonada de coco     ┌──┐ 1 ┌──┐
+┃ 1 × $ 8.000          │− │   │+ │
+┃                      └──┘   └──┘
+
 ┌──────────────────────────────────┐
-│  Arepa de huevo × 2    $ 8.000   │
-│  Jugo de mango         $ 3.000   │
-│  ──────────────────────────────  │
-│  Total               $ 11.000    │
+│  Total               $ 60.000    │
 └──────────────────────────────────┘
 
-[ Pagar con PSE    ]
-[ Pagar con Nequi  ]
+¿Cómo querés pagar?
 
-[ Volver a la carta ]
+( Tarjeta           )
+(✓ Nequi            )   ← elegido
+( PSE               )
+
+[ Pagar $ 60.000    ]   ← macizo, ancho completo
+
+[ Seguir pidiendo   ]
 ```
 
-El resumen antes de la acción. El total separado por una línea y más grande: es
-lo que se mira antes de pagar. Los métodos de pago apilados a ancho completo en
-móvil.
+El resumen antes de la acción, con una línea por producto y la cantidad
+editable: **es donde la gente se arrepiente**, y obligar a navegar hacia atrás
+para quitar algo es la forma más fácil de perder una venta. Quitar el último
+producto devuelve a la carta.
+
+**Elegir un método no cobra.** Son opciones que se marcan; el cobro lo dispara
+«Pagar», que además dice cuánto. Antes el método y la confirmación eran el mismo
+gesto y un toque accidental cobraba.
+
+Los métodos no van en azul macizo: así parecían tres formas de pagar ya y pesaban
+más que la acción de verdad. **El único botón macizo de la pantalla es el que
+cobra.** El elegido se distingue por relleno, por borde y por el `✓` —no solo por
+color—, y `aria-checked` lo dice a quien usa lector de pantalla.
 
 <a id="p-espera"></a>
 
@@ -579,18 +694,32 @@ llega, queda en «pendiente de pago», que es un estado honesto y no un error.
 ### El código de canje
 
 ```
-¡Listo!
+¡Listo! Pago confirmado
+
+●  Presentá este código en el establecimiento.
 
    ╭──────────────────────────────╮
   ◖│        K 7 M 2 Q 9           │◗
    ╰──────────────────────────────╯
 
-Muéstralo en el mostrador para recoger tu pedido.
+┌──────────────────────────────────┐
+│  1 × Pechuga asada    $ 18.000   │
+│  2 × Chorizo          $ 14.000   │
+│  1 × Gaseosa 400 ml    $ 4.500   │
+│  ──────────────────────────────  │
+│  Total               $ 36.500    │
+└──────────────────────────────────┘
 
-●  Pago confirmado
+[ Hacer otro pedido ]
 ```
 
-El billete es el protagonista. Debajo, el estado con su punto y su rótulo.
+El billete es el protagonista; encima, el estado con su punto y su rótulo.
+
+**Debajo va el recibo: qué se compró, no solo cuánto.** Antes esta pantalla
+decía únicamente «Total pagado: …», que además mentía en los estados donde no se
+pagó nada —un pedido cancelado, o uno cuyo cobro la pasarela todavía no ha
+confirmado—. La fila «Total» del resumen da la cifra sin afirmar que haya
+cambiado de manos, así que el mismo bloque sirve para los seis estados.
 
 <a id="p-panel"></a>
 
@@ -603,8 +732,9 @@ Los pedidos que tenés que atender.
 
 [ Refrescar ]            Última carga: 17:42
 
-┃ #128 · Arepa de huevo × 2
-┃ Pagado · $ 8.000
+┃ #128
+┃ 1 × Pechuga asada · 2 × Chorizo · 1 × Gaseosa
+┃ Pagado · $ 36.500
 ┃ [ En preparación ] [ Cancelar ]
 
 ┃ #127 · Jugo de mango
@@ -702,7 +832,7 @@ tarjeta que perdía su forma— solo se vieron abriendo el navegador.
 
 ## Decisiones confirmadas
 
-Cinco posturas de esta guía, con su motivo.
+Seis posturas de esta guía, con su motivo.
 
 #### El cian y el verde son superficie, nunca tinta
 
@@ -727,6 +857,18 @@ todo.
 La marca es el nombre en azul más el filete de tres colores. No hay archivo que
 mantener ni versión invertida que aprobar. Cuando la universidad entregue uno,
 entra en la cabecera sin ningún otro cambio.
+
+#### Las medidas se toman en 375 px, no se eligen
+
+Cada número de esta guía que afecta a cuánto cabe en una fila sale de medir el
+texto real contra el ancho real, no de un valor redondo. Es lo que decidió que
+el botón diga `+` y no «Agregar» (111 px frente a 44), que el control de cantidad
+baje a su fila por debajo de 520 px (deja 97 px para el nombre y los nombres
+miden entre 95 y 165), y que la barra del carrito alinee su contenido con la
+columna de 720 px.
+
+La regla práctica: antes de defender una medida, medirla en el navegador a 375 px
+con los productos que de verdad hay en la carta.
 
 #### El intervalo de sondeo es un número de diseño
 
