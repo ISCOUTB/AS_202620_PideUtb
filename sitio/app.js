@@ -22,6 +22,11 @@ function mostrar(nombre) {
   for (const p of PANTALLAS) {
     $(`pantalla-${p}`).classList.toggle("activa", p === nombre);
   }
+
+  // La barra del carrito acompaña mientras se recorre la carta y desaparece en
+  // el resto. En la pantalla del pedido repetiría la cuenta y el total que ya
+  // están ahí arriba, y se comería 104 px de los 812 de un teléfono.
+  dibujarBarraCarrito();
 }
 
 /** Centavos de COP a texto legible. 400000 → "$4.000". */
@@ -101,6 +106,28 @@ function lanzar(promesa) {
 let pedidoActual = null;
 let temporizadorConsulta = null;
 
+/**
+ * El carrito, antes de que exista el pedido.
+ *
+ * Vive en el navegador a propósito: hasta que alguien pulsa «Pagar» no hay
+ * nada que cobrar, y crear un pedido por cada producto añadido llenaría la
+ * cola del mostrador de pedidos que nadie va a pagar.
+ *
+ * Es un `Map` de `item_id` a `{item, cantidad}`: la clave impide tener el
+ * mismo producto en dos entradas, que es justo lo que la base de datos
+ * también prohíbe (`un_item_una_vez_por_pedido`).
+ */
+const carrito = new Map();
+
+/** Método de pago elegido, o `null` mientras no se haya elegido ninguno. */
+let metodoElegido = null;
+
+/** Categoría activa del filtro. `null` = todas. */
+let categoriaActiva = null;
+
+/** La carta completa, para filtrar sin volver a pedirla. */
+let cartaCompleta = [];
+
 // --------------------------------------------------------------------------
 // Pantalla 0 · comprobar que la API responde
 //
@@ -174,22 +201,9 @@ async function cargarCarta() {
       `/v1/menu/establecimientos/${CONFIG.ESTABLECIMIENTO_ID}/items`
     );
 
-    const lista = $("lista-items");
-    lista.replaceChildren();
-
-    // Un establecimiento sin ítems devuelve 200 con lista vacía, no 404. El
-    // contrato distingue "no existe" de "no tiene nada" a propósito.
-    if (carta.items.length === 0) {
-      const vacio = document.createElement("li");
-      vacio.className = "nota";
-      vacio.textContent = "Este establecimiento todavía no cargó su carta.";
-      lista.append(vacio);
-    }
-
-    for (const item of carta.items) {
-      lista.append(dibujarItem(item));
-    }
-
+    cartaCompleta = carta.items;
+    dibujarCategorias();
+    dibujarCarta();
     mostrar("carta");
   } catch (e) {
     mostrar("carta");
@@ -201,9 +215,89 @@ async function cargarCarta() {
   }
 }
 
+/**
+ * Las categorías que de verdad hay en la carta, más «Todas».
+ *
+ * Salen de los datos y no de una lista fija: añadir una categoría en la base
+ * la hace aparecer aquí sin tocar este archivo. Un producto sin categoría no
+ * inventa una: aparece solo en «Todas».
+ */
+function dibujarCategorias() {
+  const presentes = [...new Set(
+    cartaCompleta.map((i) => i.categoria).filter(Boolean)
+  )].sort();
+
+  const barra = $("categorias");
+  barra.replaceChildren();
+
+  // Con una sola categoría el filtro no filtra nada: ocupar sitio con un
+  // control que no hace nada es peor que no tenerlo.
+  if (presentes.length < 2) return;
+
+  const opciones = [[null, "Todas"]];
+  for (const c of presentes) opciones.push([c, c]);
+
+  for (const [valor, texto] of opciones) {
+    const pastilla = document.createElement("button");
+    pastilla.className = "categoria";
+    pastilla.type = "button";
+    pastilla.textContent = texto;
+    pastilla.setAttribute("aria-pressed", String(categoriaActiva === valor));
+    pastilla.addEventListener("click", () => {
+      categoriaActiva = valor;
+      dibujarCategorias();
+      dibujarCarta();
+    });
+    barra.append(pastilla);
+  }
+}
+
+function dibujarCarta() {
+  const lista = $("lista-items");
+  lista.replaceChildren();
+
+  const visibles = categoriaActiva === null
+    ? cartaCompleta
+    : cartaCompleta.filter((i) => i.categoria === categoriaActiva);
+
+  // Un establecimiento sin ítems devuelve 200 con lista vacía, no 404. El
+  // contrato distingue "no existe" de "no tiene nada" a propósito.
+  if (visibles.length === 0) {
+    const vacio = document.createElement("li");
+    vacio.className = "nota";
+    vacio.textContent = categoriaActiva === null
+      ? "Este establecimiento todavía no cargó su carta."
+      : "No hay nada en esa categoría por ahora.";
+    lista.append(vacio);
+    return;
+  }
+
+  for (const item of visibles) {
+    lista.append(dibujarItem(item));
+  }
+}
+
 function dibujarItem(item) {
   const fila = document.createElement("li");
-  fila.className = item.disponible ? "item" : "item agotado";
+  fila.className = item.disponible ? "item producto" : "item producto agotado";
+
+  // La foto. Cuando el producto no tiene, se dibuja un marcador con su
+  // inicial en vez de una imagen rota: `imagen` es nulo a propósito mientras
+  // no exista el archivo.
+  const figura = document.createElement("div");
+  figura.className = "item-foto";
+  if (item.imagen) {
+    const img = document.createElement("img");
+    img.src = item.imagen;
+    img.alt = "";              // decorativa: el nombre ya está en el texto
+    img.loading = "lazy";
+    figura.append(img);
+  } else {
+    figura.classList.add("sin-foto");
+    figura.textContent = item.nombre.trim().charAt(0).toUpperCase();
+    figura.setAttribute("aria-hidden", "true");
+  }
+  fila.append(figura);
 
   const datos = document.createElement("div");
   datos.className = "item-datos";
@@ -211,27 +305,127 @@ function dibujarItem(item) {
   const nombre = document.createElement("div");
   nombre.className = "item-nombre";
   nombre.textContent = item.nombre;
+  datos.append(nombre);
+
+  if (item.descripcion) {
+    const desc = document.createElement("div");
+    desc.className = "item-descripcion";
+    desc.textContent = item.descripcion;
+    datos.append(desc);
+  }
 
   const precio = document.createElement("div");
   precio.className = "item-precio";
   precio.textContent = pesos(item.precio_centavos);
+  datos.append(precio);
 
-  datos.append(nombre, precio);
   fila.append(datos);
 
-  if (item.disponible) {
-    const boton = document.createElement("button");
-    boton.textContent = "Pedir";
-    boton.addEventListener("click", () => crearPedido(item.item_id));
-    fila.append(boton);
-  } else {
+  if (!item.disponible) {
     const etiqueta = document.createElement("span");
     etiqueta.className = "etiqueta-agotado";
     etiqueta.textContent = "Agotado";
     fila.append(etiqueta);
+    return fila;
   }
 
+  fila.append(controlDeCantidad(item));
   return fila;
+}
+
+/**
+ * «+» mientras no hay ninguno, y −/cantidad/+ en cuanto lo hay.
+ *
+ * Que sea el mismo sitio y no dos controles distintos evita que el dedo tenga
+ * que buscar: la acción siguiente siempre está donde estaba la anterior.
+ *
+ * Dice «+» y no «Agregar» por una razón medida, no estética: con la palabra,
+ * el botón ocupaba 111 px de los 343 de la pantalla y dejaba 97 px para el
+ * nombre, así que «Arepa de huevo» partía en dos líneas y la carta entera se
+ * leía a trompicones. El signo deja 171 px. La palabra no se pierde: va en
+ * `aria-label`, que es lo que lee un lector de pantalla.
+ */
+function controlDeCantidad(item) {
+  const enCarrito = carrito.get(item.item_id);
+
+  if (!enCarrito) {
+    const agregar = document.createElement("button");
+    agregar.className = "agregar";
+    agregar.type = "button";
+    agregar.textContent = "+";
+    agregar.setAttribute("aria-label", "Agregar " + item.nombre);
+    agregar.addEventListener("click", () => cambiarCantidad(item, +1));
+    return agregar;
+  }
+
+  const grupo = document.createElement("div");
+  grupo.className = "cantidad";
+
+  const menos = document.createElement("button");
+  menos.className = "secundario";
+  menos.type = "button";
+  menos.textContent = "\u2212";
+  menos.setAttribute("aria-label", "Quitar uno de " + item.nombre);
+  menos.addEventListener("click", () => cambiarCantidad(item, -1));
+
+  const cuenta = document.createElement("span");
+  cuenta.className = "cantidad-valor";
+  cuenta.textContent = String(enCarrito.cantidad);
+
+  const mas = document.createElement("button");
+  mas.type = "button";
+  mas.textContent = "+";
+  mas.setAttribute("aria-label", "Agregar otro " + item.nombre);
+  mas.addEventListener("click", () => cambiarCantidad(item, +1));
+
+  // 50 es el tope que el contrato declara por línea: pasarlo daría 422, así
+  // que el botón se apaga antes en vez de dejar pedir algo que la API
+  // rechazará.
+  mas.disabled = enCarrito.cantidad >= 50;
+
+  grupo.append(menos, cuenta, mas);
+  return grupo;
+}
+
+function cambiarCantidad(item, delta) {
+  const actual = carrito.get(item.item_id);
+  const cantidad = (actual ? actual.cantidad : 0) + delta;
+
+  if (cantidad <= 0) {
+    carrito.delete(item.item_id);
+  } else {
+    carrito.set(item.item_id, { item, cantidad: Math.min(cantidad, 50) });
+  }
+
+  dibujarCarta();
+  dibujarBarraCarrito();
+}
+
+function totalDelCarrito() {
+  let total = 0;
+  for (const linea of carrito.values()) {
+    total += linea.item.precio_centavos * linea.cantidad;
+  }
+  return total;
+}
+
+function unidadesDelCarrito() {
+  let n = 0;
+  for (const linea of carrito.values()) n += linea.cantidad;
+  return n;
+}
+
+function dibujarBarraCarrito() {
+  const barra = $("barra-carrito");
+  const unidades = unidadesDelCarrito();
+  const enLaCarta = $("pantalla-carta").classList.contains("activa");
+
+  barra.classList.toggle("oculto", unidades === 0 || !enLaCarta);
+  if (unidades === 0 || !enLaCarta) return;
+
+  $("carrito-cuenta").textContent =
+    unidades === 1 ? "1 producto" : unidades + " productos";
+  $("carrito-total").textContent = pesos(totalDelCarrito());
 }
 
 // --------------------------------------------------------------------------
@@ -241,42 +435,173 @@ function dibujarItem(item) {
 // se deriva del ítem y el contrato ignora cualquier campo extra (V-01).
 // --------------------------------------------------------------------------
 
-async function crearPedido(itemId) {
+/**
+ * Lleva el carrito a la pantalla de confirmación.
+ *
+ * **No crea el pedido todavía.** El pedido nace cuando se pulsa «Pagar», y no
+ * antes: así la cola del mostrador no se llena de pedidos que nadie pagó. Lo
+ * que se pinta aquí sale del carrito del navegador.
+ */
+function verPedido() {
   limpiarError();
+  if (carrito.size === 0) return;
+
+  metodoElegido = null;
+  dibujarLineasDelCarrito();
+  dibujarResumenDelCarrito();
+  dibujarMetodos();
+  mostrar("pedido");
+}
+
+function dibujarLineasDelCarrito() {
+  const lista = $("lineas-pedido");
+  lista.replaceChildren();
+
+  for (const linea of carrito.values()) {
+    const fila = document.createElement("li");
+    fila.className = "item";
+
+    const datos = document.createElement("div");
+    datos.className = "item-datos";
+
+    const nombre = document.createElement("div");
+    nombre.className = "item-nombre";
+    nombre.textContent = linea.item.nombre;
+
+    const precio = document.createElement("div");
+    precio.className = "item-precio";
+    precio.textContent =
+      linea.cantidad + " \u00d7 " + pesos(linea.item.precio_centavos);
+
+    datos.append(nombre, precio);
+    fila.append(datos, controlDeCantidadEnPedido(linea.item));
+    lista.append(fila);
+  }
+}
+
+/**
+ * El mismo control de cantidad, pero aquí redibuja esta pantalla.
+ *
+ * Se puede cambiar el pedido en el último momento sin volver a la carta: es
+ * donde la gente se arrepiente, y obligar a navegar hacia atrás para quitar
+ * algo es la forma más fácil de perder una venta.
+ */
+function controlDeCantidadEnPedido(item) {
+  const grupo = controlDeCantidad(item);
+
+  grupo.addEventListener("click", () => {
+    // Se redibuja después de que el manejador de `controlDeCantidad` haya
+    // actualizado el carrito.
+    queueMicrotask(() => {
+      if (carrito.size === 0) {
+        volverALaCarta();
+        return;
+      }
+      dibujarLineasDelCarrito();
+      dibujarResumenDelCarrito();
+    });
+  });
+
+  return grupo;
+}
+
+function dibujarResumenDelCarrito() {
+  const resumen = $("resumen-pedido");
+  resumen.replaceChildren();
+
+  // No se repite aquí la cuenta de productos: las líneas de arriba ya dicen
+  // qué hay y cuánto de cada cosa, y una fila «3 productos» sin cifra al lado
+  // dibujaba una línea vacía en la rejilla.
+  const dtTotal = document.createElement("dt");
+  dtTotal.className = "total";
+  dtTotal.textContent = "Total";
+  const ddTotal = document.createElement("dd");
+  ddTotal.className = "total";
+  ddTotal.textContent = pesos(totalDelCarrito());
+  resumen.append(dtTotal, ddTotal);
+}
+
+/** Marca el método elegido y enciende «Pagar». */
+function dibujarMetodos() {
+  for (const boton of document.querySelectorAll(".metodo")) {
+    const elegido = boton.dataset.metodo === metodoElegido;
+    boton.classList.toggle("elegido", elegido);
+    boton.setAttribute("aria-checked", String(elegido));
+  }
+
+  const pagar = $("pagar");
+  pagar.disabled = metodoElegido === null;
+  pagar.textContent = metodoElegido === null
+    ? "Elegí un método de pago"
+    : "Pagar " + pesos(totalDelCarrito());
+}
+
+function volverALaCarta() {
+  limpiarError();
+  dibujarCarta();
+  dibujarBarraCarrito();
+  mostrar("carta");
+}
+
+/**
+ * Crea el pedido con todas las líneas del carrito y abre el cobro.
+ *
+ * Las dos cosas van juntas a propósito: entre crear el pedido y abrir el
+ * intento no hay ninguna decisión que tomar, y partirlo en dos pantallas
+ * dejaría pedidos en `pendiente_pago` creados por gente que solo estaba
+ * mirando.
+ */
+async function pagarCarrito() {
+  if (metodoElegido === null || carrito.size === 0) return;
+
+  limpiarError();
+  const boton = $("pagar");
+  boton.disabled = true;
+  boton.textContent = "Creando tu pedido\u2026";
+
+  const lineas = [];
+  for (const linea of carrito.values()) {
+    lineas.push({ item_id: linea.item.item_id, cantidad: linea.cantidad });
+  }
 
   try {
     pedidoActual = await api("/v1/pedidos", {
       method: "POST",
-      body: JSON.stringify({ item_id: itemId, cantidad: 1 }),
+      body: JSON.stringify({ lineas }),
     });
-
-    dibujarResumen(pedidoActual);
-    mostrar("pedido");
   } catch (e) {
     const mensajes = {
-      404: "Ese ítem ya no existe en la carta.",
-      409: e.message, // ítem agotado o establecimiento cerrado: la API explica cuál
-      422: "La cantidad pedida no es válida.",
+      404: "Uno de los productos ya no existe en la carta.",
+      409: e.message, // agotado, repetido o establecimiento cerrado: la API dice cuál
+      422: "El pedido no es válido. Revisá las cantidades.",
     };
-    fallar(mensajes[e.status] || `No se pudo crear el pedido: ${e.message}`);
+    fallar(mensajes[e.status] || "No se pudo crear el pedido: " + e.message);
+    dibujarMetodos();
+    return;
   }
+
+  await pagar(metodoElegido);
 }
 
+/**
+ * Resumen de un pedido **ya creado**, con una fila por línea.
+ *
+ * Devuelve el elemento en vez de escribir en uno fijo porque la pantalla de
+ * resultado y la de confirmación son dos sitios distintos: atarlo a un `id`
+ * obligaba a duplicar el marcado.
+ *
+ * Desde la versión 3.0.0 del contrato el pedido trae `lineas[]`, así que ya no
+ * hay un producto que mostrar sino varios.
+ */
 function dibujarResumen(pedido) {
-  const filas = [
-    ["Producto", pedido.nombre_item],
-    ["Cantidad", String(pedido.cantidad)],
-    ["Precio unitario", pesos(pedido.precio_unitario_centavos)],
-  ];
+  const resumen = document.createElement("dl");
+  resumen.className = "resumen";
 
-  const resumen = $("resumen-pedido");
-  resumen.replaceChildren();
-
-  for (const [etiqueta, valor] of filas) {
+  for (const linea of pedido.lineas) {
     const dt = document.createElement("dt");
-    dt.textContent = etiqueta;
+    dt.textContent = linea.cantidad + " \u00d7 " + linea.nombre_item;
     const dd = document.createElement("dd");
-    dd.textContent = valor;
+    dd.textContent = pesos(linea.total_linea_centavos);
     resumen.append(dt, dd);
   }
 
@@ -287,6 +612,7 @@ function dibujarResumen(pedido) {
   ddTotal.className = "total";
   ddTotal.textContent = pesos(pedido.total_centavos);
   resumen.append(dtTotal, ddTotal);
+  return resumen;
 }
 
 // --------------------------------------------------------------------------
@@ -454,7 +780,11 @@ function mostrarResultado(pedido) {
     cuerpo.append(codigo);
   }
 
-  cuerpo.append(nota(`Total pagado: ${pesos(pedido.total_centavos)}`));
+  // El recibo: qué se compró y cuánto. Antes solo decía «Total pagado: …», que
+  // además mentía en los estados donde no se pagó nada —un pedido cancelado, o
+  // uno cuyo cobro todavía no ha confirmado la pasarela—. La fila «Total» del
+  // resumen dice la cifra sin afirmar que haya cambiado de manos.
+  cuerpo.append(dibujarResumen(pedido));
   mostrar("resultado");
 }
 
@@ -469,14 +799,19 @@ function nota(texto) {
 // Arranque
 // --------------------------------------------------------------------------
 
+// Elegir un metodo ya no cobra: lo marca. El cobro lo dispara «Pagar».
 for (const boton of document.querySelectorAll(".metodo")) {
-  boton.addEventListener("click", () => pagar(boton.dataset.metodo));
+  boton.addEventListener("click", () => {
+    metodoElegido = boton.dataset.metodo;
+    dibujarMetodos();
+  });
 }
 
-$("volver-a-carta").addEventListener("click", () => {
-  limpiarError();
-  mostrar("carta");
-});
+$("pagar").addEventListener("click", () => lanzar(pagarCarrito()));
+
+$("ver-pedido").addEventListener("click", verPedido);
+
+$("volver-a-carta").addEventListener("click", volverALaCarta);
 
 $("dejar-de-esperar").addEventListener("click", () => {
   detenerConsultas();
@@ -485,6 +820,11 @@ $("dejar-de-esperar").addEventListener("click", () => {
 
 $("nuevo-pedido").addEventListener("click", () => {
   pedidoActual = null;
+  // El carrito se vacia: sin esto el pedido siguiente empezaria con lo que la
+  // persona acaba de pagar y recoger.
+  carrito.clear();
+  metodoElegido = null;
+  dibujarBarraCarrito();
   limpiarError();
   lanzar(cargarCarta());
 });

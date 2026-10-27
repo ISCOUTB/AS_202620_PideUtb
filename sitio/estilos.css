@@ -238,6 +238,220 @@ h3 {
   white-space: nowrap;
 }
 
+/* --- Filtro por categoría -------------------------------------------------
+   Pastillas en una fila que se desplaza. En móvil son más anchas que la
+   pantalla a propósito: el corte en el borde derecho es lo que le dice a
+   alguien que hay más a la derecha. Ocultarlo con `wrap` convertiría dos
+   categorías en dos filas y perdería esa señal. */
+
+.categorias {
+  display: flex;
+  gap: var(--e2);
+  overflow-x: auto;
+  padding: var(--e1) 0 var(--e3);
+  margin-bottom: var(--e2);
+  scrollbar-width: none;
+}
+.categorias::-webkit-scrollbar { display: none; }
+
+.categoria {
+  flex: none;
+  min-height: 40px;
+  padding: var(--e2) var(--e4);
+  border-radius: var(--radio-pildora);
+  border: 1.5px solid var(--linea-fuerte);
+  background: var(--papel);
+  color: var(--tinta-media);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.categoria[aria-pressed="true"] {
+  background: var(--azul);
+  border-color: var(--azul);
+  color: #fff;
+}
+
+/* --- Tarjeta de producto, con foto ----------------------------------------
+   La foto va a la izquierda y no arriba: en una lista vertical de productos,
+   una imagen a todo lo ancho empuja el precio fuera de la pantalla y obliga a
+   desplazarse para comparar dos cosas. */
+
+.item.producto { padding: var(--e3) var(--e4) var(--e3) var(--e4); }
+
+.item-foto {
+  flex: none;
+  width: 64px; height: 64px;
+  border-radius: var(--radio-chico);
+  overflow: hidden;
+  background: var(--fondo);
+}
+
+.item-foto img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Marcador mientras el producto no tiene foto. Es deliberado que se vea como
+   una pieza del sistema y no como una imagen rota: la inicial sobre el azul
+   de apoyo dice «todavía no hay foto», no «esto falló». */
+.item-foto.sin-foto {
+  display: grid;
+  place-items: center;
+  background: var(--azul-niebla);
+  color: var(--azul);
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+.item-descripcion {
+  color: var(--tinta-tenue);
+  font-size: 0.9rem;
+  margin-top: 2px;
+}
+
+/* --- Control de cantidad --------------------------------------------------
+   Los tres controles ocupan el mismo sitio que ocupaba «Agregar», para que la
+   acción siguiente esté siempre donde estaba la anterior. */
+
+.cantidad {
+  display: flex;
+  align-items: center;
+  gap: var(--e1);
+  flex: none;
+}
+
+/* Los tres controles mantienen los 44 px de alto que pide un objetivo táctil,
+   y ahorran ancho en la holgura horizontal, no en el alto. */
+.cantidad button,
+.agregar {
+  flex: none;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.cantidad-valor {
+  min-width: 1.4rem;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Solo en pantalla estrecha, el control de cantidad baja a su propia fila.
+   Está medido, no elegido: en una pantalla de 375 px la fila deja 343 px, y el
+   grupo −/n/+ ocupa 118. Al nombre le quedan 97, y solo tres de los diez
+   productos de la carta caben en eso: el resto parte en dos líneas justo
+   después de tocarlos. El «+» solo ocupa 44 px y deja 171, que los acepta
+   todos, así que inline se queda mientras no haya cantidad.
+
+   La tarjeta crece al agregar. Es un movimiento en la tarjeta que se acaba de
+   tocar —donde ya está la mirada— y no una recolocación de la lista entera.
+
+   El corte es el mismo 520 px que ya usa el resto de la hoja. Las cuentas dan
+   443 px, pero un segundo punto de ruptura a 77 px del primero cuesta más de
+   mantener de lo que ahorra. Por encima, el control cabe al lado y bajarlo
+   solo dejaría un hueco. */
+@media (max-width: 520px) {
+  .item.producto:has(.cantidad) { flex-wrap: wrap; }
+
+  .item.producto .cantidad {
+    flex-basis: 100%;
+    justify-content: flex-end;
+  }
+}
+
+/* --- Barra del carrito ----------------------------------------------------
+   Fija abajo porque es el único sitio donde el pulgar llega sin recolocar la
+   mano, y porque acompaña mientras se recorre la carta. Desaparece con el
+   carrito vacío en vez de quedarse diciendo «0 productos». */
+
+.barra-carrito {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--e4);
+  /* El fondo llega de borde a borde —una barra fija recortada se ve como un
+     error— pero lo que lleva dentro se alinea con la columna de 720 px del
+     resto de la página. Sin esto, en un monitor la cuenta queda en un extremo
+     y el botón en el otro, a 1.200 px de distancia. */
+  padding: var(--e3) max(var(--e4), calc((100% - 720px) / 2));
+  padding-bottom: calc(var(--e3) + env(safe-area-inset-bottom, 0px));
+  background: var(--papel);
+  border-top: 1px solid var(--linea);
+  box-shadow: 0 -4px 16px rgb(11 16 32 / 8%);
+  animation: subir 0.18s ease-out;
+}
+
+@keyframes subir {
+  from { transform: translateY(100%); }
+  to   { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barra-carrito { animation: none; }
+}
+
+.barra-carrito-datos {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.carrito-total {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* El contenido deja sitio para la barra: sin esto, el último producto de la
+   carta queda debajo de ella y no se puede pulsar. */
+body:has(.barra-carrito:not(.oculto)) { padding-bottom: 104px; }
+
+/* --- Método de pago ------------------------------------------------------
+   Los métodos pasaron de botones que cobraban a opciones que se marcan, y el
+   aspecto tenía que seguir al cambio.
+
+   El elegido se distingue por relleno **y** por borde **y** por una marca, no
+   solo por color: `aria-checked` lo dice a quien usa lector de pantalla, el
+   borde a quien no distingue tonos, y el ✓ a quien mira de lejos. */
+
+/* En azul macizo los tres parecían tres formas de pagar ya, y pesaban más que
+   «Pagar», que es la acción de verdad. Sin relleno son lo que son —tres
+   casillas— y el único botón macizo de la pantalla es el que cobra. */
+.metodo {
+  background: var(--papel);
+  color: var(--tinta);
+  border-color: var(--linea-fuerte);
+}
+
+.metodo:hover:not(:disabled) {
+  background: var(--azul-niebla);
+  border-color: var(--azul);
+}
+
+/* Cobrar ocupa el ancho entero: es la acción de la pantalla, y con ancho
+   automático quedaba más estrecha que las tres opciones que tiene encima. */
+#pagar { width: 100%; margin-top: var(--e4); }
+
+.metodo.elegido {
+  background: var(--azul-niebla);
+  border-color: var(--azul);
+  color: var(--azul);
+}
+
+.metodo.elegido::before {
+  content: "\2713\00a0";
+  font-weight: 800;
+}
+
 /* --- Botones -------------------------------------------------------------
    48 px de alto mínimo: el cliente pide de pie y el mostrador con una mano.
    Es la medida táctil cómoda, no la mínima de 44. */
@@ -286,9 +500,12 @@ button:focus-visible {
   background: var(--papel);
   border-radius: var(--radio);
   box-shadow: var(--sombra);
-  display: grid; grid-template-columns: auto 1fr; gap: var(--e2) var(--e5);
+  display: grid; grid-template-columns: auto 1fr; gap: var(--e2) 0;
 }
-.resumen dt { color: var(--tinta-media); }
+/* La separación entre las dos columnas es relleno de la etiqueta y no `gap` a
+   propósito: con `gap`, la línea que separa el total se dibujaba en dos
+   trozos, uno por celda, con el hueco a la vista en medio. */
+.resumen dt { color: var(--tinta-media); padding-right: var(--e5); }
 .resumen dd {
   margin: 0; text-align: right;
   font-variant-numeric: tabular-nums;
@@ -304,6 +521,14 @@ button:focus-visible {
   border-top: 1px solid var(--linea);
 }
 .resumen dt.total { color: var(--tinta); }
+
+/* Cuando el total es la única fila —el carrito, donde los productos ya están
+   listados arriba en su propia lista— no hay nada de lo que separarlo. */
+.resumen dt.total:first-child,
+.resumen dt.total:first-child + dd.total {
+  padding-top: 0;
+  border-top: none;
+}
 
 /* --- Espera --------------------------------------------------------------- */
 

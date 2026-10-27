@@ -275,7 +275,15 @@ function pintar(pedidos) {
   // Solo lo que se muestra entra en la huella: si el servidor añadiera un
   // campo que esta pantalla no usa, no tiene por qué provocar un repintado.
   const huella = JSON.stringify(
-    pedidos.map((p) => [p.pedido_id, p.estado, p.cantidad, p.nombre_item, p.total_centavos, p.codigo_canje])
+    pedidos.map((p) => [
+      p.pedido_id,
+      p.estado,
+      // Las lineas entran en la huella porque son lo que el mostrador lee para
+      // preparar: si cambian, hay que repintar.
+      p.lineas.map((l) => l.cantidad + "x" + l.item_id).join(","),
+      p.total_centavos,
+      p.codigo_canje,
+    ])
   );
   if (huella === huellaPintada) return;
   huellaPintada = huella;
@@ -293,8 +301,19 @@ function pintar(pedidos) {
 
     const titulo = document.createElement("div");
     titulo.className = "item-nombre";
-    titulo.textContent = `#${pedido.pedido_id} · ${pedido.cantidad} × ${pedido.nombre_item}`;
+    titulo.textContent = `#${pedido.pedido_id}`;
     datos.appendChild(titulo);
+
+    // Una linea por producto. Antes era un solo renglon porque un pedido era
+    // un producto; desde la 3.0.0 el mostrador tiene que ver todo lo que
+    // prepara, y resumirlo en «3 productos» le haria abrir algo para saber
+    // cuales.
+    const detalle = document.createElement("div");
+    detalle.className = "item-precio";
+    detalle.textContent = pedido.lineas
+      .map((l) => `${l.cantidad} × ${l.nombre_item}`)
+      .join(" · ");
+    datos.appendChild(detalle);
 
     const estado = document.createElement("div");
     estado.className = "estado-linea";
