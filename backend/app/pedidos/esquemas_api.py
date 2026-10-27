@@ -8,19 +8,40 @@ from pydantic import BaseModel, Field
 from app.pedidos.contracts import EstadoPedido, EstadoSolicitable, PedidoPublicado
 
 
-class CrearPedidoRequest(BaseModel):
-    """Lo único que el cliente decide es qué ítem quiere y cuántos.
+class LineaPedidoRequest(BaseModel):
+    """Un producto del carrito."""
 
-    `establecimiento_id` NO se acepta del cliente: es un dato derivado del
-    ítem. Aceptarlo permitía crear pedidos asignados a un establecimiento
+    item_id: int = Field(ge=1)
+    cantidad: int = Field(default=1, ge=1, le=50)
+
+
+class CrearPedidoRequest(BaseModel):
+    """Lo único que el cliente decide es qué productos quiere y cuántos.
+
+    `establecimiento_id` NO se acepta del cliente: es un dato derivado de los
+    ítems. Aceptarlo permitía crear pedidos asignados a un establecimiento
     que no vende ese producto (ver `docs/violaciones.md`, V-01). Un campo
     extra en la petición se ignora en lugar de producir un error, y eso forma
     parte del contrato: un cliente antiguo que siga enviándolo no se rompe,
     pero tampoco consigue influir en el resultado.
+
+    Desde la versión 3.0.0 del contrato se envía una **lista** de líneas. El
+    tope de 30 no es arbitrario: es lo que cabe en una bandeja de mostrador, y
+    un carrito sin tope es una forma barata de pedirle al servidor que valide
+    mil productos de una vez.
     """
 
+    lineas: list[LineaPedidoRequest] = Field(min_length=1, max_length=30)
+
+
+class LineaPedidoResponse(BaseModel):
+    """Una línea del pedido, como se publica."""
+
     item_id: int = Field(ge=1)
-    cantidad: int = Field(default=1, ge=1, le=50)
+    nombre_item: str
+    precio_unitario_centavos: int = Field(ge=0)
+    cantidad: int = Field(ge=1, le=50)
+    total_linea_centavos: int = Field(ge=0)
 
 
 class PedidoResponse(BaseModel):
@@ -28,10 +49,7 @@ class PedidoResponse(BaseModel):
 
     pedido_id: int = Field(ge=1)
     establecimiento_id: int = Field(ge=1)
-    item_id: int = Field(ge=1)
-    nombre_item: str
-    precio_unitario_centavos: int = Field(ge=0)
-    cantidad: int = Field(ge=1, le=50)
+    lineas: list[LineaPedidoResponse] = Field(min_length=1)
     total_centavos: int = Field(ge=0)
     estado: EstadoPedido
 

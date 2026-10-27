@@ -34,6 +34,7 @@ from app.pagos.contracts import EstadoPago, MetodoDePago
 from app.pagos.models import IntentoPago
 from app.pedidos import repository as pedidos_repo
 from app.pedidos.contracts import EstadoPedido
+from app.pedidos.models import LineaPedido
 from app.usuarios import repository as usuarios_repo
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -138,10 +139,15 @@ def test_el_establecimiento_inactivo_se_lee_como_inactivo(implementacion):
 def _crear_pedido() -> object:
     return pedidos_repo.crear(
         establecimiento_id=1,
-        item_id=1,
-        nombre_item="Arepa de huevo",
-        precio_unitario_centavos=400000,
-        cantidad=2,
+        lineas=[
+            LineaPedido(
+                item_id=1,
+                nombre_item="Arepa de huevo",
+                precio_unitario_centavos=400000,
+                cantidad=2,
+                total_linea_centavos=800000,
+            )
+        ],
         total_centavos=800000,
     )
 
@@ -442,21 +448,37 @@ def test_la_base_de_datos_rechaza_un_codigo_de_canje_sin_pago(monkeypatch):
 
 @sin_postgres
 def test_la_base_de_datos_rechaza_un_total_incoherente(monkeypatch):
-    """Un error de cálculo en el código no llega a escribirse."""
+    """Un error de cálculo en el código no llega a escribirse.
+
+    Hasta la migración 004 lo impedía un `CHECK` de fila:
+    `total_centavos = precio_unitario_centavos * cantidad`. Con el carrito esa
+    restricción dejó de poder existir —el total pasó a ser una **suma de otra
+    tabla**, y un `CHECK` de fila no ve otra tabla— así que la vigila un
+    disparador diferido.
+
+    Lo que esta prueba comprueba no cambió: que un total que no cuadra con sus
+    líneas **no llegue a escribirse**. Lo que cambió es quién lo rechaza, y por
+    eso la excepción que se espera es otra.
+    """
     import psycopg
 
     monkeypatch.setenv("PIDEUTB_DATABASE_URL", URL_PRUEBAS)
     base_de_datos.cerrar_pool()
     _preparar_base_de_datos()
 
-    with pytest.raises(psycopg.errors.CheckViolation):
+    with pytest.raises(psycopg.errors.RaiseException):
         pedidos_repo.crear(
             establecimiento_id=1,
-            item_id=1,
-            nombre_item="Arepa de huevo",
-            precio_unitario_centavos=400000,
-            cantidad=2,
-            total_centavos=1,          # no es 400000 * 2
+            lineas=[
+                LineaPedido(
+                    item_id=1,
+                    nombre_item="Arepa de huevo",
+                    precio_unitario_centavos=400000,
+                    cantidad=2,
+                    total_linea_centavos=800000,
+                )
+            ],
+            total_centavos=1,          # no es la suma de las líneas
         )
 
     base_de_datos.cerrar_pool()

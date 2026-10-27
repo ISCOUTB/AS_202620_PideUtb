@@ -21,8 +21,8 @@ from app.menu.models import ItemMenu
 #: Semilla en memoria. Debe coincidir con `migraciones/002_datos_semilla.sql`,
 #: y que coincida lo verifica `tests/test_repositorios.py`.
 _ITEMS_SEED = {
-    1: ItemMenu(id=1, establecimiento_id=1, nombre="Arepa de huevo", precio_centavos=400000, disponible=True),
-    2: ItemMenu(id=2, establecimiento_id=1, nombre="Jugo de mango", precio_centavos=300000, disponible=True),
+    1: ItemMenu(id=1, establecimiento_id=1, nombre="Arepa de huevo", precio_centavos=400000, disponible=True, categoria="Asados"),
+    2: ItemMenu(id=2, establecimiento_id=1, nombre="Jugo de mango", precio_centavos=300000, disponible=True, categoria="Bebidas"),
     3: ItemMenu(id=3, establecimiento_id=2, nombre="Empanada", precio_centavos=250000, disponible=False),
     4: ItemMenu(id=4, establecimiento_id=3, nombre="Café americano", precio_centavos=200000, disponible=True),
 }

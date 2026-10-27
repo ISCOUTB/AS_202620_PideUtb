@@ -26,3 +26,6 @@ class ItemDisponible(BaseModel):
     nombre: str
     precio_centavos: int = Field(ge=0)
     disponible: bool
+    imagen: str | None = None
+    categoria: str | None = None
+    descripcion: str | None = None

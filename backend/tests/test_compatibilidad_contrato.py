@@ -152,7 +152,12 @@ def _quitar_campo_de_respuesta(doc: dict) -> None:
 
 
 def _volver_obligatorio_un_opcional(doc: dict) -> None:
-    doc["components"]["schemas"]["CrearPedidoRequest"]["required"].append("cantidad")
+    # `cantidad` vive en `LineaPedidoRequest` desde la 3.0.0: el carrito la
+    # movió de la raíz de la petición a cada línea. Apuntando a
+    # `CrearPedidoRequest` la mutación añadía un requerido para una propiedad
+    # que ya no existe ahí, y el comparador no tenía nada que detectar — la
+    # prueba pasaba a no probar nada.
+    doc["components"]["schemas"]["LineaPedidoRequest"]["required"].append("cantidad")
 
 
 def _anadir_campo_obligatorio_a_peticion(doc: dict) -> None:

@@ -24,16 +24,20 @@ descripcion: >
   diagrama C4 de nivel 2.
 
 # Rango de versiones del contrato con el que este consumidor sabe hablar.
-# Que sea `2.x` y no `2.0.0` es la consecuencia práctica de la política de
+# Que sea `3.x` y no `3.0.0` es la consecuencia práctica de la política de
 # versionado: los cambios MENOR son compatibles por definición, así que el
-# consumidor no necesita tocarse. Un salto a `3.x` sí exigiría trabajo aquí.
+# consumidor no necesita tocarse. Un salto a `4.x` sí exigiría trabajo aquí.
+#
+# El salto de `2.x` a `3.x` lo motivó el carrito: un pedido pasó de llevar un
+# producto a llevar varios, y los campos de producto se movieron a `lineas`
+# tanto en la petición como en la respuesta.
 #
 # El salto de `1.x` a `2.x` es exactamente el trabajo que la política anuncia:
 # el panel pasó a necesitar una sesión, y un consumidor de la 1.x deja de
 # funcionar contra la 2.0.0. Lo comprueba
 # `test_el_consumidor_declara_la_version_mayor_que_publica_el_contrato`, así que
 # este campo ya no es decoración.
-version_contrato_requerida: "2.x"
+version_contrato_requerida: "3.x"
 
 operaciones:
   consultarSalud:
@@ -57,13 +61,14 @@ operaciones:
     codigos_manejados: ["200", "404"]
 
   crearPedido:
-    proposito: Enviar el pedido y mostrar el resumen de confirmación.
-    campos_enviados: [item_id, cantidad]
+    proposito: Enviar el carrito y mostrar el resumen de confirmación.
+    # Desde la 3.0.0 se envía una lista de líneas. Es el cambio que motiva el
+    # salto de MAYOR: `item_id` y `cantidad` dejaron de estar en el nivel de
+    # arriba de la petición.
+    campos_enviados: [lineas]
     campos_leidos:
       - pedido_id
-      - nombre_item
-      - cantidad
-      - precio_unitario_centavos
+      - lineas
       - total_centavos
       - estado
     codigos_manejados: ["201", "404", "409", "422"]
@@ -112,8 +117,10 @@ operaciones:
     campos_leidos:
       - establecimiento_id
       - pedidos[].pedido_id
-      - pedidos[].nombre_item
-      - pedidos[].cantidad
+      # Desde la 3.0.0 el mostrador pinta una línea por producto, no una por
+      # pedido: lo que antes era `nombre_item` y `cantidad` en el nivel de
+      # arriba vive ahora dentro de `lineas`.
+      - pedidos[].lineas
       - pedidos[].total_centavos
       - pedidos[].estado
       - pedidos[].codigo_canje

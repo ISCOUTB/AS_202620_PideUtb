@@ -30,6 +30,13 @@ class ItemMenuResponse(BaseModel):
     nombre: str = Field(min_length=1, max_length=80)
     precio_centavos: int = Field(ge=0)
     disponible: bool
+    #: Sin valor por defecto, igual que `codigo_canje` en `PedidoResponse`:
+    #: así quedan declarados como **requeridos y anulables** en lugar de
+    #: opcionales. El consumidor encuentra siempre la clave y solo mira si vale
+    #: `null`, en vez de distinguir entre «ausente» y «vacío».
+    imagen: str | None
+    categoria: str | None
+    descripcion: str | None
 
     @classmethod
     def desde_contrato(cls, item: ItemDisponible) -> "ItemMenuResponse":
@@ -39,6 +46,9 @@ class ItemMenuResponse(BaseModel):
             nombre=item.nombre,
             precio_centavos=item.precio_centavos,
             disponible=item.disponible,
+            imagen=item.imagen,
+            categoria=item.categoria,
+            descripcion=item.descripcion,
         )
 
 

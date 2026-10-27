@@ -18,8 +18,8 @@ import secrets
 from app.eventos import CANAL_PEDIDO_PAGADO, publicar
 from app.menu import service as catalogo_service
 from app.pedidos import repository
-from app.pedidos.contracts import EstadoPedido, PedidoPublicado
-from app.pedidos.models import Pedido
+from app.pedidos.contracts import EstadoPedido, LineaPublicada, PedidoPublicado
+from app.pedidos.models import LineaPedido, Pedido
 from app.usuarios import service as cuentas_service
 
 #: Alfabeto del código de canje. Debe respetar el `pattern` declarado para
@@ -56,10 +56,16 @@ def _publicar(pedido: Pedido) -> PedidoPublicado:
     return PedidoPublicado(
         pedido_id=pedido.id,
         establecimiento_id=pedido.establecimiento_id,
-        item_id=pedido.item_id,
-        nombre_item=pedido.nombre_item,
-        precio_unitario_centavos=pedido.precio_unitario_centavos,
-        cantidad=pedido.cantidad,
+        lineas=[
+            LineaPublicada(
+                item_id=l.item_id,
+                nombre_item=l.nombre_item,
+                precio_unitario_centavos=l.precio_unitario_centavos,
+                cantidad=l.cantidad,
+                total_linea_centavos=l.total_linea_centavos,
+            )
+            for l in pedido.lineas
+        ],
         total_centavos=pedido.total_centavos,
         estado=pedido.estado,
         codigo_canje=pedido.codigo_canje,
@@ -77,20 +83,72 @@ def _generar_codigo_canje() -> str:
     return "".join(secrets.choice(_ALFABETO_CANJE) for _ in range(_LONGITUD_CANJE))
 
 
-def crear_pedido(item_id: int, cantidad: int) -> PedidoPublicado:
-    item = catalogo_service.obtener_item(item_id)
+class CarritoVacioError(Exception):
+    """Un pedido sin líneas no es un pedido."""
 
-    if item is None:
-        raise ItemNoEncontradoError(f"El ítem {item_id} no existe")
 
-    if not item.disponible:
-        raise ItemNoDisponibleError(f"El ítem '{item.nombre}' no está disponible")
+class ItemRepetidoError(Exception):
+    """El mismo producto dos veces en el mismo carrito."""
 
-    # El establecimiento se DERIVA del ítem, y quien dice si está operando
+
+def crear_pedido(lineas_pedidas: list[tuple[int, int]]) -> PedidoPublicado:
+    """Crea un pedido con una o varias líneas.
+
+    `lineas_pedidas` son pares `(item_id, cantidad)`. Se valida **todo** antes
+    de escribir nada: un carrito con un producto agotado se rechaza entero, y
+    no a medias. Un pedido parcial sería peor que ninguno — el cliente pagaría
+    por algo distinto de lo que pidió.
+    """
+    if not lineas_pedidas:
+        raise CarritoVacioError("El pedido no lleva ningún producto")
+
+    vistos = {item_id for item_id, _ in lineas_pedidas}
+    if len(vistos) != len(lineas_pedidas):
+        # La base también lo impide, pero un 409 explicado es mejor que un
+        # error de integridad: aquí sabemos *qué* producto se repitió.
+        raise ItemRepetidoError(
+            "El mismo producto aparece dos veces; aumentá su cantidad en lugar "
+            "de añadirlo otra vez"
+        )
+
+    lineas: list[LineaPedido] = []
+    establecimiento_id: int | None = None
+
+    for item_id, cantidad in lineas_pedidas:
+        item = catalogo_service.obtener_item(item_id)
+
+        if item is None:
+            raise ItemNoEncontradoError(f"El ítem {item_id} no existe")
+
+        if not item.disponible:
+            raise ItemNoDisponibleError(f"El ítem '{item.nombre}' no está disponible")
+
+        # Todas las líneas tienen que ser del mismo establecimiento: un pedido
+        # se recoge en un mostrador, no en dos. Como el establecimiento se
+        # deriva del ítem, mezclarlos solo puede venir de un carrito armado a
+        # mano contra la API.
+        if establecimiento_id is None:
+            establecimiento_id = item.establecimiento_id
+        elif item.establecimiento_id != establecimiento_id:
+            raise EstablecimientoInactivoError(
+                "Un pedido no puede mezclar productos de dos establecimientos"
+            )
+
+        lineas.append(
+            LineaPedido(
+                item_id=item.item_id,
+                nombre_item=item.nombre,
+                precio_unitario_centavos=item.precio_centavos,
+                cantidad=cantidad,
+                total_linea_centavos=item.precio_centavos * cantidad,
+            )
+        )
+
+    # El establecimiento se DERIVA de los ítems, y quien dice si está operando
     # es el contexto Cuentas, su único escritor (ADR-0002).
-    if not cuentas_service.establecimiento_esta_activo(item.establecimiento_id):
+    if not cuentas_service.establecimiento_esta_activo(establecimiento_id):
         raise EstablecimientoInactivoError(
-            f"El establecimiento {item.establecimiento_id} no está recibiendo pedidos"
+            f"El establecimiento {establecimiento_id} no está recibiendo pedidos"
         )
 
     # El identificador lo asigna el almacenamiento, no este servicio. Antes lo
@@ -98,12 +156,9 @@ def crear_pedido(item_id: int, cantidad: int) -> PedidoPublicado:
     # desplegadas las dos habrían empezado por 1: era el ejemplo concreto de
     # V-09 (`docs/violaciones.md`).
     pedido = repository.crear(
-        establecimiento_id=item.establecimiento_id,
-        item_id=item.item_id,
-        nombre_item=item.nombre,
-        precio_unitario_centavos=item.precio_centavos,
-        cantidad=cantidad,
-        total_centavos=item.precio_centavos * cantidad,
+        establecimiento_id=establecimiento_id,
+        lineas=lineas,
+        total_centavos=sum(l.total_linea_centavos for l in lineas),
     )
     return _publicar(pedido)
 

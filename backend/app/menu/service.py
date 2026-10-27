@@ -21,6 +21,9 @@ def _publicar(item: ItemMenu) -> ItemDisponible:
         nombre=item.nombre,
         precio_centavos=item.precio_centavos,
         disponible=item.disponible,
+        imagen=item.imagen,
+        categoria=item.categoria,
+        descripcion=item.descripcion,
     )
 
 

@@ -14,7 +14,7 @@ openapi: 3.1.0
 
 info:
   title: PideUTB API
-  version: 2.0.0
+  version: 3.0.0
   summary: Pedidos de comida dentro del campus universitario.
   description: |
     Superficie **síncrona** de PideUTB: consulta de menú, creación y consulta
@@ -729,6 +729,9 @@ components:
         - nombre
         - precio_centavos
         - disponible
+        - imagen
+        - categoria
+        - descripcion
       properties:
         item_id:
           type: integer
@@ -752,12 +755,31 @@ components:
           description: Precio unitario en centavos de COP.
         disponible:
           type: boolean
+        imagen:
+          type: [string, "null"]
+          description: |
+            Ruta relativa dentro del sitio, p. ej. `imagenes/arepa.webp`.
+
+            Es `null` cuando el producto todavía no tiene foto, y la carta
+            muestra un marcador en vez de una imagen rota. Se declara
+            **presente y anulable** en lugar de opcional, por el mismo motivo
+            que `codigo_canje`: el consumidor encuentra la clave siempre.
+        categoria:
+          type: [string, "null"]
+          description: |
+            Agrupación para los filtros de la carta. `null` = el producto solo
+            aparece en «Todas».
+        descripcion:
+          type: [string, "null"]
       examples:
         - item_id: 1
           establecimiento_id: 1
           nombre: Arepa de huevo
           precio_centavos: 400000
           disponible: true
+          imagen: imagenes/arepa-de-huevo.webp
+          categoria: Asados
+          descripcion: null
 
     ListaItemsMenu:
       type: object
@@ -772,7 +794,7 @@ components:
           items:
             $ref: "#/components/schemas/ItemMenu"
 
-    CrearPedidoRequest:
+    LineaPedidoRequest:
       type: object
       required: [item_id]
       properties:
@@ -790,9 +812,30 @@ components:
             imposible de preparar (`docs/violaciones.md`, V-03). Bajarlo en el
             futuro sería un cambio incompatible: dejaría de aceptarse una
             petición que hoy es válida.
+
+    CrearPedidoRequest:
+      type: object
+      required: [lineas]
+      properties:
+        lineas:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            $ref: "#/components/schemas/LineaPedidoRequest"
+          description: |
+            Los productos del carrito. El mismo `item_id` no puede aparecer dos
+            veces: se aumenta su `cantidad`. Repetirlo responde `409`.
+
+            El tope de 30 es lo que cabe en una bandeja de mostrador. Un
+            carrito sin tope es una forma barata de pedirle al servidor que
+            valide mil productos de una vez.
       examples:
-        - item_id: 1
-          cantidad: 2
+        - lineas:
+            - item_id: 1
+              cantidad: 2
+            - item_id: 2
+              cantidad: 1
 
     EstadoPedido:
       type: string
@@ -941,27 +984,15 @@ components:
           items:
             $ref: "#/components/schemas/Pedido"
 
-    Pedido:
+    LineaPedido:
       type: object
       required:
-        - pedido_id
-        - establecimiento_id
         - item_id
         - nombre_item
         - precio_unitario_centavos
         - cantidad
-        - total_centavos
-        - estado
-        - codigo_canje
+        - total_linea_centavos
       properties:
-        pedido_id:
-          type: integer
-          format: int64
-          minimum: 1
-        establecimiento_id:
-          type: integer
-          format: int64
-          minimum: 1
         item_id:
           type: integer
           format: int64
@@ -980,13 +1011,49 @@ components:
           type: integer
           minimum: 1
           maximum: 50
+        total_linea_centavos:
+          type: integer
+          minimum: 0
+          description: "`precio_unitario_centavos × cantidad`."
+
+    Pedido:
+      type: object
+      required:
+        - pedido_id
+        - establecimiento_id
+        - lineas
+        - total_centavos
+        - estado
+        - codigo_canje
+      properties:
+        pedido_id:
+          type: integer
+          format: int64
+          minimum: 1
+        establecimiento_id:
+          type: integer
+          format: int64
+          minimum: 1
+        lineas:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/LineaPedido"
+          description: |
+            Los productos del pedido. Desde la versión 3.0.0 un pedido lleva
+            varias líneas, y los campos de producto que antes vivían en el
+            nivel de arriba se movieron aquí.
+
+            No se dejó una copia del primer producto arriba a propósito: para
+            un pedido de dos líneas esos campos tendrían que mentir, y un campo
+            que miente en el caso interesante es peor que uno que no está.
         total_centavos:
           type: integer
           minimum: 0
           description: |
-            `precio_unitario_centavos × cantidad`. Se publica calculado en lugar
-            de dejar que cada consumidor lo multiplique: es el importe que se
-            cobra, y debe haber una sola fuente de verdad para él.
+            La **suma** de `total_linea_centavos` de todas las líneas. Se
+            publica calculado en lugar de dejar que cada consumidor lo sume: es
+            el importe que se cobra, y debe haber una sola fuente de verdad.
         estado:
           $ref: "#/components/schemas/EstadoPedido"
         codigo_canje:

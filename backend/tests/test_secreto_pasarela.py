@@ -62,7 +62,7 @@ def _evento_firmado_con(secreto: str, referencia: str) -> tuple[bytes, str]:
 
 
 def _crear_pedido_con_intento() -> str:
-    pedido_id = client.post("/v1/pedidos", json={"item_id": 1, "cantidad": 1}).json()["pedido_id"]
+    pedido_id = client.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}]}).json()["pedido_id"]
     intento = client.post(
         "/v1/pagos/intentos", json={"pedido_id": pedido_id, "metodo": "nequi"}
     ).json()

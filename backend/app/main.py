@@ -63,7 +63,7 @@ async def ciclo_de_vida(_: FastAPI):
 app = FastAPI(
     lifespan=ciclo_de_vida,
     title="PideUTB API",
-    version="2.0.0",
+    version="3.0.0",
     description=(
         "Pedidos de comida dentro del campus universitario. El contrato "
         "versionado que esta aplicación implementa está en "

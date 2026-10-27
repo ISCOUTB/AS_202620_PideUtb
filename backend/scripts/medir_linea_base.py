@@ -21,7 +21,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app import base_de_datos  # noqa: E402
 from app.main import app  # noqa: E402
 
-PEDIDO = {"item_id": 1, "cantidad": 2}
+PEDIDO = {"lineas": [{"item_id": 1, "cantidad": 2}]}
 
 
 def percentil(muestras: list[float], p: float) -> float:

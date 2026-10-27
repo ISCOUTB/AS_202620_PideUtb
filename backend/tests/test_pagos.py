@@ -26,7 +26,7 @@ client = TestClient(app)
 # --------------------------------------------------------------------------
 
 def _crear_pedido(item_id: int = 1, cantidad: int = 1) -> dict:
-    respuesta = client.post("/v1/pedidos", json={"item_id": item_id, "cantidad": cantidad})
+    respuesta = client.post("/v1/pedidos", json={"lineas": [{"item_id": item_id, "cantidad": cantidad}]})
     assert respuesta.status_code == 201, respuesta.text
     return respuesta.json()
 

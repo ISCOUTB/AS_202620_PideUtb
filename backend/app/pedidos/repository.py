@@ -25,56 +25,87 @@ memoria, que reproduce la misma semántica.
 """
 from app import base_de_datos
 from app.pedidos.contracts import EstadoPedido
-from app.pedidos.models import Pedido
+from app.pedidos.models import LineaPedido, Pedido
 
 _PEDIDOS: dict[int, Pedido] = {}
 _contador = 0
 
+#: Las columnas del pedido. Las de línea viven en `pedido_lineas` desde la
+#: migración 004; las que quedaron en `pedidos` son histórico y no se leen.
 _COLUMNAS = (
-    "id, establecimiento_id, item_id, nombre_item, precio_unitario_centavos, "
-    "cantidad, total_centavos, estado, codigo_canje"
+    "id, establecimiento_id, total_centavos, estado, codigo_canje"
+)
+
+_COLUMNAS_LINEA = (
+    "item_id, nombre_item, precio_unitario_centavos, cantidad, "
+    "total_linea_centavos"
 )
 
 
-def _desde_fila(fila) -> Pedido:
+def _linea_desde_fila(fila) -> LineaPedido:
+    return LineaPedido(
+        item_id=fila[0],
+        nombre_item=fila[1],
+        precio_unitario_centavos=fila[2],
+        cantidad=fila[3],
+        total_linea_centavos=fila[4],
+    )
+
+
+def _lineas_de(cur, pedido_id: int) -> list[LineaPedido]:
+    """Las líneas de un pedido, en orden estable.
+
+    El orden sale del identificador de la línea y no del motor: sin `ORDER BY`
+    PostgreSQL puede devolverlas en cualquier orden, y una carta que cambia de
+    orden entre dos consultas se lee como un error del sistema.
+    """
+    cur.execute(
+        f"SELECT {_COLUMNAS_LINEA} FROM pedido_lineas "
+        "WHERE pedido_id = %s ORDER BY id",
+        (pedido_id,),
+    )
+    return [_linea_desde_fila(f) for f in cur.fetchall()]
+
+
+def _desde_fila(fila, lineas: list[LineaPedido]) -> Pedido:
     return Pedido(
         id=fila[0],
         establecimiento_id=fila[1],
-        item_id=fila[2],
-        nombre_item=fila[3],
-        precio_unitario_centavos=fila[4],
-        cantidad=fila[5],
-        total_centavos=fila[6],
-        estado=EstadoPedido(fila[7]),
-        codigo_canje=fila[8],
+        lineas=lineas,
+        total_centavos=fila[2],
+        estado=EstadoPedido(fila[3]),
+        codigo_canje=fila[4],
     )
 
 
 def crear(
     *,
     establecimiento_id: int,
-    item_id: int,
-    nombre_item: str,
-    precio_unitario_centavos: int,
-    cantidad: int,
+    lineas: list[LineaPedido],
     total_centavos: int,
 ) -> Pedido:
-    """Inserta un pedido nuevo y devuelve el que quedó guardado, con su id.
+    """Inserta un pedido con sus líneas y devuelve el que quedó guardado.
 
-    Los argumentos son de palabra clave obligatoria: son seis y cuatro de ellos
-    son enteros, así que una llamada posicional se equivocaría de orden tarde o
-    temprano y escribiría un importe donde va una cantidad.
+    Los argumentos son de palabra clave obligatoria: una llamada posicional se
+    equivocaría de orden tarde o temprano y escribiría un importe donde va un
+    establecimiento.
+
+    **El pedido y sus líneas se escriben en la misma transacción.** No es una
+    preferencia: entre el `INSERT` del pedido y el de sus líneas el total no
+    cuadra con la suma, y el disparador que lo vigila es `DEFERRABLE INITIALLY
+    DEFERRED` precisamente para dejar pasar ese instante. Partir esto en dos
+    transacciones dejaría un pedido sin líneas visible para quien consulte.
     """
+    if not lineas:
+        raise ValueError("Un pedido necesita al menos una línea")
+
     if not base_de_datos.hay_base_de_datos():
         global _contador
         _contador += 1
         pedido = Pedido(
             id=_contador,
             establecimiento_id=establecimiento_id,
-            item_id=item_id,
-            nombre_item=nombre_item,
-            precio_unitario_centavos=precio_unitario_centavos,
-            cantidad=cantidad,
+            lineas=lineas,
             total_centavos=total_centavos,
             estado=EstadoPedido.PENDIENTE_PAGO,
         )
@@ -83,19 +114,30 @@ def crear(
 
     with base_de_datos.conexion() as conn, conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO pedidos (establecimiento_id, item_id, nombre_item, "
-            "precio_unitario_centavos, cantidad, total_centavos) "
-            f"VALUES (%s, %s, %s, %s, %s, %s) RETURNING {_COLUMNAS}",
-            (
-                establecimiento_id,
-                item_id,
-                nombre_item,
-                precio_unitario_centavos,
-                cantidad,
-                total_centavos,
-            ),
+            "INSERT INTO pedidos (establecimiento_id, total_centavos) "
+            f"VALUES (%s, %s) RETURNING {_COLUMNAS}",
+            (establecimiento_id, total_centavos),
         )
-        return _desde_fila(cur.fetchone())
+        fila = cur.fetchone()
+        pedido_id = fila[0]
+
+        cur.executemany(
+            "INSERT INTO pedido_lineas (pedido_id, item_id, nombre_item, "
+            "precio_unitario_centavos, cantidad, total_linea_centavos) "
+            "VALUES (%s, %s, %s, %s, %s, %s)",
+            [
+                (
+                    pedido_id,
+                    l.item_id,
+                    l.nombre_item,
+                    l.precio_unitario_centavos,
+                    l.cantidad,
+                    l.total_linea_centavos,
+                )
+                for l in lineas
+            ],
+        )
+        return _desde_fila(fila, _lineas_de(cur, pedido_id))
 
 
 def guardar(pedido: Pedido) -> Pedido:
@@ -115,10 +157,11 @@ def guardar(pedido: Pedido) -> Pedido:
             (pedido.estado.value, pedido.codigo_canje, pedido.id),
         )
         fila = cur.fetchone()
+        lineas = _lineas_de(cur, pedido.id) if fila is not None else []
 
     if fila is None:
         raise LookupError(f"El pedido {pedido.id} no existe")
-    return _desde_fila(fila)
+    return _desde_fila(fila, lineas)
 
 
 def marcar_pagado(pedido_id: int, codigo_canje: str) -> Pedido | None:
@@ -151,8 +194,9 @@ def marcar_pagado(pedido_id: int, codigo_canje: str) -> Pedido | None:
             (codigo_canje, pedido_id),
         )
         fila = cur.fetchone()
+        lineas = _lineas_de(cur, pedido_id) if fila is not None else []
 
-    return None if fila is None else _desde_fila(fila)
+    return None if fila is None else _desde_fila(fila, lineas)
 
 
 def buscar_por_id(pedido_id: int) -> Pedido | None:
@@ -162,8 +206,9 @@ def buscar_por_id(pedido_id: int) -> Pedido | None:
     with base_de_datos.conexion() as conn, conn.cursor() as cur:
         cur.execute(f"SELECT {_COLUMNAS} FROM pedidos WHERE id = %s", (pedido_id,))
         fila = cur.fetchone()
+        lineas = _lineas_de(cur, pedido_id) if fila is not None else []
 
-    return None if fila is None else _desde_fila(fila)
+    return None if fila is None else _desde_fila(fila, lineas)
 
 
 def buscar_ids_pagados() -> list[int]:
@@ -204,4 +249,20 @@ def buscar_por_establecimiento(establecimiento_id: int) -> list[Pedido]:
             "ORDER BY id DESC",
             (establecimiento_id,),
         )
-        return [_desde_fila(f) for f in cur.fetchall()]
+        filas = cur.fetchall()
+
+        # Las líneas de toda la cola en **una** consulta y no una por pedido.
+        # Con veinte pedidos en pantalla, lo segundo son veintiuna idas a la
+        # base para pintar una lista: el caso que la hora pico convierte en
+        # problema.
+        por_pedido: dict[int, list[LineaPedido]] = {f[0]: [] for f in filas}
+        if por_pedido:
+            cur.execute(
+                f"SELECT pedido_id, {_COLUMNAS_LINEA} FROM pedido_lineas "
+                "WHERE pedido_id = ANY(%s) ORDER BY pedido_id, id",
+                (list(por_pedido),),
+            )
+            for fila_linea in cur.fetchall():
+                por_pedido[fila_linea[0]].append(_linea_desde_fila(fila_linea[1:]))
+
+        return [_desde_fila(f, por_pedido[f[0]]) for f in filas]

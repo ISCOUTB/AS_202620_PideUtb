@@ -208,7 +208,35 @@ acota, y es comprobable: basta mirar cuántos consumidores declara `contracts/`.
 | Versión | Ruta | Estado | Archivo congelado | Cambios |
 |---|---|---|---|---|
 | **1.0.0** | `/v1` | Soportada | [`historial/openapi-1.0.0.yaml`](historial/openapi-1.0.0.yaml) | Versión inicial: catálogo, pedidos y pagos. |
-| **1.1.0** | `/v1` | **Vigente** | [`historial/openapi-1.1.0.yaml`](historial/openapi-1.1.0.yaml) | `/health` sondea dependencias; nuevo `503`; nueva operación `/metricas`. |
+| **1.1.0** | `/v1` | Soportada | [`historial/openapi-1.1.0.yaml`](historial/openapi-1.1.0.yaml) | `/health` sondea dependencias; nuevo `503`; nueva operación `/metricas`. |
+| **1.2.0** | `/v1` | Soportada | [`historial/openapi-1.2.0.yaml`](historial/openapi-1.2.0.yaml) | Operaciones del mostrador sobre el estado del pedido. |
+| **2.0.0** | `/v1` | Soportada | [`historial/openapi-2.0.0.yaml`](historial/openapi-2.0.0.yaml) | **Incompatible.** Autenticación del panel: el mostrador pasa a exigir sesión ([V-10](../violaciones.md#v-10)). El prefijo no cambió, por §5 bis. |
+| **3.0.0** | `/v1` | **Vigente** | [`historial/openapi-3.0.0.yaml`](historial/openapi-3.0.0.yaml) | **Incompatible.** Carrito: un pedido pasa de un producto a varios. Ver abajo. |
+
+### El caso 3.0.0: por qué el carrito obliga a subir MAYOR
+
+El cambio parece de interfaz y no lo es. Hasta la 2.0.0 un pedido **era** una
+línea, y la base de datos lo imponía con `CHECK (total_centavos =
+precio_unitario_centavos * cantidad)`.
+
+Los campos de producto —`item_id`, `nombre_item`, `precio_unitario_centavos`,
+`cantidad`— se movieron de la raíz del pedido a `lineas[]`, en la petición y en
+la respuesta. Eso incumple I-2 (retirar un campo que se emitía) e I-4 (aparece
+un campo obligatorio nuevo en la petición), y `contracts/consumidor-web.yaml`
+declaraba leer tres de los cuatro: la prueba de expectativas lo detectó antes
+que ninguna revisión.
+
+**No se dejó una copia del primer producto en el nivel de arriba**, que habría
+evitado el salto de MAYOR. Para un pedido de dos líneas esos campos tendrían
+que mentir —`total_centavos` dejaría de ser `precio × cantidad`— y un campo que
+miente justo en el caso que el cambio introduce es peor que uno que no está.
+
+**El prefijo de ruta no cambia**, por el mismo razonamiento de §5 bis aplicado
+a otro motivo: `/v1` frente a `/v2` existe para permitir que dos versiones
+convivan, y aquí no hay con quién convivir. El único consumidor declarado es el
+frontend de este repositorio, que se despliega en el mismo contenedor y en el
+mismo commit. Los 90 días de coexistencia de §5 protegen a consumidores que no
+controlamos; no hay ninguno.
 
 ### El caso 1.1.0, como ejemplo de esta política aplicada
 

@@ -31,11 +31,17 @@ router = APIRouter(prefix="/v1/pedidos", tags=["pedidos"])
 )
 def crear_pedido(datos: CrearPedidoRequest) -> PedidoResponse:
     try:
-        pedido = service.crear_pedido(datos.item_id, datos.cantidad)
+        pedido = service.crear_pedido([(l.item_id, l.cantidad) for l in datos.lineas])
     except service.ItemNoEncontradoError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except service.ItemNoDisponibleError as e:
         raise HTTPException(status_code=409, detail=str(e))
+    except service.ItemRepetidoError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except service.CarritoVacioError as e:
+        # 422 y no 409: un carrito vacío es una petición mal formada, no un
+        # estado del sistema que impida la operación.
+        raise HTTPException(status_code=422, detail=str(e))
     except service.EstablecimientoInactivoError as e:
         raise HTTPException(status_code=409, detail=str(e))
 

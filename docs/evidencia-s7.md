@@ -44,8 +44,8 @@ efectiva es `prefix` del router más el path del decorador.
 | `/v1/sesiones` (DELETE) · L202 — *2.0.0* | `usuarios/router.py:16` `/v1/sesiones` | `:45-46` `""` | ✔ |
 | `/v1/pedidos` (POST) · L262 | `pedidos/router.py:23` `/v1/pedidos` | `:26-27` `""` | ✔ |
 | `/v1/pedidos` (GET) · L262 | `pedidos/router.py:23` `/v1/pedidos` | `:57-58` `""` | ✔ |
-| `/v1/pedidos/{pedido_id}/estado` · L354 | `pedidos/router.py:23` `/v1/pedidos` | `:95-96` `"/{pedido_id}/estado"` | ✔ |
-| `/v1/pedidos/{pedido_id}` · L438 | `pedidos/router.py:23` `/v1/pedidos` | `:45-46` `"/{pedido_id}"` | ✔ |
+| `/v1/pedidos/{pedido_id}/estado` · L354 | `pedidos/router.py:23` `/v1/pedidos` | `:101-102` `"/{pedido_id}/estado"` | ✔ |
+| `/v1/pedidos/{pedido_id}` · L438 | `pedidos/router.py:23` `/v1/pedidos` | `:51-52` `"/{pedido_id}"` | ✔ |
 | `/v1/pagos/intentos` · L462 | `pagos/router.py:20` `/v1/pagos` | `:23-24` `"/intentos"` | ✔ |
 | `/v1/pagos/eventos` · L495 | `pagos/router.py:20` `/v1/pagos` | `:40-41` `"/eventos"` | ✔ |
 

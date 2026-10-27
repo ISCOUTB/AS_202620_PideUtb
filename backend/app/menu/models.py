@@ -27,3 +27,13 @@ class ItemMenu(BaseModel):
     nombre: str
     precio_centavos: int = Field(ge=0)
     disponible: bool = True
+
+    #: Ruta relativa dentro del sitio, p. ej. `imagenes/arepa.webp`. Nulo
+    #: cuando el producto todavía no tiene foto: la carta muestra un marcador
+    #: en vez de una imagen rota.
+    imagen: str | None = None
+
+    #: Agrupación para los filtros de la carta. Nulo = solo aparece en «Todas».
+    categoria: str | None = None
+
+    descripcion: str | None = None

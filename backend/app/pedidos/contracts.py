@@ -59,15 +59,33 @@ class EstadoSolicitable(str, Enum):
     CANCELADO = "cancelado"
 
 
-class PedidoPublicado(BaseModel):
-    """Vista de un pedido hacia fuera del contexto Pedidos."""
+class LineaPublicada(BaseModel):
+    """Una línea del pedido, hacia fuera del contexto Pedidos."""
 
-    pedido_id: int
-    establecimiento_id: int
     item_id: int
     nombre_item: str
     precio_unitario_centavos: int = Field(ge=0)
     cantidad: int = Field(ge=1, le=50)
+    total_linea_centavos: int = Field(ge=0)
+
+
+class PedidoPublicado(BaseModel):
+    """Vista de un pedido hacia fuera del contexto Pedidos.
+
+    Desde la versión 3.0.0 del contrato un pedido lleva **varias líneas**. Los
+    campos de producto que antes vivían aquí —`item_id`, `nombre_item`,
+    `precio_unitario_centavos`, `cantidad`— se movieron a `lineas`.
+
+    Es un cambio incompatible y está declarado como tal
+    (`docs/api/politica-versionado.md` §6). No se dejó una copia del primer
+    producto en el nivel de arriba a propósito: para un pedido de dos líneas
+    esos campos tendrían que mentir, y un campo que miente en el caso
+    interesante es peor que un campo que no está.
+    """
+
+    pedido_id: int
+    establecimiento_id: int
+    lineas: list[LineaPublicada] = Field(min_length=1)
     total_centavos: int = Field(ge=0)
     estado: EstadoPedido
     codigo_canje: str | None
