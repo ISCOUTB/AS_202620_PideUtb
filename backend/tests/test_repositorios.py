@@ -598,20 +598,24 @@ def test_la_base_de_datos_rechaza_un_total_incoherente(monkeypatch):
     base_de_datos.cerrar_pool()
     _preparar_base_de_datos()
 
+    # Todo lo que puede lanzar y **no** es lo que se espera se prepara fuera del
+    # bloque. Dentro queda una sola llamada: si el token o la línea fallaran
+    # ahí, la prueba pasaría por el motivo equivocado y nadie lo notaría.
+    linea = LineaPedido(
+        item_id=1,
+        nombre_item="Arepa de huevo",
+        precio_unitario_centavos=400000,
+        cantidad=2,
+        total_linea_centavos=800000,
+    )
+    token = secrets.token_urlsafe(24)
+
     with pytest.raises(psycopg.errors.RaiseException):
         pedidos_repo.crear(
             establecimiento_id=1,
-            lineas=[
-                LineaPedido(
-                    item_id=1,
-                    nombre_item="Arepa de huevo",
-                    precio_unitario_centavos=400000,
-                    cantidad=2,
-                    total_linea_centavos=800000,
-                )
-            ],
+            lineas=[linea],
             total_centavos=1,          # no es la suma de las líneas
-            token_consulta=secrets.token_urlsafe(24),
+            token_consulta=token,
         )
 
     base_de_datos.cerrar_pool()

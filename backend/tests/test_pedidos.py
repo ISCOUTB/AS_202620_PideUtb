@@ -67,8 +67,18 @@ def test_al_crear_el_pedido_se_entrega_un_token():
 
 
 def test_dos_pedidos_no_comparten_token():
-    """Si lo compartieran, cada uno podría leer el otro."""
-    assert _crear()["token_consulta"] != _crear()["token_consulta"]
+    """Si lo compartieran, cada uno podría leer el otro.
+
+    Los dos pedidos se crean en líneas aparte y no dentro de la aserción:
+    comparar `_crear()[...] != _crear()[...]` se lee como una tautología y solo
+    deja de serlo porque la llamada tiene efectos. Quien lo lea no debería tener
+    que deducir eso.
+    """
+    uno = _crear()
+    otro = _crear()
+
+    assert uno["pedido_id"] != otro["pedido_id"], "son dos pedidos distintos"
+    assert uno["token_consulta"] != otro["token_consulta"]
 
 
 def test_sin_token_no_se_puede_consultar_un_pedido():
