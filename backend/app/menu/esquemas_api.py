@@ -38,6 +38,13 @@ class ItemMenuResponse(BaseModel):
     categoria: str | None
     descripcion: str | None
 
+    #: Precio normal, solo mientras la promoción está en curso, para que la
+    #: carta pueda tacharlo. Es la API quien resuelve la franja: el navegador
+    #: no decide a qué precio se vende, entre otras cosas porque su reloj no es
+    #: de fiar.
+    precio_antes_centavos: int | None
+    promocion_hasta: str | None
+
     @classmethod
     def desde_contrato(cls, item: ItemDisponible) -> "ItemMenuResponse":
         return cls(
@@ -49,6 +56,8 @@ class ItemMenuResponse(BaseModel):
             imagen=item.imagen,
             categoria=item.categoria,
             descripcion=item.descripcion,
+            precio_antes_centavos=item.precio_antes_centavos,
+            promocion_hasta=item.promocion_hasta,
         )
 
 

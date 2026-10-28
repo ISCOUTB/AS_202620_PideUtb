@@ -23,9 +23,29 @@ class ItemDisponible(BaseModel):
 
     item_id: int
     establecimiento_id: int
+
     nombre: str
+
+    #: **Lo que cuesta ahora.** Si hay una promoción en curso, este es el precio
+    #: promocional, no el normal. Quien venda el ítem no tiene que saber nada de
+    #: franjas horarias: `pedidos.service` escribe este número en la línea del
+    #: pedido y acierta.
     precio_centavos: int = Field(ge=0)
+
+    #: **Si se puede pedir ahora.** Combina las dos cosas que lo impiden: que el
+    #: mostrador lo haya marcado agotado, y que esté fuera de su franja.
     disponible: bool
+
     imagen: str | None = None
     categoria: str | None = None
     descripcion: str | None = None
+
+    #: Precio normal, **solo mientras la promoción está en curso**. Existe para
+    #: que la carta pueda tacharlo. Nulo el resto del tiempo, y nulo también en
+    #: los productos que solo se venden en promoción: ahí no hay un «antes».
+    precio_antes_centavos: int | None = Field(default=None, gt=0)
+
+    #: Hora local a la que termina la promoción en curso, `HH:MM`. Nulo si no
+    #: hay ninguna. Es texto y no `time` porque su único uso es escribirlo en la
+    #: pantalla.
+    promocion_hasta: str | None = None

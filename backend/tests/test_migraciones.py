@@ -61,6 +61,7 @@ HUELLAS = {
     "003_autenticacion.sql": "c142a8a08753786f",
     "004_carrito_y_catalogo.sql": "084b33d95c360183",
     "005_carta_el_asao.sql": "a58e211732075053",
+    "006_promociones_por_franja.sql": "40e97d9f73bf733c",
 }
 
 

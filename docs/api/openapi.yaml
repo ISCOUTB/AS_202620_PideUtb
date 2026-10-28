@@ -14,7 +14,7 @@ openapi: 3.1.0
 
 info:
   title: PideUTB API
-  version: 3.0.0
+  version: 3.1.0
   summary: Pedidos de comida dentro del campus universitario.
   description: |
     Superficie **síncrona** de PideUTB: consulta de menú, creación y consulta
@@ -732,6 +732,8 @@ components:
         - imagen
         - categoria
         - descripcion
+        - precio_antes_centavos
+        - promocion_hasta
       properties:
         item_id:
           type: integer
@@ -752,9 +754,19 @@ components:
         precio_centavos:
           type: integer
           minimum: 0
-          description: Precio unitario en centavos de COP.
+          description: |
+            Precio unitario en centavos de COP, **al que se vende ahora**.
+
+            Si el producto tiene una promoción en curso, este es el precio
+            promocional. La API resuelve la franja horaria; el consumidor no
+            calcula nada y no necesita saber qué hora es. Es deliberado: el
+            reloj de un navegador se puede cambiar, y lo que se cobra no.
         disponible:
           type: boolean
+          description: |
+            Si el producto se puede pedir **ahora**. Combina las dos cosas que
+            lo impiden: que el mostrador lo haya marcado agotado, y que esté
+            fuera de su franja de promoción si solo se vende dentro de ella.
         imagen:
           type: [string, "null"]
           description: |
@@ -771,15 +783,58 @@ components:
             aparece en «Todas».
         descripcion:
           type: [string, "null"]
+        precio_antes_centavos:
+          type: [integer, "null"]
+          minimum: 1
+          description: |
+            Precio normal, presente **solo mientras la promoción está en
+            curso**, para que la carta pueda tacharlo.
+
+            Es `null` el resto del tiempo, y también en los productos que solo
+            se venden dentro de su franja: ahí no hay un «antes» que tachar,
+            11 900 es su único precio.
+        promocion_hasta:
+          type: [string, "null"]
+          pattern: '^[0-9]{2}:[0-9]{2}$'
+          description: |
+            Hora local a la que termina la promoción en curso, `HH:MM`. `null`
+            si no hay ninguna.
+
+            Es hora de Bogotá, que es lo que anuncia el cartel del mostrador, y
+            no UTC. Va como texto y no como hora porque su único uso es
+            escribirlo en la pantalla.
       examples:
-        - item_id: 1
-          establecimiento_id: 1
-          nombre: Arepa de huevo
-          precio_centavos: 400000
+        - item_id: 101
+          establecimiento_id: 5
+          nombre: Costillitas de cerdo ahumadas
+          precio_centavos: 2980000
           disponible: true
-          imagen: imagenes/arepa-de-huevo.webp
+          imagen: fotos/costillitas-de-cerdo-ahumadas.webp
           categoria: Asados
           descripcion: null
+          precio_antes_centavos: null
+          promocion_hasta: null
+        # El mismo producto, consultado dentro y fuera de su franja.
+        - item_id: 120
+          establecimiento_id: 5
+          nombre: Combo hamburguesa pollo
+          precio_centavos: 1650000
+          disponible: true
+          imagen: null
+          categoria: Hamburguesas y perros
+          descripcion: null
+          precio_antes_centavos: 2420000
+          promocion_hasta: "15:30"
+        - item_id: 120
+          establecimiento_id: 5
+          nombre: Combo hamburguesa pollo
+          precio_centavos: 2420000
+          disponible: true
+          imagen: null
+          categoria: Hamburguesas y perros
+          descripcion: null
+          precio_antes_centavos: null
+          promocion_hasta: null
 
     ListaItemsMenu:
       type: object

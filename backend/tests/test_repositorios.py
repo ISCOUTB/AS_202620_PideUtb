@@ -21,6 +21,7 @@ En CI la aporta un contenedor de PostgreSQL efímero.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 from pathlib import Path
@@ -80,19 +81,73 @@ def implementacion(request, monkeypatch):
 
 
 def _preparar_base_de_datos() -> None:
-    """Aplica el esquema y deja las tablas transaccionales vacías.
+    """Aplica las migraciones que falten y deja vacías las tablas transaccionales.
 
     La semilla **no** se borra: los identificadores 1 a 4 están escritos en las
     pruebas y en los ejemplos del contrato.
+
+    ### Por qué se reconstruye y no se mira «si existe el esquema»
+
+    Antes se miraba si existía la tabla `pedidos` y, si existía, no se aplicaba
+    nada. Funcionaba en CI, donde el contenedor es nuevo en cada ejecución, y
+    **se rompía en el portátil**: una base de pruebas creada con cuatro
+    migraciones no recibía nunca la quinta, así que las consultas pedían
+    columnas que allí no estaban. El fallo salía como `UndefinedColumn` en
+    pruebas que no tenían nada que ver con el cambio, y desaparecía borrando la
+    base a mano — lo que lo convertía en algo que «a veces pasa».
+
+    Ahora, si el registro de migraciones no da cuenta **exactamente** de los
+    archivos que hay en el repositorio, el esquema se tira y se vuelve a
+    levantar entero. Una base de pruebas solo contiene la semilla, así que
+    reconstruirla cuesta un segundo y garantiza lo único que la suite necesita
+    de ella: que sea la que el repositorio describe. Aplicar «las que falten»
+    sería más fino y no serviría — una base con el esquema puesto pero sin
+    registro, que es como quedan todas las anteriores a este cambio, volvería a
+    intentar la primera migración y chocaría.
+
+    Esto **no** es lo que hace producción. Allí nada se reconstruye:
+    `scripts/migrar.py` aplica lo pendiente y se niega si un archivo aplicado
+    cambió. La diferencia es deliberada y está en lo que se puede perder.
     """
     import psycopg
 
+    archivos = sorted(MIGRACIONES.glob("*.sql"))
+
     with psycopg.connect(URL_PRUEBAS) as conexion:
         with conexion.cursor() as cur:
-            cur.execute("SELECT to_regclass('public.pedidos')")
-            if cur.fetchone()[0] is None:
-                for archivo in sorted(MIGRACIONES.glob("*.sql")):
+            cur.execute(
+                "CREATE TABLE IF NOT EXISTS migraciones_aplicadas ("
+                "  nombre text PRIMARY KEY,"
+                "  huella text NOT NULL,"
+                "  aplicada_en timestamptz NOT NULL DEFAULT now())"
+            )
+            cur.execute("SELECT nombre, huella FROM migraciones_aplicadas")
+            aplicadas = dict(cur.fetchall())
+
+            esperadas = {
+                archivo.name: hashlib.sha256(
+                    archivo.read_text(encoding="utf-8").encode("utf-8")
+                ).hexdigest()[:16]
+                for archivo in archivos
+            }
+
+            if aplicadas != esperadas:
+                cur.execute("DROP SCHEMA public CASCADE")
+                cur.execute("CREATE SCHEMA public")
+                cur.execute(
+                    "CREATE TABLE migraciones_aplicadas ("
+                    "  nombre text PRIMARY KEY,"
+                    "  huella text NOT NULL,"
+                    "  aplicada_en timestamptz NOT NULL DEFAULT now())"
+                )
+                for archivo in archivos:
                     cur.execute(archivo.read_text(encoding="utf-8"))
+                    cur.execute(
+                        "INSERT INTO migraciones_aplicadas (nombre, huella) "
+                        "VALUES (%s, %s)",
+                        (archivo.name, esperadas[archivo.name]),
+                    )
+
             # `RESTART IDENTITY` devuelve la secuencia a su inicio, para que el
             # primer pedido de cada prueba vuelva a ser el 1 y las aserciones no
             # dependan del orden de ejecución.

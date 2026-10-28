@@ -305,6 +305,30 @@ h3 {
   font-weight: 800;
 }
 
+/* --- Precio en promoción ---------------------------------------------------
+   El tachado NO es la señal: es el refuerzo. Lo que dice que hay promoción es
+   que aparezca una segunda cifra y una línea de texto con la hora, porque un
+   tachado fino se pierde en una pantalla al sol — que es donde se usa esto. */
+
+.precio-antes {
+  color: var(--tinta-tenue);
+  font-weight: 500;
+  text-decoration-thickness: 1.5px;
+}
+
+.precio-promo { color: var(--verde-tinta); }
+
+/* En bloque y no al lado: en 375 px, junto al precio empujaba el nombre otra
+   línea hacia abajo. */
+.promo-hasta {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--verde-tinta);
+}
+
 .item-descripcion {
   color: var(--tinta-tenue);
   font-size: 0.9rem;

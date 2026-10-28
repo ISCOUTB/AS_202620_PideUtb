@@ -58,6 +58,19 @@ operaciones:
       - items[].nombre
       - items[].precio_centavos
       - items[].disponible
+      # La foto, la categoría y la descripción se leen desde el contrato 3.0.0.
+      # Faltaban aquí: el sitio ya las pintaba sin declararlas, que es
+      # exactamente lo que este archivo existe para impedir — el proveedor
+      # podría haber retirado `categoria` sin enterarse de que el filtro de la
+      # carta se construye con ella.
+      - items[].imagen
+      - items[].categoria
+      - items[].descripcion
+      # Desde la 3.1.0. La API resuelve la franja horaria y el sitio solo pinta:
+      # `precio_centavos` ya viene con el descuento aplicado, y estos dos son
+      # para tachar el precio anterior y decir hasta cuándo.
+      - items[].precio_antes_centavos
+      - items[].promocion_hasta
     codigos_manejados: ["200", "404"]
 
   crearPedido:

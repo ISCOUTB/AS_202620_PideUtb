@@ -330,11 +330,7 @@ function dibujarItem(item) {
     datos.append(desc);
   }
 
-  const precio = document.createElement("div");
-  precio.className = "item-precio";
-  precio.textContent = pesos(item.precio_centavos);
-  datos.append(precio);
-
+  datos.append(dibujarPrecio(item));
   fila.append(datos);
 
   if (!item.disponible) {
@@ -347,6 +343,46 @@ function dibujarItem(item) {
 
   fila.append(controlDeCantidad(item));
   return fila;
+}
+
+/**
+ * El precio, con el anterior tachado si hay promoción en curso.
+ *
+ * **Aquí no se decide nada.** `precio_centavos` ya viene con el descuento
+ * aplicado y `precio_antes_centavos` solo llega mientras la promoción está
+ * abierta: quien resuelve la franja es la API. El navegador no puede hacerlo,
+ * porque su reloj se cambia en dos toques y lo que se cobra no.
+ *
+ * Por eso tampoco hay un temporizador que quite la promoción a las 3:30: la
+ * carta se vuelve a pedir al recargar, y si alguien pulsa «Pagar» pasada la
+ * hora, el pedido se crea con el precio que la API diga en ese momento.
+ */
+function dibujarPrecio(item) {
+  const caja = document.createElement("div");
+  caja.className = "item-precio";
+
+  if (item.precio_antes_centavos) {
+    const antes = document.createElement("s");
+    antes.className = "precio-antes";
+    antes.textContent = pesos(item.precio_antes_centavos);
+    caja.append(antes, " ");
+  }
+
+  const ahora = document.createElement("span");
+  if (item.precio_antes_centavos) ahora.className = "precio-promo";
+  ahora.textContent = pesos(item.precio_centavos);
+  caja.append(ahora);
+
+  // La hora de fin solo se escribe cuando hay promoción: «hasta las 15:30» en
+  // un producto que vale lo mismo todo el día no significa nada.
+  if (item.promocion_hasta) {
+    const hasta = document.createElement("span");
+    hasta.className = "promo-hasta";
+    hasta.textContent = "Promo hasta " + item.promocion_hasta;
+    caja.append(hasta);
+  }
+
+  return caja;
 }
 
 /**

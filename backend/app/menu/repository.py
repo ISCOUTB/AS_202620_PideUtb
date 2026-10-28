@@ -44,7 +44,9 @@ _ITEMS_SEED = {
 
 _COLUMNAS = (
     "id, establecimiento_id, nombre, precio_centavos, disponible, "
-    "imagen, categoria, descripcion"
+    "imagen, categoria, descripcion, "
+    "precio_promocional_centavos, promocion_desde, promocion_hasta, "
+    "solo_en_promocion"
 )
 
 
@@ -58,6 +60,10 @@ def _desde_fila(fila) -> ItemMenu:
         imagen=fila[5],
         categoria=fila[6],
         descripcion=fila[7],
+        precio_promocional_centavos=fila[8],
+        promocion_desde=fila[9],
+        promocion_hasta=fila[10],
+        solo_en_promocion=fila[11],
     )
 
 
