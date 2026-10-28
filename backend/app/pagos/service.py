@@ -15,6 +15,7 @@ transición.
 """
 import hashlib
 import hmac
+import logging
 import os
 import secrets
 from urllib.parse import urlencode
@@ -48,6 +49,8 @@ from app.pedidos.contracts import EstadoPedido, PedidoPublicado
 #: puede omitir termina omitido.
 _SECRETO_PASARELA = os.getenv("PIDEUTB_SECRETO_PASARELA", "")
 
+_LOG = logging.getLogger("pideutb")
+
 _URL_CHECKOUT = "https://sandbox.wompi.co/checkout"
 
 #: Dirección de una pasarela **de mentira**, o cadena vacía si no la hay.
@@ -62,8 +65,40 @@ _URL_CHECKOUT = "https://sandbox.wompi.co/checkout"
 #: dar un pedido por pagado. Por eso no tiene valor por defecto, igual que el
 #: secreto, y por eso el despliegue de producción no la define.
 def _url_pasarela_simulada() -> str:
-    """Se lee en cada llamada, por lo mismo que `_secreto`."""
-    return os.getenv("PIDEUTB_URL_PASARELA_SIMULADA", "").strip()
+    """Se lee en cada llamada, por lo mismo que `_secreto`.
+
+    **Se comprueba que sea una URL absoluta, y si no lo es se ignora.** No es
+    desconfianza gratuita: ocurrió. En el panel de despliegue se pegó la línea
+    entera del `.env` en el campo del valor, así que la variable acabó valiendo
+    `PIDEUTB_URL_PASARELA_SIMULADA=https://…`, con su propio nombre dentro.
+
+    Lo que hacía eso tan dañino es que **fallaba en silencio y hacia el lado
+    equivocado**: el frontend decide si ofrecer el enlace comparando el origen
+    de esta URL con el suyo, y una cadena que no empieza por `http` se resuelve
+    como una ruta *relativa* al propio sitio. Mismo origen, luego «es nuestra»,
+    luego botón a la vista — que lleva a un 404. Nada fallaba, nada se
+    registraba, y el paso que se rompía era justo el del cobro.
+
+    Ignorarla deja el sistema en su estado por defecto, que es el seguro: se
+    cobra por la pasarela de verdad y la ruta del simulador no existe. Y se
+    registra, porque una variable que alguien puso a propósito y no surte
+    efecto tiene que poder verse en los registros.
+    """
+    valor = os.getenv("PIDEUTB_URL_PASARELA_SIMULADA", "").strip()
+    if not valor:
+        return ""
+
+    if not valor.startswith(("http://", "https://")):
+        _LOG.warning(
+            "pasarela_simulada_ignorada",
+            extra={
+                "motivo": "no es una URL absoluta",
+                "empieza_por": valor[:40],
+            },
+        )
+        return ""
+
+    return valor
 
 
 def _url_de_checkout(

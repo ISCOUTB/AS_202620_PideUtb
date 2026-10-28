@@ -593,3 +593,71 @@ def test_el_segundo_cobro_aprobado_genera_el_codigo_una_sola_vez():
     consultado = _consultar(pedido["pedido_id"]).json()
     assert consultado["estado"] == "pagado"
     assert consultado["codigo_canje"]
+
+
+def test_una_url_de_pasarela_mal_escrita_se_ignora(monkeypatch):
+    """Ocurrió en producción: el valor llevaba dentro su propio nombre.
+
+    En el panel de despliegue se pegó la línea entera del `.env` en el campo del
+    valor, así que la variable valía
+    `PIDEUTB_URL_PASARELA_SIMULADA=https://…`.
+
+    Lo que lo hacía dañino es que **fallaba hacia el lado equivocado**: el
+    frontend decide si ofrecer el enlace comparando el origen de esta URL con el
+    suyo, y una cadena que no empieza por `http` se resuelve como ruta relativa
+    al propio sitio. Mismo origen, luego «es nuestra», luego botón a la vista —
+    que lleva a un 404, justo en el paso del cobro.
+
+    Ignorada, el sistema queda en su estado por defecto, que es el seguro.
+    """
+    monkeypatch.setenv(
+        "PIDEUTB_URL_PASARELA_SIMULADA",
+        "PIDEUTB_URL_PASARELA_SIMULADA=https://pideutb.iscoutb.dev/pasarela.html",
+    )
+
+    pedido = _crear_pedido()
+    intento = _abrir_intento(pedido["pedido_id"])
+
+    assert intento["url_checkout"].startswith("https://sandbox.wompi.co/"), (
+        "con una URL que no se puede usar, se cobra por la pasarela de verdad"
+    )
+
+    # Y la ruta del simulador tampoco existe: encenderla a medias sería peor.
+    respuesta = client.post(
+        f"/v1/pagos/simulador/{intento['referencia_pago']}",
+        json={"estado_pago": "aprobado"},
+    )
+    assert respuesta.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "valor",
+    [
+        pytest.param("pideutb.iscoutb.dev/pasarela.html", id="sin esquema"),
+        pytest.param("/pasarela.html", id="ruta absoluta del sitio"),
+        pytest.param("pasarela.html", id="ruta relativa"),
+        pytest.param("ftp://pideutb.iscoutb.dev/pasarela.html", id="otro esquema"),
+    ],
+)
+def test_solo_se_acepta_una_url_absoluta_de_http(monkeypatch, valor):
+    """Todas estas resuelven contra el propio sitio o no se pueden abrir.
+
+    `//otro.sitio` no está en la lista a propósito: es una URL válida de
+    protocolo relativo y no es el fallo que esto previene.
+    """
+    monkeypatch.setenv("PIDEUTB_URL_PASARELA_SIMULADA", valor)
+
+    pedido = _crear_pedido()
+    intento = _abrir_intento(pedido["pedido_id"])
+
+    assert intento["url_checkout"].startswith("https://sandbox.wompi.co/")
+
+
+def test_una_url_absoluta_si_se_acepta(monkeypatch):
+    """La otra mitad: la comprobación no puede dejar fuera lo que sí vale."""
+    monkeypatch.setenv("PIDEUTB_URL_PASARELA_SIMULADA", PASARELA_SIMULADA)
+
+    pedido = _crear_pedido()
+    intento = _abrir_intento(pedido["pedido_id"])
+
+    assert intento["url_checkout"].startswith(PASARELA_SIMULADA + "?")
