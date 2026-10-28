@@ -20,6 +20,21 @@ from app.menu.models import ItemMenu
 
 #: Semilla en memoria. Debe coincidir con `migraciones/002_datos_semilla.sql`,
 #: y que coincida lo verifica `tests/test_repositorios.py`.
+#:
+#: **Son los cuatro casos de prueba, y nada más.** Cada uno existe para hacer
+#: comprobable una regla: uno agotado, uno de un establecimiento inactivo, y un
+#: establecimiento que opera sin haber cargado carta.
+#:
+#: La carta real de El Asao —36 productos, `migraciones/005_carta_el_asao.sql`—
+#: **no está aquí a propósito**. Son datos de operación de un punto de venta,
+#: no casos de prueba, y copiarlos a esta implementación no haría comprobable
+#: nada que los cuatro de arriba no comprueben ya.
+#:
+#: La consecuencia hay que saberla: **sin `PIDEUTB_DATABASE_URL` la carta real
+#: no existe**, y la portada diría «este establecimiento todavía no cargó su
+#: carta», que es cierto en ese modo. Lo que ata el número de la portada a los
+#: datos es `test_el_establecimiento_de_la_portada_tiene_carta`, y `GET /health`
+#: dice cuál de las dos implementaciones está sirviendo.
 _ITEMS_SEED = {
     1: ItemMenu(id=1, establecimiento_id=1, nombre="Arepa de huevo", precio_centavos=400000, disponible=True, categoria="Asados"),
     2: ItemMenu(id=2, establecimiento_id=1, nombre="Jugo de mango", precio_centavos=300000, disponible=True, categoria="Bebidas"),

@@ -60,6 +60,7 @@ HUELLAS = {
     "002_datos_semilla.sql": "2969eb1350c71cee",
     "003_autenticacion.sql": "c142a8a08753786f",
     "004_carrito_y_catalogo.sql": "084b33d95c360183",
+    "005_carta_el_asao.sql": "a58e211732075053",
 }
 
 

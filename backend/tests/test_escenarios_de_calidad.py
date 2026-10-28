@@ -341,3 +341,44 @@ def test_el_servidor_declara_las_cabeceras_que_protegen():
         "Las páginas con bloque propio las repiten, pero el resto del sitio "
         "las perdería sin que nada avisara."
     )
+
+
+# ---------------------------------------------------------------------------
+# La portada apunta a datos que existen
+# ---------------------------------------------------------------------------
+
+MIGRACIONES = RAIZ / "backend" / "migraciones"
+
+
+def test_el_establecimiento_de_la_portada_tiene_carta():
+    """`CONFIG.ESTABLECIMIENTO_ID` tiene que señalar a algo con productos.
+
+    El fallo que impide es silencioso, que es lo que lo hace peligroso: con un
+    identificador que la base no tiene, la API responde `200` con lista vacía
+    —porque «existe y no tiene nada» es una respuesta legítima del contrato— y
+    la portada dice «este establecimiento todavía no cargó su carta». Nada
+    falla, nada se registra, y lo que se ve en una sustentación es una página
+    vacía.
+
+    No consulta la base: lee las migraciones, que es donde está escrito lo que
+    cualquier despliegue va a tener.
+    """
+    establecimiento = _constante("config.js", "ESTABLECIMIENTO_ID")
+
+    sql = "\n".join(
+        archivo.read_text(encoding="utf-8")
+        for archivo in sorted(MIGRACIONES.glob("*.sql"))
+    )
+
+    # Las filas de `menu_items` escriben el establecimiento en la segunda
+    # columna: `(id, establecimiento_id, ...`.
+    filas = re.findall(
+        rf"^\s*\(\s*\d+\s*,\s*{establecimiento}\s*,", sql, re.MULTILINE
+    )
+
+    assert filas, (
+        f"`CONFIG.ESTABLECIMIENTO_ID` vale {establecimiento} y ninguna "
+        "migración le inserta productos. La portada se vería vacía sin que "
+        "nada fallara: la API responde 200 con lista vacía, que es una "
+        "respuesta válida del contrato."
+    )

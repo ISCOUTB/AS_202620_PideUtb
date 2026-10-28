@@ -254,6 +254,18 @@ function dibujarCategorias() {
     });
     barra.append(pastilla);
   }
+
+  // La pastilla elegida se trae a la vista.
+  //
+  // Con las cinco categorías de una carta real la fila no cabe en 375 px, así
+  // que «Hamburguesas y perros» queda fuera de la pantalla. Sin esto, al
+  // elegirla la lista se filtraba y **no se veía ninguna pastilla marcada**:
+  // la fila seguía mostrando las primeras, todas sin marcar, que es
+  // exactamente la señal de «no hay filtro».
+  const elegida = barra.querySelector('[aria-pressed="true"]');
+  if (elegida) {
+    elegida.scrollIntoView({ inline: "center", block: "nearest" });
+  }
 }
 
 function dibujarCarta() {
