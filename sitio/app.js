@@ -602,12 +602,19 @@ function dibujarResumenDelCarrito() {
   resumen.append(dtTotal, ddTotal);
 }
 
-/** Marca el método elegido y enciende «Pagar». */
+/**
+ * Pone los radios de acuerdo con `metodoElegido` y enciende «Pagar».
+ *
+ * **Quien marca la pastilla es el CSS**, con `:checked`, no este código: el
+ * estado lo tiene el control y no una clase que haya que mantener en sincronía.
+ * Aquí solo se refleja el estado de la aplicación en el control, que es lo que
+ * hace falta al volver a esta pantalla tras un rechazo —entonces
+ * `metodoElegido` vuelve a ser `null` y los radios tienen que quedar en
+ * blanco—.
+ */
 function dibujarMetodos() {
-  for (const boton of document.querySelectorAll(".metodo")) {
-    const elegido = boton.dataset.metodo === metodoElegido;
-    boton.classList.toggle("elegido", elegido);
-    boton.setAttribute("aria-checked", String(elegido));
+  for (const radio of document.querySelectorAll('input[name="metodo-de-pago"]')) {
+    radio.checked = radio.value === metodoElegido;
   }
 
   const pagar = $("pagar");
@@ -1005,9 +1012,14 @@ function nota(texto) {
 // --------------------------------------------------------------------------
 
 // Elegir un metodo ya no cobra: lo marca. El cobro lo dispara «Pagar».
-for (const boton of document.querySelectorAll(".metodo")) {
-  boton.addEventListener("click", () => {
-    metodoElegido = boton.dataset.metodo;
+//
+// Se escucha `change` y no `click` porque con radios de verdad la selección
+// también cambia con las flechas del teclado, y un `click` no se dispara
+// entonces. Es justo lo que el `role="radio"` a mano no daba.
+for (const radio of document.querySelectorAll('input[name="metodo-de-pago"]')) {
+  radio.addEventListener("change", () => {
+    if (!radio.checked) return;
+    metodoElegido = radio.value;
     dibujarMetodos();
   });
 }

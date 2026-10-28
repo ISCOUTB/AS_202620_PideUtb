@@ -57,18 +57,38 @@
 
     <dl id="resumen-pedido" class="resumen"></dl>
 
-    <h3>¿Cómo querés pagar?</h3>
     <!-- Los tres métodos son los que declara contracts/consumidor-web.yaml.
          Añadir uno aquí sin declararlo allí rompe la prueba de contrato.
 
          Elegir ya no cobra: ahora son opciones que se marcan, y el cobro lo
          dispara «Pagar». Antes el método y la confirmación eran el mismo
-         gesto, y un toque accidental en la lista de métodos cobraba. -->
-    <div class="metodos" role="radiogroup" aria-label="Método de pago">
-      <button class="metodo" data-metodo="tarjeta" role="radio" aria-checked="false">Tarjeta</button>
-      <button class="metodo" data-metodo="nequi" role="radio" aria-checked="false">Nequi</button>
-      <button class="metodo" data-metodo="pse" role="radio" aria-checked="false">PSE</button>
-    </div>
+         gesto, y un toque accidental en la lista de métodos cobraba.
+
+         Son `<input type="radio">` de verdad y no botones con `role="radio"`.
+         La diferencia no es de pureza: con el rol puesto a mano, un lector de
+         pantalla anuncia un grupo de radios y **las flechas no mueven la
+         selección**, porque eso hay que implementarlo aparte (roving tabindex)
+         y no estaba. Prometía un comportamiento que no existía. Con inputs
+         reales, las flechas, el anuncio «1 de 3» y el agrupamiento salen del
+         navegador y no hay nada que mantener.
+
+         El `<legend>` sustituye al `<h3>` que había: es el mismo texto, y en un
+         `<fieldset>` el legend **es** la etiqueta del grupo. Con los dos,
+         quien usa lector de pantalla lo oiría dos veces. -->
+    <fieldset class="metodos">
+      <legend>¿Cómo querés pagar?</legend>
+
+      <div class="metodos-opciones">
+        <input type="radio" id="metodo-tarjeta" name="metodo-de-pago" value="tarjeta">
+        <label class="metodo" for="metodo-tarjeta">Tarjeta</label>
+
+        <input type="radio" id="metodo-nequi" name="metodo-de-pago" value="nequi">
+        <label class="metodo" for="metodo-nequi">Nequi</label>
+
+        <input type="radio" id="metodo-pse" name="metodo-de-pago" value="pse">
+        <label class="metodo" for="metodo-pse">PSE</label>
+      </div>
+    </fieldset>
 
     <button id="pagar" disabled>Elegí un método de pago</button>
 

@@ -670,7 +670,29 @@ gesto y un toque accidental cobraba.
 Los métodos no van en azul macizo: así parecían tres formas de pagar ya y pesaban
 más que la acción de verdad. **El único botón macizo de la pantalla es el que
 cobra.** El elegido se distingue por relleno, por borde y por el `✓` —no solo por
-color—, y `aria-checked` lo dice a quien usa lector de pantalla.
+color—.
+
+**Son `<input type="radio">` de verdad, no botones con `role="radio"`.** Y la
+distinción no es de pureza: con el rol puesto a mano, un lector de pantalla
+anuncia un grupo de radios y **las flechas no mueven la selección**, porque eso
+hay que implementarlo aparte —*roving tabindex*— y no estaba. Prometía un
+comportamiento que no existía. Con inputs reales, las flechas, el anuncio «1 de
+3» y el agrupamiento salen del navegador y no hay nada que mantener.
+
+De ahí salen dos reglas que valen para cualquier control que se añada:
+
+- **El estado lo tiene el control, no una clase.** La pastilla se marca con
+  `:checked` en CSS y no con una clase que ponga JavaScript, que es lo que se
+  puede quedar desincronizado con lo que el navegador cree.
+- **El `<input>` se esconde a la vista, nunca al teclado.** `display: none` lo
+  saca del orden de tabulación y del árbol de accesibilidad a la vez, que es la
+  forma habitual de romper esto sin notarlo. Se oculta recortándolo
+  (`clip-path`), y el anillo de foco se pinta en la etiqueta, porque el input no
+  se ve.
+
+El `<legend>` del `<fieldset>` sustituye al `<h3>` que había: es el mismo texto,
+y en un fieldset el legend **es** la etiqueta del grupo. Con los dos, quien usa
+lector de pantalla lo oiría dos veces.
 
 <a id="p-espera"></a>
 
