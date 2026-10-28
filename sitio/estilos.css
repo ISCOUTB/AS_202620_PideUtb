@@ -444,8 +444,9 @@ body:has(.barra-carrito:not(.oculto)) { padding-bottom: 104px; }
    aspecto tenía que seguir al cambio.
 
    El elegido se distingue por relleno **y** por borde **y** por una marca, no
-   solo por color: `aria-checked` lo dice a quien usa lector de pantalla, el
-   borde a quien no distingue tonos, y el ✓ a quien mira de lejos. */
+   solo por color: el propio `<input type="radio">` lo dice a quien usa lector
+   de pantalla, el borde a quien no distingue tonos, y el ✓ a quien mira de
+   lejos. */
 
 /* En azul macizo los tres parecían tres formas de pagar ya, y pesaban más que
    «Pagar», que es la acción de verdad. Sin relleno son lo que son —tres
@@ -456,7 +457,10 @@ body:has(.barra-carrito:not(.oculto)) { padding-bottom: 104px; }
   border-color: var(--linea-fuerte);
 }
 
-.metodo:hover:not(:disabled) {
+/* Sin `:not(:disabled)`: una etiqueta nunca está deshabilitada, así que ahí
+   la condición era siempre cierta y hacía creer que había un estado que no
+   existe. */
+.metodo:hover {
   background: var(--azul-niebla);
   border-color: var(--azul);
 }
@@ -467,13 +471,16 @@ body:has(.barra-carrito:not(.oculto)) { padding-bottom: 104px; }
 #pagar,
 #reintentar-pago { width: 100%; margin-top: var(--e4); }
 
-.metodo.elegido {
+/* Lo marca `:checked`, no una clase que ponga JavaScript. Es el estado real
+   del control: no se puede quedar desincronizado con lo que el navegador
+   cree. */
+.metodos input[type="radio"]:checked + label.metodo {
   background: var(--azul-niebla);
   border-color: var(--azul);
   color: var(--azul);
 }
 
-.metodo.elegido::before {
+.metodos input[type="radio"]:checked + label.metodo::before {
   content: "\2713\00a0";
   font-weight: 800;
 }
@@ -482,19 +489,36 @@ body:has(.barra-carrito:not(.oculto)) { padding-bottom: 104px; }
    48 px de alto mínimo: el cliente pide de pie y el mostrador con una mano.
    Es la medida táctil cómoda, no la mínima de 44. */
 
-button {
+/* La **forma** de un botón. `label.metodo` entra aquí y no copia las reglas:
+   es un botón a la vista aunque no lo sea en el marcado. Lo que lo hace
+   accesible es el `<input>` que tiene al lado, no su aspecto. */
+button,
+.metodos label.metodo {
   font: inherit; font-weight: 650; cursor: pointer;
   letter-spacing: -0.01em;
   min-height: 48px;
   padding: var(--e3) var(--e5);
   border-radius: var(--radio-chico);
-  border: 1.5px solid transparent;
-  background: var(--azul); color: #fff;
+  /* `border-width` y `border-style`, no el atajo `border`: el atajo fija
+     también el color, y entonces el borde de `.metodo` —que está más arriba en
+     la hoja y con menos especificidad— no llegaba a aplicarse nunca. */
+  border-width: 1.5px;
+  border-style: solid;
   transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.08s ease;
+}
+
+/* El **color**, solo para los botones de verdad. Separado de la forma a
+   propósito: los métodos de pago son casillas y no acciones, así que se llevan
+   la forma y no el azul macizo. Con todo junto arriba, el relleno le ganaba por
+   especificidad a `.metodo` y las tres salían azules. */
+button {
+  background: var(--azul); color: #fff;
+  border-color: transparent;
 }
 
 button:hover:not(:disabled) { background: var(--azul-hundido); }
 button:active:not(:disabled) { transform: translateY(1px); }
+.metodos label.metodo:active { transform: translateY(1px); }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 button:focus-visible {
@@ -545,8 +569,57 @@ button:focus-visible {
    375 px y «Pagar con Nequi» partia en dos lineas junto a uno de una sola.
    Con 12 no caben, se apilan a ancho completo, y cada uno se lee de un
    vistazo — que es lo que hace falta en la pantalla de pagar. */
-.metodos { display: flex; gap: var(--e3); flex-wrap: wrap; margin-top: var(--e4); }
-.metodos button { flex: 1 1 12rem; }
+/* El `<fieldset>` pierde su borde y su relleno: aquí agrupa, no encuadra. */
+.metodos {
+  border: 0;
+  padding: 0;
+  margin: var(--e5) 0 0;
+  min-inline-size: 0;   /* sin esto, un fieldset no encoge por debajo de su contenido */
+}
+
+/* El legend hace de encabezado: es el mismo texto que llevaba el `<h3>`. */
+.metodos legend {
+  padding: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--tinta);
+}
+
+.metodos-opciones {
+  display: flex;
+  gap: var(--e3);
+  flex-wrap: wrap;
+  margin-top: var(--e4);
+}
+
+.metodos label.metodo {
+  flex: 1 1 12rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+/* El input real sigue en la página: es lo que da las flechas, el anuncio
+   «1 de 3» y el agrupamiento. Se esconde a la vista y **no** al teclado ni al
+   lector de pantalla — `display: none` lo sacaría de los dos, que es la forma
+   habitual de romper esto sin notarlo. */
+.metodos input[type="radio"] {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* El foco se ve en la pastilla, porque el input no se ve. Sin esto, recorrer
+   los métodos con el teclado no muestra dónde estás. */
+.metodos input[type="radio"]:focus-visible + label.metodo {
+  box-shadow: var(--foco);
+}
 
 /* --- Resumen del pedido --------------------------------------------------- */
 
