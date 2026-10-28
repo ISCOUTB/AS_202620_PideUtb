@@ -235,14 +235,24 @@ El ámbar de marca habitual (`#FFB020`) no aparece: con 1,9:1 sobre blanco no
 puede llevar texto. `--aviso` es ese ámbar oscurecido hasta ser legible, que es
 el mismo criterio que se aplicó al cian y al verde.
 
-### Tema oscuro
+### Un solo tema, y es el claro
 
-Se conserva para quien lo tenga puesto en su sistema, con una regla: **el azul se
-aclara**, porque `#093AD8` sobre fondo oscuro cae por debajo del mínimo legible.
-El verde del código de canje **no** cambia: sigue siendo la seña del momento de
-recoger, y con tinta encima mantiene sus 12,40:1.
+**No hay tema oscuro.** Lo hubo —seguía al del sistema, con el azul aclarado
+para no caer por debajo del mínimo legible— y se quitó.
 
-La marca es luminosa, así que el claro es el principal y el oscuro la cortesía.
+El motivo es que nadie lo elegía. Se heredaba del sistema, así que la misma
+página se veía de dos maneras según el aparato con que se abriera, y una de las
+dos no se miraba con cuidado: los defectos de contraste y de jerarquía que esta
+guía fue corrigiendo se revisaron casi siempre en claro. Un tema que no se mira
+es un tema que miente.
+
+Y el claro es el que corresponde: la marca de la universidad es luminosa, y la
+carta se abre con el teléfono en la mano, a menudo al sol.
+
+**Lo que cuesta:** quien tiene el sistema en oscuro ve una página clara. Es
+consciente. El historial de git conserva la paleta completa con sus contrastes
+medidos, por si se decide volver — y volver significaría revisarla pantalla por
+pantalla, no solo reactivarla.
 
 <a id="tipografia"></a>
 
@@ -528,7 +538,7 @@ no dar ninguna.
 | Regla | Detalle |
 |---|---|
 | Máximo 26 rem de ancho | Más de seis campos van en página, no en diálogo |
-| `::backdrop` propio | Sin él, el fondo queda blanco en el tema oscuro: no hereda del documento |
+| `::backdrop` propio | No hereda del documento, así que el velo hay que declararlo aunque haya un solo tema |
 | «Cancelar» a la derecha de la acción | En el mostrador el pulgar llega antes al borde derecho |
 | Cierre con `Esc` | Nativo de `<dialog>`; no se desactiva |
 
@@ -928,7 +938,7 @@ sitio/
 | **Y los identificadores también** | `app.js` busca las pantallas por el prefijo `pantalla-*` (`pantalla-carta`, `pantalla-pedido`…) y los dos archivos buscan por id cada control. `.pantalla` en cambio solo vive en el marcado y la hoja: cambiarla no rompe nada mientras las dos cambien a la vez |
 | **Sin `innerHTML`** | El marcado se construye con `createElement`. Es una propiedad de los archivos actuales que hay que mantener, no una garantía del mecanismo |
 | **Movimiento opcional** | Toda animación tiene su caso en `prefers-reduced-motion` |
-| **`theme-color`** | Declarado en par claro/oscuro en las dos páginas |
+| **`theme-color`** | Uno solo, el azul de marca: el sitio no sigue al tema del sistema |
 | **Orden de la cascada** | Las reglas de `@media (max-width: 520px)` van **al final** del archivo: tienen la misma especificidad que las de arriba, y antes perdían por orden aunque la consulta coincidiera |
 
 <a id="terminado"></a>
@@ -948,7 +958,7 @@ Una pantalla no se entrega hasta que estos diez puntos sean ciertos.
 | **Teclado** | Recorrido completo, foco visible con `--foco`, `Esc` cierra los diálogos |
 | **Movimiento** | Toda animación tiene su caso en `prefers-reduced-motion` |
 | **375 px** | Correcta a 375 px de ancho sin desplazamiento horizontal, y en escritorio |
-| **Los dos temas** | Revisada en claro y en oscuro |
+| **Un solo tema** | Revisada en claro, que es el único que hay. Si vuelve el oscuro, esta fila vuelve a decir «los dos» |
 
 Los dos últimos se comprueban mirando, no deduciendo. Los dos defectos que esta
 guía corrigió en su primera versión —un rótulo partido en dos líneas y una
@@ -966,11 +976,12 @@ Medido: 2,05:1 y 1,53:1 sobre blanco, insuficientes incluso para texto grande.
 Sobre tinta oscura, 9,24:1 y 12,40:1. Para letra de esos tonos existen
 `--cian-tinta` y `--verde-tinta`.
 
-#### El claro es el tema principal
+#### El claro es el único tema
 
-La marca de la universidad es luminosa. El oscuro se conserva para quien lo tenga
-puesto, con el azul aclarado porque `#093AD8` sobre fondo oscuro no llega al
-mínimo.
+La marca de la universidad es luminosa y la carta se mira al sol. Hubo un oscuro
+que seguía al del sistema; se quitó porque **nadie lo elegía y casi nadie lo
+revisaba**: la misma página se veía de dos maneras y solo una se miraba con
+cuidado.
 
 #### Ninguna fuente desde un CDN
 

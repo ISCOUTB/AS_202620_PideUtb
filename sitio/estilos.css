@@ -75,35 +75,18 @@
   --foco: 0 0 0 3px rgb(9 58 216 / 35%);
 }
 
-/* El tema oscuro se conserva para quien lo tenga puesto en su sistema. La
-   marca es luminosa, así que el claro es el principal; aquí el azul se aclara
-   porque #093AD8 sobre un fondo oscuro cae por debajo del mínimo legible. */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --azul: #6f93ff;
-    --azul-hundido: #9db4ff;
-    --azul-niebla: #16203c;
-    --cian-tinta: #5ad7f5;
-    --verde-tinta: #93e86a;
+/* --- Un solo tema, y es el claro -------------------------------------------
+   Hubo un tema oscuro que seguía al del sistema. Se quitó.
 
-    --tinta: #e9ecf3;
-    --tinta-media: #aeb6c6;
-    --tinta-tenue: #8a93a6;
-    --papel: #161a24;
-    --fondo: #0d1016;
-    --linea: #272d3a;
-    --linea-fuerte: #39404f;
+   La marca de la universidad es luminosa y la carta se mira casi siempre con
+   el teléfono en la mano, a menudo al sol: el claro es el que se lee. El
+   oscuro se heredaba del sistema sin que nadie lo eligiera, así que la misma
+   página se veía de dos maneras según el aparato — y una de las dos no se
+   había mirado nunca con cuidado.
 
-    --aviso: #f0b45e;
-    --aviso-fondo: #2a2113;
-    --error: #ff8a80;
-    --error-fondo: #2c1614;
-
-    --sombra: 0 1px 2px rgb(0 0 0 / 40%), 0 2px 8px rgb(0 0 0 / 30%);
-    --sombra-alta: 0 4px 12px rgb(0 0 0 / 45%), 0 12px 32px rgb(0 0 0 / 40%);
-    --foco: 0 0 0 3px rgb(111 147 255 / 45%);
-  }
-}
+   Lo que esto cuesta: quien tiene el sistema en oscuro ve una página clara.
+   Es consciente. El historial de git conserva la paleta completa, con sus
+   contrastes medidos, por si alguna vez se decide volver. */
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -714,12 +697,6 @@ button:focus-visible {
 .codigo-canje::before { left: -10px; }
 .codigo-canje::after  { right: -10px; }
 
-@media (prefers-color-scheme: dark) {
-  /* El verde de marca sigue siendo el fondo del billete también en oscuro: es
-     la seña de identidad del momento de recoger, y con tinta encima mantiene
-     sus 12,4:1. Lo que cambia es la muesca, que imita el fondo de la página. */
-  .codigo-canje { color: #0b1020; }
-}
 
 /* --- Estados -------------------------------------------------------------- */
 
