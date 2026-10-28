@@ -89,3 +89,9 @@ class PedidoPublicado(BaseModel):
     total_centavos: int = Field(ge=0)
     estado: EstadoPedido
     codigo_canje: str | None
+
+    #: Se entrega **una sola vez**, al crear el pedido, y es nulo en cualquier
+    #: otra lectura. Quien lo tiene puede consultar su pedido sin tener cuenta;
+    #: devolverlo también al consultar lo volvería inútil, porque entonces
+    #: bastaría acertar un identificador una vez para tenerlo para siempre.
+    token_consulta: str | None = None

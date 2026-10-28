@@ -28,7 +28,35 @@ client = TestClient(app)
 def _crear_pedido(item_id: int = 1, cantidad: int = 1) -> dict:
     respuesta = client.post("/v1/pedidos", json={"lineas": [{"item_id": item_id, "cantidad": cantidad}]})
     assert respuesta.status_code == 201, respuesta.text
-    return respuesta.json()
+    return _recordar(respuesta.json())
+
+# --------------------------------------------------------------------------
+# El token de consulta
+#
+# Desde el contrato 4.0.0, `GET /v1/pedidos/{id}` exige el token que se entregó
+# al crear el pedido: los identificadores son secuenciales y sin token
+# cualquiera podía recorrerlos y cosechar los códigos de canje.
+#
+# Las pruebas lo guardan como lo guarda el cliente —quien crea el pedido se
+# queda con su token— en vez de buscarlo en la base, que sería probar otra cosa.
+# --------------------------------------------------------------------------
+
+_TOKENS: dict[int, str] = {}
+
+
+def _recordar(creado: dict) -> dict:
+    """Anota el token de un pedido recién creado y devuelve la respuesta."""
+    _TOKENS[creado["pedido_id"]] = creado["token_consulta"]
+    return creado
+
+
+def _consultar(pedido_id: int):
+    """`GET /v1/pedidos/{id}` con el token de ese pedido."""
+    return client.get(
+        f"/v1/pedidos/{pedido_id}",
+        headers={"X-Token-Pedido": _TOKENS.get(pedido_id, "sin-token")},
+    )
+
 
 
 def _abrir_intento(pedido_id: int, metodo: str = "tarjeta") -> dict:
@@ -140,7 +168,7 @@ def test_el_evento_aprobado_confirma_el_pedido_y_genera_el_codigo():
     assert acuse["estado"] == "pagado"
     assert acuse["duplicado"] is False
 
-    consultado = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()
+    consultado = _consultar(pedido["pedido_id"]).json()
     assert consultado["estado"] == "pagado"
     assert consultado["codigo_canje"] is not None
     assert len(consultado["codigo_canje"]) == 6
@@ -168,7 +196,7 @@ def test_el_mismo_evento_repetido_no_genera_un_segundo_codigo():
         "un duplicado no es un error del emisor: se responde 202 igualmente"
     )
 
-    codigo = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()["codigo_canje"]
+    codigo = _consultar(pedido["pedido_id"]).json()["codigo_canje"]
     assert codigo is not None
 
 
@@ -177,10 +205,10 @@ def test_el_codigo_de_canje_no_cambia_entre_reintentos():
     intento = _abrir_intento(pedido["pedido_id"])
 
     _enviar_evento(intento["referencia_pago"], "aprobado")
-    primero = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()["codigo_canje"]
+    primero = _consultar(pedido["pedido_id"]).json()["codigo_canje"]
 
     _enviar_evento(intento["referencia_pago"], "aprobado")
-    segundo = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()["codigo_canje"]
+    segundo = _consultar(pedido["pedido_id"]).json()["codigo_canje"]
 
     assert primero == segundo
 
@@ -197,7 +225,7 @@ def test_un_pago_rechazado_conserva_el_pedido():
     respuesta = _enviar_evento(intento["referencia_pago"], "rechazado")
 
     assert respuesta.status_code == 202
-    conservado = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()
+    conservado = _consultar(pedido["pedido_id"]).json()
     assert conservado["estado"] == "pendiente_pago"
     assert conservado["total_centavos"] == pedido["total_centavos"]
     assert conservado["codigo_canje"] is None
@@ -214,7 +242,7 @@ def test_si_el_evento_no_llega_nunca_el_pedido_queda_consultable():
     pedido = _crear_pedido()
     _abrir_intento(pedido["pedido_id"])
 
-    consultado = client.get(f"/v1/pedidos/{pedido['pedido_id']}")
+    consultado = _consultar(pedido["pedido_id"])
 
     assert consultado.status_code == 200
     assert consultado.json()["estado"] == "pendiente_pago"
@@ -245,7 +273,7 @@ def test_un_evento_sin_firma_valida_se_rechaza(firma, motivo):
     respuesta = _enviar_evento(intento["referencia_pago"], "aprobado", firma=firma)
 
     assert respuesta.status_code == 401, motivo
-    assert client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()["estado"] == "pendiente_pago"
+    assert _consultar(pedido["pedido_id"]).json()["estado"] == "pendiente_pago"
 
 
 def test_un_evento_con_referencia_desconocida_responde_404():
@@ -309,7 +337,7 @@ def test_un_suscriptor_que_falla_no_tumba_el_cobro():
         respuesta = _enviar_evento(intento["referencia_pago"], "aprobado")
 
         assert respuesta.status_code == 202
-        assert client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()["estado"] == "pagado"
+        assert _consultar(pedido["pedido_id"]).json()["estado"] == "pagado"
         assert len(recibidos) == 1, (
             "el fallo de un suscriptor tampoco puede impedir que los demás "
             "reciban el evento"
@@ -348,7 +376,7 @@ def test_sin_configurar_el_simulador_no_existe():
     )
 
     assert respuesta.status_code == 404
-    assert client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()["estado"] == (
+    assert _consultar(pedido["pedido_id"]).json()["estado"] == (
         "pendiente_pago"
     ), "un simulador apagado no puede haber cambiado nada"
 
@@ -398,7 +426,7 @@ def test_el_simulador_no_devuelve_el_pedido_pagado_a_quien_pulsa(
     assert "codigo_canje" not in respuesta.json()
 
     # El código existe, pero hay que ir a buscarlo.
-    consultado = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()
+    consultado = _consultar(pedido["pedido_id"]).json()
     assert consultado["estado"] == "pagado"
     assert consultado["codigo_canje"]
 
@@ -414,7 +442,7 @@ def test_el_simulador_rechaza_igual_que_la_pasarela(con_pasarela_simulada):
     )
 
     assert respuesta.status_code == 202
-    consultado = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()
+    consultado = _consultar(pedido["pedido_id"]).json()
     assert consultado["estado"] == "pendiente_pago"
     assert consultado["codigo_canje"] is None
 
@@ -435,7 +463,7 @@ def test_pulsar_dos_veces_no_genera_dos_codigos(con_pasarela_simulada):
     assert primera.json()["duplicado"] is False
     assert segunda.json()["duplicado"] is True
 
-    codigo = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()["codigo_canje"]
+    codigo = _consultar(pedido["pedido_id"]).json()["codigo_canje"]
     assert codigo, "el código se generó una vez"
 
 
@@ -475,7 +503,7 @@ def test_tras_un_rechazo_el_pedido_y_el_cobro_dicen_cosas_distintas():
     intento = _abrir_intento(pedido["pedido_id"])
     _enviar_evento(intento["referencia_pago"], "rechazado")
 
-    consultado = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()
+    consultado = _consultar(pedido["pedido_id"]).json()
     cobro = client.get(f"/v1/pagos/intentos/{intento['referencia_pago']}").json()
 
     assert consultado["estado"] == "pendiente_pago", "el pedido sigue en pie"
@@ -492,7 +520,7 @@ def test_mientras_nadie_confirma_los_dos_dicen_pendiente():
     pedido = _crear_pedido()
     intento = _abrir_intento(pedido["pedido_id"])
 
-    consultado = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()
+    consultado = _consultar(pedido["pedido_id"]).json()
     cobro = client.get(f"/v1/pagos/intentos/{intento['referencia_pago']}").json()
 
     assert consultado["estado"] == "pendiente_pago"
@@ -524,7 +552,7 @@ def test_consultar_un_cobro_no_revela_el_codigo_de_canje():
     cobro = client.get(f"/v1/pagos/intentos/{intento['referencia_pago']}").json()
 
     assert "codigo_canje" not in cobro
-    codigo = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()["codigo_canje"]
+    codigo = _consultar(pedido["pedido_id"]).json()["codigo_canje"]
     assert codigo, "existe, pero no por esta puerta"
     assert codigo not in str(cobro)
 
@@ -562,6 +590,6 @@ def test_el_segundo_cobro_aprobado_genera_el_codigo_una_sola_vez():
     segundo = _abrir_intento(pedido["pedido_id"])
     _enviar_evento(segundo["referencia_pago"], "aprobado")
 
-    consultado = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()
+    consultado = _consultar(pedido["pedido_id"]).json()
     assert consultado["estado"] == "pagado"
     assert consultado["codigo_canje"]

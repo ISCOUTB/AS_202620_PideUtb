@@ -30,6 +30,7 @@ la auditoría.
 | [V-10](#v-10) | El panel del mostrador no está autenticado | Autenticación | 🔴 Alta | ✅ Corregida (S10) |
 | [V-11](#v-11) | El secreto del webhook estaba escrito en el código | Secretos | 🔴 Alta | ✅ Corregida (S9) |
 | [V-12](#v-12) | El token de sesión vive en `sessionStorage` | Autenticación | 🟡 Conocida | ⏳ Aceptada, con condición |
+| [V-13](#v-13) | Los códigos de canje se podían cosechar enumerando pedidos | Exposición de datos | 🔴 Alta | ✅ Corregida (S14) |
 
 Seis se corrigieron en S6 y **dos más en S7** —V-07 y V-08—, cada una con su
 prueba. **V-09 se cerró en S8** con la migración a PostgreSQL, **V-11 en S9** y
@@ -41,6 +42,17 @@ protección se construye de verdad en vez de dejarla anotada. Mientras el panel
 no tenía sesión no había token que robar. Ahora hay uno, vive en el navegador y
 hay que decir dónde y qué lo expondría. Una violación nueva que nace **descrita
 y acotada** vale más que una ausencia de la que nadie habla.
+
+**V-13 se encontró mirando el código de al lado.** Apareció preparando otra cosa
+—publicar el estado del cobro para que un rechazo dejara de parecer un pago que
+no ha llegado— y el paso previo era saber qué expone ya la consulta pública de
+un pedido. Expone el código de canje, y los identificadores son secuenciales.
+
+Es la misma lección que V-11 con una causa distinta: V-11 llevaba tres entregas
+activa y la encontró una auditoría; V-13 llevaba desde la primera entrega y la
+encontró **la pregunta previa a añadir una lectura más**. Ninguna de las dos la
+encontró una prueba, porque ninguna prueba comprobaba lo que *no* debería poder
+hacerse.
 
 V-11 merece una línea aparte porque no se descubrió construyendo sino
 **auditando**: estuvo activa en producción tres entregas, con el pipeline en
@@ -592,3 +604,69 @@ cualquiera de estas tres:
 defensa en profundidad que corresponde aquí: con una CSP estricta, un XSS
 inyectado tendría mucho más difícil ejecutarse. Está sin hacer, y se dice en vez
 de omitirlo.
+
+---
+
+<a id="v-13"></a>
+
+## V-13 · Los códigos de canje se podían cosechar enumerando pedidos
+
+**Estado:** ✅ corregida en S14. **Archivos:** `app/pedidos/router.py`,
+`app/pedidos/service.py`, `app/pedidos/models.py`,
+`migraciones/007_token_de_consulta.sql`, `sitio/app.js`
+
+`GET /v1/pedidos/{pedido_id}` era **público y no pedía nada**, y devolvía
+`codigo_canje`. Los identificadores son secuenciales, así que cualquiera podía
+recorrerlos y quedarse con los códigos de los pedidos pagados. El código de
+canje es lo que se presenta en el mostrador para llevarse la comida: con él se
+recoge el pedido de otra persona.
+
+**Reproducción (hasta S14).** Sin ninguna credencial:
+
+```bash
+for id in 1 2 3 4 5; do curl -s "http://127.0.0.1:8000/v1/pedidos/$id"; done
+```
+
+```
+estado=pendiente_pago   total=   8000  codigo_canje=None
+estado=pagado           total=  60000  codigo_canje=VR8M19
+estado=pagado           total=  36500  codigo_canje=CR1IGP
+estado=pagado           total=  26000  codigo_canje=4PD2EJ
+estado=pendiente_pago   total=   4500  codigo_canje=None
+```
+
+**No estaba en el modelo de amenazas.** arc42 §8.7 tenía I-1 —enumerar los
+pedidos *de otro establecimiento*— y lo cerró exigiendo sesión en la cola del
+mostrador. Esta puerta era otra, iba por identificador y no exigía nada. Lo
+cubre ahora **I-8**.
+
+**Por qué estuvo abierta tanto tiempo.** La consulta nació para que el cliente
+pudiera seguir su pago, y un cliente sin cuenta no tiene con qué autenticarse:
+la ausencia de cuentas es una decisión deliberada (arc42 §8.8), y de ella se
+siguió, sin decirlo, que esa consulta no podía pedir nada. El salto que faltaba
+es que **identificar un pedido no es identificar a una persona**.
+
+**La corrección.** El pedido lleva un `token_consulta`: 192 bits de
+`secrets.token_urlsafe(24)`, entregado **una sola vez** en la respuesta de
+`crearPedido` y exigido en la cabecera `X-Token-Pedido`. Sin él, con uno
+equivocado o con un pedido que no existe la respuesta es la misma, `404` —un
+`403` confirmaría cuáles existen, que es el criterio que I-1 ya había fijado—.
+La comparación es en tiempo constante, por lo mismo que la firma de la pasarela.
+
+**Es un cambio incompatible, y se aplicó sin periodo de convivencia.** Lo
+permite §5 bis de `api/politica-versionado.md`, escrita antes de necesitarla:
+cuando lo viejo **es** el defecto, los noventa días que protegen a los
+consumidores protegerían también a quien quiera entrar. Contrato 4.0.0, prefijo
+`/v1` sin cambiar, único consumidor actualizado en el mismo commit.
+
+**Lo que destapó de paso.** El comparador de contratos daba el cambio por
+**compatible**: miraba `security` y el cuerpo de las peticiones, pero no los
+`parameters`, así que exigir una cabecera nueva no encendía nada. La regla I-12
+ya existía y decía exactamente eso desde la S10; lo que faltaba era que el
+comparador la aplicara. Es el mismo hueco que la S10 encontró en `security`, un
+nivel más abajo, y ahora tiene sus dos casos negativos.
+
+**Lo que queda.** El token vive en memoria del navegador: recargar la página
+pierde el pedido, igual que antes de este cambio. No hay «buscar mi pedido»
+porque no hay dónde buscarlo, y añadirlo volvería a abrir la pregunta de qué
+identifica a quien pregunta.

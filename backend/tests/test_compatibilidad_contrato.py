@@ -212,6 +212,49 @@ def _volver_anulable_una_respuesta(doc: dict) -> None:
     doc["components"]["schemas"]["Pedido"]["properties"]["nombre_item"]["type"] = ["string", "null"]
 
 
+def _exigir_una_cabecera_que_no_se_pedia(doc: dict) -> None:
+    """La otra mitad de I-12, la que `security` no cubre.
+
+    Una API puede exigir una cabecera sin declararla como esquema de seguridad
+    —porque identifica un recurso y no a un usuario— y para un cliente
+    existente el efecto es idéntico: deja de ser atendido.
+
+    Se elige `GET /v1/menu/items/{item_id}` porque no exige ninguna, igual que
+    `_exigir_credencial_donde_no_se_pedia`: mutar una que ya la pide no
+    cambiaría nada y `mutar` omitiría el caso.
+    """
+    operacion = doc["paths"]["/v1/menu/items/{item_id}"]["get"]
+    cabeceras = [
+        p for p in operacion.get("parameters", [])
+        if isinstance(p, dict) and p.get("in") == "header"
+    ]
+    if cabeceras:
+        raise ValueError("esa operación ya exige una cabecera")
+
+    operacion.setdefault("parameters", []).append({
+        "name": "X-Una-Cabecera-Nueva",
+        "in": "header",
+        "required": True,
+        "schema": {"type": "string"},
+    })
+
+
+def _exigir_una_consulta_que_era_opcional(doc: dict) -> None:
+    """Un parámetro de consulta que pasa de opcional a obligatorio.
+
+    Es I-3 aplicado a los parámetros, y lo detecta la misma comprobación: lo
+    que cambia no es si el parámetro existe, es si hay que mandarlo.
+    """
+    operacion = doc["paths"]["/v1/menu/establecimientos/{establecimiento_id}/items"]["get"]
+    for parametro in operacion.get("parameters", []):
+        if isinstance(parametro, dict) and parametro.get("in") == "query":
+            if parametro.get("required"):
+                raise ValueError("ese parámetro ya es obligatorio")
+            parametro["required"] = True
+            return
+    raise ValueError("esa operación no tiene parámetros de consulta")
+
+
 ROTURAS = [
     pytest.param(_quitar_operacion, "I-1",
                  id="I-1 · se elimina un endpoint"),
@@ -237,6 +280,10 @@ ROTURAS = [
                  id="I-12 · una operación pública pasa a exigir credencial"),
     pytest.param(_cambiar_el_tipo_de_credencial, "I-12",
                  id="I-12 · cambia el tipo de credencial exigida"),
+    pytest.param(_exigir_una_cabecera_que_no_se_pedia, "I-12",
+                 id="I-12 · una operación pasa a exigir una cabecera"),
+    pytest.param(_exigir_una_consulta_que_era_opcional, "I-12",
+                 id="I-12 · un parámetro de consulta pasa a obligatorio"),
 ]
 
 

@@ -33,7 +33,8 @@ _contador = 0
 #: Las columnas del pedido. Las de línea viven en `pedido_lineas` desde la
 #: migración 004; las que quedaron en `pedidos` son histórico y no se leen.
 _COLUMNAS = (
-    "id, establecimiento_id, total_centavos, estado, codigo_canje"
+    "id, establecimiento_id, total_centavos, estado, codigo_canje, "
+    "token_consulta"
 )
 
 _COLUMNAS_LINEA = (
@@ -75,6 +76,7 @@ def _desde_fila(fila, lineas: list[LineaPedido]) -> Pedido:
         total_centavos=fila[2],
         estado=EstadoPedido(fila[3]),
         codigo_canje=fila[4],
+        token_consulta=fila[5],
     )
 
 
@@ -83,6 +85,7 @@ def crear(
     establecimiento_id: int,
     lineas: list[LineaPedido],
     total_centavos: int,
+    token_consulta: str,
 ) -> Pedido:
     """Inserta un pedido con sus líneas y devuelve el que quedó guardado.
 
@@ -108,15 +111,17 @@ def crear(
             lineas=lineas,
             total_centavos=total_centavos,
             estado=EstadoPedido.PENDIENTE_PAGO,
+            token_consulta=token_consulta,
         )
         _PEDIDOS[pedido.id] = pedido
         return pedido
 
     with base_de_datos.conexion() as conn, conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO pedidos (establecimiento_id, total_centavos) "
-            f"VALUES (%s, %s) RETURNING {_COLUMNAS}",
-            (establecimiento_id, total_centavos),
+            "INSERT INTO pedidos (establecimiento_id, total_centavos, "
+            "token_consulta) "
+            f"VALUES (%s, %s, %s) RETURNING {_COLUMNAS}",
+            (establecimiento_id, total_centavos, token_consulta),
         )
         fila = cur.fetchone()
         pedido_id = fila[0]

@@ -13,6 +13,7 @@ Las funciones públicas reciben valores simples y devuelven
 el servicio no sabe que existe una API REST: si mañana el pedido se crea desde
 un consumidor de cola en vez de desde un `POST`, este archivo no cambia.
 """
+import hmac
 import secrets
 
 from app.eventos import CANAL_PEDIDO_PAGADO, publicar
@@ -52,7 +53,15 @@ class TransicionNoPermitidaError(Exception):
     """Se pidió llevar un pedido a un estado al que no puede ir desde donde está."""
 
 
-def _publicar(pedido: Pedido) -> PedidoPublicado:
+def _publicar(pedido: Pedido, *, con_token: bool = False) -> PedidoPublicado:
+    """Vista del pedido hacia fuera.
+
+    `con_token` solo se pide al **crear** el pedido. En cualquier otra lectura
+    el token se omite: devolverlo también al consultar lo volvería inútil,
+    porque entonces bastaría acertar un identificador una vez para tenerlo para
+    siempre. El valor por defecto es el seguro, para que omitirlo por descuido
+    no filtre nada.
+    """
     return PedidoPublicado(
         pedido_id=pedido.id,
         establecimiento_id=pedido.establecimiento_id,
@@ -67,6 +76,7 @@ def _publicar(pedido: Pedido) -> PedidoPublicado:
             for l in pedido.lineas
         ],
         total_centavos=pedido.total_centavos,
+        token_consulta=pedido.token_consulta if con_token else None,
         estado=pedido.estado,
         codigo_canje=pedido.codigo_canje,
     )
@@ -155,24 +165,70 @@ def crear_pedido(lineas_pedidas: list[tuple[int, int]]) -> PedidoPublicado:
     # pedía a un contador en memoria del proceso, y con dos instancias
     # desplegadas las dos habrían empezado por 1: era el ejemplo concreto de
     # V-09 (`docs/violaciones.md`).
+    # El token lo genera el servicio y no el repositorio, para que las dos
+    # implementaciones reciban el mismo valor en vez de cada una el suyo.
+    #
+    # `token_urlsafe(24)` son 192 bits. Es más de lo que haría falta: lo que
+    # protege no es un secreto de larga vida, sino un identificador que no se
+    # pueda adivinar partiendo del número de pedido, que sí es secuencial.
     pedido = repository.crear(
         establecimiento_id=establecimiento_id,
         lineas=lineas,
         total_centavos=sum(l.total_linea_centavos for l in lineas),
+        token_consulta=secrets.token_urlsafe(24),
     )
-    return _publicar(pedido)
+
+    # **El único sitio donde el token sale.**
+    return _publicar(pedido, con_token=True)
 
 
 def obtener_pedido(pedido_id: int) -> PedidoPublicado | None:
-    """Estado actual de un pedido.
+    """Estado actual de un pedido, **para uso interno del proceso**.
 
-    Es la consulta con la que el frontend cierra el flujo de pago: como la
-    confirmación llega por un canal asíncrono que no controlamos, el cliente
-    necesita poder preguntar en vez de quedarse esperando
-    (ADR-0003).
+    No pide token: quien la llama es otro contexto dentro de la misma
+    aplicación, no alguien de fuera. La consulta que atiende peticiones HTTP es
+    `consultar_pedido`, y están separadas a propósito — con un solo argumento
+    opcional, olvidarlo abriría la puerta sin que se notara al leer la llamada.
     """
     pedido = repository.buscar_por_id(pedido_id)
     return None if pedido is None else _publicar(pedido)
+
+
+def consultar_pedido(pedido_id: int, token_consulta: str) -> PedidoPublicado | None:
+    """Estado de un pedido para quien lo hizo. **Exige su token.**
+
+    Es la consulta con la que el cliente cierra el flujo de pago: como la
+    confirmación llega por un canal asíncrono que no controlamos, necesita poder
+    preguntar en vez de quedarse esperando (ADR-0003).
+
+    ### Por qué hace falta un token
+
+    Los identificadores de pedido son secuenciales y esta consulta no exigía
+    nada, así que **cualquiera podía recorrer `/v1/pedidos/1`, `/2`, `/3`… y
+    cosechar los códigos de canje** de los pedidos pagados, que es el papel con
+    el que se recoge la comida. No hay cuentas de cliente —y es una decisión,
+    no una carencia (arc42 §8.8)—, así que lo que identifica al dueño del
+    pedido no puede ser una sesión: es un token opaco que recibió al crearlo.
+
+    ### Por qué `None` y no un error distinto
+
+    Un token equivocado y un pedido inexistente devuelven lo mismo, y el router
+    los convierte en el mismo `404`. Es el criterio que I-1 ya fijó para la
+    cola del mostrador: un `403` confirmaría que el pedido existe, que es
+    justo lo que no hay que confirmar a quien está probando números.
+
+    La comparación es en tiempo constante por el mismo motivo que la firma de
+    la pasarela: una que termina en el primer byte distinto filtra, por su
+    duración, cuántos acertó.
+    """
+    pedido = repository.buscar_por_id(pedido_id)
+    if pedido is None:
+        return None
+
+    if not hmac.compare_digest(pedido.token_consulta, token_consulta):
+        return None
+
+    return _publicar(pedido)
 
 
 def confirmar_pago(pedido_id: int) -> tuple[PedidoPublicado, bool]:

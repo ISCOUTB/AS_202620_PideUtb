@@ -24,6 +24,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import secrets
 from pathlib import Path
 
 import pytest
@@ -214,6 +215,13 @@ def _crear_pedido() -> object:
             )
         ],
         total_centavos=800000,
+        # Desde el contrato 4.0.0 el pedido lleva un token de consulta. Lo
+        # genera el servicio, no el repositorio, para que las dos
+        # implementaciones reciban el mismo valor.
+        #
+        # Aquí se genera uno distinto por llamada porque la base impone que sean
+        # únicos: con una constante, el segundo pedido de una prueba chocaba.
+        token_consulta=secrets.token_urlsafe(24),
     )
 
 
@@ -603,6 +611,7 @@ def test_la_base_de_datos_rechaza_un_total_incoherente(monkeypatch):
                 )
             ],
             total_centavos=1,          # no es la suma de las líneas
+            token_consulta=secrets.token_urlsafe(24),
         )
 
     base_de_datos.cerrar_pool()

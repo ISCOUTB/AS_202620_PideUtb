@@ -5,7 +5,7 @@ El router es el único que traduce excepciones de dominio a códigos HTTP
 """
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
 from app.autenticacion import establecimiento_que_puede_ver, personal_de_establecimiento
 
@@ -53,8 +53,33 @@ def crear_pedido(datos: CrearPedidoRequest) -> PedidoResponse:
     responses={404: {"model": ErrorDeNegocio}, 422: {"model": ErrorDeValidacion}},
     summary="Consulta un pedido y su estado.",
 )
-def obtener_pedido(pedido_id: int) -> PedidoResponse:
-    pedido = service.obtener_pedido(pedido_id)
+def obtener_pedido(
+    pedido_id: int,
+    x_token_pedido: Annotated[
+        str | None,
+        Header(
+            alias="X-Token-Pedido",
+            description="El `token_consulta` que devolvió `crearPedido`.",
+        ),
+    ] = None,
+) -> PedidoResponse:
+    """Exige el token que se entregó al crear el pedido.
+
+    **Antes no exigía nada**, y como los identificadores son secuenciales
+    cualquiera podía recorrerlos y cosechar los códigos de canje de los pedidos
+    pagados. Ese es el motivo del salto a 4.0.0 y de que se aplique §5 bis de la
+    política de versionado: cuando lo viejo **es** el defecto, no hay periodo de
+    convivencia que valga, porque el plazo que protege a los consumidores
+    protegería también a quien quiera entrar.
+
+    Sin token, con uno equivocado o con un pedido que no existe la respuesta es
+    la misma: `404`. Distinguirlos le diría a quien prueba números cuáles
+    existen.
+    """
+    if x_token_pedido is None:
+        raise HTTPException(status_code=404, detail=f"El pedido {pedido_id} no existe")
+
+    pedido = service.consultar_pedido(pedido_id, x_token_pedido)
     if pedido is None:
         raise HTTPException(status_code=404, detail=f"El pedido {pedido_id} no existe")
     return PedidoResponse.desde_contrato(pedido)

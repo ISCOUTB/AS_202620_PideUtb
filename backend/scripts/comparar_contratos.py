@@ -460,6 +460,100 @@ def _alternativas_de_credencial(documento: dict, operacion: dict) -> list[frozen
     return [frozenset(alternativa or {}) for alternativa in declarada]
 
 
+def _parametros_obligatorios(
+    documento: dict, ruta: dict, operacion: dict
+) -> dict[tuple[str, str], str]:
+    """Los parámetros que una operación **exige**, por `(sitio, nombre)`.
+
+    Se juntan los de la operación con los del nivel de la ruta, que OpenAPI
+    hereda, y se siguen las referencias: un parámetro declarado con `$ref` es el
+    mismo parámetro, y no verlo haría que moverlo a `components` pareciera
+    quitarlo.
+
+    La clave lleva el sitio además del nombre porque `in: header` y `in: query`
+    son parámetros distintos aunque se llamen igual, y porque un parámetro de
+    ruta obligatorio no es una exigencia nueva: siempre lo fue.
+    """
+    obligatorios: dict[tuple[str, str], str] = {}
+
+    for declarado in list(ruta.get("parameters", [])) + list(
+        operacion.get("parameters", [])
+    ):
+        resuelto = declarado
+        if isinstance(declarado, dict) and "$ref" in declarado:
+            resuelto = _seguir_referencia(documento, declarado["$ref"])
+            if resuelto is None:
+                continue
+
+        if not isinstance(resuelto, dict):
+            continue
+
+        nombre = resuelto.get("name")
+        sitio = resuelto.get("in")
+        if not nombre or not sitio:
+            continue
+
+        # Un parámetro de ruta es obligatorio por definición: forma parte de la
+        # URL, y si cambia es porque cambió la ruta, que ya detecta I-1.
+        if sitio == "path":
+            continue
+
+        if resuelto.get("required"):
+            obligatorios[(sitio, nombre)] = nombre
+
+    return obligatorios
+
+
+def _comparar_parametros(
+    doc_viejo: dict, doc_nuevo: dict, etiqueta: str,
+    ruta_vieja: dict, ruta_nueva: dict, viejo: dict, nuevo: dict,
+) -> list[Cambio]:
+    """La otra mitad de I-12: una cabecera o una consulta obligatoria nueva.
+
+    `_comparar_credenciales` cubre `security`, que es como OpenAPI declara una
+    credencial. Pero una API puede exigir una cabecera **sin** declararla como
+    esquema de seguridad —porque no identifica a un usuario, sino a un recurso—
+    y para un cliente existente el efecto es el mismo: la petición que
+    funcionaba deja de funcionar.
+
+    Lo encontró el salto a 4.0.0. `GET /v1/pedidos/{id}` pasó a exigir
+    `X-Token-Pedido`, que es la rotura más clara que puede haber, y el
+    comparador la dio por **compatible**: miraba `security` y el cuerpo de la
+    petición, pero no los parámetros. Es el mismo hueco que la semana 10
+    encontró en `security`, un nivel más abajo.
+    """
+    antes = _parametros_obligatorios(doc_viejo, ruta_vieja, viejo)
+    ahora = _parametros_obligatorios(doc_nuevo, ruta_nueva, nuevo)
+
+    cambios: list[Cambio] = []
+
+    for clave in sorted(set(ahora) - set(antes)):
+        sitio, nombre = clave
+        cambios.append(Cambio(
+            regla="I-12",
+            compatible=False,
+            ubicacion=etiqueta,
+            descripcion=(
+                f"pasa a exigir el parámetro '{nombre}' en {sitio}, que antes no "
+                "pedía: un cliente existente deja de ser atendido"
+            ),
+        ))
+
+    for clave in sorted(set(antes) - set(ahora)):
+        sitio, nombre = clave
+        cambios.append(Cambio(
+            regla="I-12",
+            compatible=True,
+            ubicacion=etiqueta,
+            descripcion=(
+                f"deja de exigir el parámetro '{nombre}' en {sitio}; quien lo "
+                "enviaba sigue pudiendo enviarlo"
+            ),
+        ))
+
+    return cambios
+
+
 def _comparar_credenciales(
     doc_viejo: dict, doc_nuevo: dict, etiqueta: str, viejo: dict, nuevo: dict,
 ) -> list[Cambio]:
@@ -532,6 +626,12 @@ def _comparar_operacion(
     cambios: list[Cambio] = []
 
     cambios += _comparar_credenciales(doc_viejo, doc_nuevo, etiqueta, viejo, nuevo)
+    cambios += _comparar_parametros(
+        doc_viejo, doc_nuevo, etiqueta,
+        doc_viejo.get("paths", {}).get(ruta, {}),
+        doc_nuevo.get("paths", {}).get(ruta, {}),
+        viejo, nuevo,
+    )
 
     cuerpo_viejo = _cuerpo_json(doc_viejo, viejo)
     cuerpo_nuevo = _cuerpo_json(doc_nuevo, nuevo)

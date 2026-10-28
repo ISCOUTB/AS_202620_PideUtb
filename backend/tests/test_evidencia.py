@@ -26,14 +26,14 @@ DOSSIER = RAIZ / "docs" / "evidencia-s7.md"
 #: cambiar las dos: la del código y la del documento.
 CITAS = [
     # §1 — Correspondencia contrato ↔ código: prefijos de los routers
-    ("backend/app/main.py", 121, '"/health"'),
-    ("backend/app/main.py", 162, '"/metricas"'),
+    ("backend/app/main.py", 126, '"/health"'),
+    ("backend/app/main.py", 167, '"/metricas"'),
     ("backend/app/menu/router.py", 20, 'prefix="/v1/menu"'),
     ("backend/app/menu/router.py", 24, '"/items/{item_id}"'),
     ("backend/app/menu/router.py", 36, '"/establecimientos/{establecimiento_id}/items"'),
     ("backend/app/pedidos/router.py", 23, 'prefix="/v1/pedidos"'),
     ("backend/app/pedidos/router.py", 52, '"/{pedido_id}"'),
-    ("backend/app/pedidos/router.py", 102, '"/{pedido_id}/estado"'),
+    ("backend/app/pedidos/router.py", 127, '"/{pedido_id}/estado"'),
     ("backend/app/usuarios/router.py", 16, 'prefix="/v1/sesiones"'),
     ("backend/app/pagos/router.py", 21, 'prefix="/v1/pagos"'),
     ("backend/app/pagos/router.py", 25, '"/intentos"'),
@@ -47,8 +47,8 @@ CITAS = [
     ("docs/api/openapi.yaml", 262, "/v1/pedidos:"),
     ("docs/api/openapi.yaml", 354, "/v1/pedidos/{pedido_id}/estado:"),
     ("docs/api/openapi.yaml", 438, "/v1/pedidos/{pedido_id}:"),
-    ("docs/api/openapi.yaml", 462, "/v1/pagos/intentos:"),
-    ("docs/api/openapi.yaml", 538, "/v1/pagos/eventos:"),
+    ("docs/api/openapi.yaml", 475, "/v1/pagos/intentos:"),
+    ("docs/api/openapi.yaml", 551, "/v1/pagos/eventos:"),
 
     # §2 — El pipeline ejecuta la prueba de contrato
     (".github/workflows/ci.yml", 109, "Ejecutar pruebas"),

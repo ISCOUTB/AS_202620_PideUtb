@@ -9,6 +9,8 @@ saltarse estados, o ver los pedidos de otro establecimiento. Como todavía no
 hay autenticación ([V-10](../../docs/violaciones.md)), esas prohibiciones son
 la única barrera que existe.
 """
+import secrets
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -65,9 +67,41 @@ def repositorio_limpio():
     repository._contador = 0
 
 
+# --------------------------------------------------------------------------
+# El token de consulta
+#
+# Desde el contrato 4.0.0, `GET /v1/pedidos/{id}` exige el token que se entregó
+# al crear el pedido: los identificadores son secuenciales y sin token
+# cualquiera podía recorrerlos y cosechar los códigos de canje.
+#
+# Las pruebas lo guardan como lo guarda el cliente —quien crea el pedido se
+# queda con su token— en vez de buscarlo en la base, que sería probar otra cosa.
+# --------------------------------------------------------------------------
+
+_TOKENS: dict[int, str] = {}
+
+
+def _recordar(creado: dict) -> dict:
+    """Anota el token de un pedido recién creado y devuelve la respuesta."""
+    _TOKENS[creado["pedido_id"]] = creado["token_consulta"]
+    return creado
+
+
+def _consultar(pedido_id: int):
+    """`GET /v1/pedidos/{id}` con el token de ese pedido."""
+    return client.get(
+        f"/v1/pedidos/{pedido_id}",
+        headers={"X-Token-Pedido": _TOKENS.get(pedido_id, "sin-token")},
+    )
+
+
 def _pedido_pagado(item_id: int = 1) -> int:
     """Crea un pedido y lo lleva a `pagado` por la vía legítima."""
-    pedido_id = client.post("/v1/pedidos", json={"lineas": [{"item_id": item_id, "cantidad": 1}]}).json()["pedido_id"]
+    pedido_id = _recordar(
+        client.post(
+            "/v1/pedidos", json={"lineas": [{"item_id": item_id, "cantidad": 1}]}
+        ).json()
+    )["pedido_id"]
     service.confirmar_pago(pedido_id)
     return pedido_id
 
@@ -84,14 +118,18 @@ def test_el_mostrador_no_puede_marcar_un_pedido_como_pagado():
     autenticación que lo impida. Solo la dispara el webhook firmado de la
     pasarela, a través de `confirmar_pago`.
     """
-    pedido_id = client.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}]}).json()["pedido_id"]
+    pedido_id = _recordar(
+        client.post(
+            "/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}]}
+        ).json()
+    )["pedido_id"]
 
     respuesta = client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": "pagado"})
 
     # 422 y no 409: `pagado` ni siquiera es un valor que se pueda pedir, así
     # que lo rechaza el esquema antes de llegar a la lógica de negocio.
     assert respuesta.status_code == 422
-    assert client.get(f"/v1/pedidos/{pedido_id}").json()["estado"] == "pendiente_pago"
+    assert _consultar(pedido_id).json()["estado"] == "pendiente_pago"
 
 
 def test_tampoco_puede_devolverlo_a_pendiente_de_pago():
@@ -123,7 +161,7 @@ def test_los_estados_finales_son_finales():
     Permitirlo haría imposible contar cuántos pedidos se sirvieron de verdad.
     """
     pedido_id = _pedido_pagado()
-    codigo = client.get(f"/v1/pedidos/{pedido_id}").json()["codigo_canje"]
+    codigo = _consultar(pedido_id).json()["codigo_canje"]
     for estado in ("en_preparacion", "listo_para_recoger"):
         assert client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": estado}).status_code == 200
     assert client.post(
@@ -146,7 +184,7 @@ def test_un_pedido_inexistente_da_404_y_no_409():
 def test_el_recorrido_completo_del_mostrador():
     pedido_id = _pedido_pagado()
 
-    codigo = client.get(f"/v1/pedidos/{pedido_id}").json()["codigo_canje"]
+    codigo = _consultar(pedido_id).json()["codigo_canje"]
     for estado in ("en_preparacion", "listo_para_recoger", "entregado"):
         cuerpo = {"estado": estado}
         if estado == "entregado":
@@ -169,7 +207,7 @@ def test_cancelar_es_posible_mientras_no_se_haya_entregado():
 def test_el_codigo_de_canje_sobrevive_al_cambio_de_estado():
     """Avanzar el pedido no puede borrar lo que el usuario necesita para recoger."""
     pedido_id = _pedido_pagado()
-    codigo = client.get(f"/v1/pedidos/{pedido_id}").json()["codigo_canje"]
+    codigo = _consultar(pedido_id).json()["codigo_canje"]
     assert codigo
 
     respuesta = client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": "en_preparacion"})
@@ -206,6 +244,7 @@ def test_la_cola_solo_muestra_los_pedidos_del_establecimiento():
             )
         ],
         total_centavos=200000,
+        token_consulta=secrets.token_urlsafe(24),
     )
 
     cola = client.get("/v1/pedidos").json()
@@ -282,6 +321,7 @@ def test_avanzar_el_pedido_de_otro_establecimiento_da_404():
             )
         ],
         total_centavos=200000,
+        token_consulta=secrets.token_urlsafe(24),
     )
 
     respuesta = client.post(
@@ -301,7 +341,7 @@ def test_entregar_sin_el_codigo_no_se_puede():
     código» que no bloqueara la entrega se podría saltar sin más.
     """
     pedido_id = _pedido_pagado()
-    codigo = client.get(f"/v1/pedidos/{pedido_id}").json()["codigo_canje"]
+    codigo = _consultar(pedido_id).json()["codigo_canje"]
     for estado in ("en_preparacion", "listo_para_recoger"):
         client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": estado})
 
@@ -314,7 +354,7 @@ def test_entregar_sin_el_codigo_no_se_puede():
     assert sin_codigo.status_code == 409
     assert equivocado.status_code == 409
     # El pedido no se movió: un intento fallido no puede dejarlo a medio entregar.
-    assert client.get(f"/v1/pedidos/{pedido_id}").json()["estado"] == "listo_para_recoger"
+    assert _consultar(pedido_id).json()["estado"] == "listo_para_recoger"
 
     # Y con el código correcto sí. Sin esta mitad, la prueba pasaría igual con
     # un endpoint que rechazara siempre.
@@ -331,7 +371,7 @@ def test_el_codigo_se_acepta_en_minusculas_pero_no_con_otro_valor():
     distinto sigue siendo un código distinto.
     """
     pedido_id = _pedido_pagado()
-    codigo = client.get(f"/v1/pedidos/{pedido_id}").json()["codigo_canje"]
+    codigo = _consultar(pedido_id).json()["codigo_canje"]
     for estado in ("en_preparacion", "listo_para_recoger"):
         client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": estado})
 
@@ -351,7 +391,7 @@ def test_el_codigo_no_se_puede_reutilizar():
     prueba es la que avisa de que la promesa se rompió.
     """
     pedido_id = _pedido_pagado()
-    codigo = client.get(f"/v1/pedidos/{pedido_id}").json()["codigo_canje"]
+    codigo = _consultar(pedido_id).json()["codigo_canje"]
     for estado in ("en_preparacion", "listo_para_recoger"):
         client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": estado})
     cuerpo = {"estado": "entregado", "codigo_canje": codigo}
@@ -365,7 +405,7 @@ def test_el_codigo_no_se_puede_reutilizar():
 
 def test_la_cola_llega_del_mas_reciente_al_mas_antiguo():
     """Quien atiende necesita ver arriba lo que acaba de entrar."""
-    ids = [client.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}]}).json()["pedido_id"]
+    ids = [_recordar(client.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}]}).json())["pedido_id"]
            for _ in range(3)]
 
     cola = client.get("/v1/pedidos").json()["pedidos"]
@@ -379,7 +419,7 @@ def test_la_cola_incluye_los_pedidos_ya_entregados():
     ESC-03 pide resolver en tres interacciones, no recordar.
     """
     pedido_id = _pedido_pagado()
-    codigo = client.get(f"/v1/pedidos/{pedido_id}").json()["codigo_canje"]
+    codigo = _consultar(pedido_id).json()["codigo_canje"]
     for estado in ("en_preparacion", "listo_para_recoger"):
         client.post(f"/v1/pedidos/{pedido_id}/estado", json={"estado": estado})
     client.post(

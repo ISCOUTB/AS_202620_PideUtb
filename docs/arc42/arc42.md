@@ -1534,6 +1534,13 @@ modelo de datos, no un endurecimiento. Queda como [R-08](#riesgos) con su coste.
 | I-5 | El secreto de la pasarela en el repositorio | Guardia automática en CI, además de la rotación de [V-11](../violaciones.md#v-11) | `test_el_secreto_no_aparece_en_el_codigo_fuente` · `test_el_guardia_de_secretos_detecta_lo_que_dice_detectar` |
 | I-6 | El token de sesión en `sessionStorage` lo lee un XSS | Aceptado y documentado en [V-12](../violaciones.md#v-12). Acotado: el panel no renderiza HTML de terceros, y la sesión muere al cerrar la pestaña | — |
 | I-7 | **`GET /metricas` es público** | **Ninguna.** Publica p50, p95, máximo y número de muestras por operación a quien lo pida | — |
+| I-8 | **Cosechar códigos de canje enumerando pedidos.** `GET /v1/pedidos/{id}` era público y los identificadores son secuenciales | El pedido exige el `token_consulta` que se entregó al crearlo (`X-Token-Pedido`, contrato 4.0.0). Sin él, con uno equivocado o con un pedido inexistente, el mismo `404` | `test_sin_token_no_se_puede_consultar_un_pedido` · `test_con_el_token_de_otro_pedido_tampoco` · [V-13](../violaciones.md#v-13) |
+
+I-8 no apareció preguntando por ella, sino **preparando otra cosa**: antes de
+añadir una lectura pública más —el estado del cobro, para cerrar R-11— tocaba
+saber qué expone la que ya había. Exponía el código de canje a quien supiera
+contar. Estuvo abierta desde la primera entrega, con I-1 al lado cerrando la
+puerta de al lado, y el detalle entero está en [V-13](../violaciones.md#v-13).
 
 I-7 es la segunda que apareció por preguntar. Lo que revela es modesto —el
 inventario de operaciones ya está en `openapi.yaml`, que es público a propósito—

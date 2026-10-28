@@ -37,7 +37,7 @@ descripcion: >
 # funcionar contra la 2.0.0. Lo comprueba
 # `test_el_consumidor_declara_la_version_mayor_que_publica_el_contrato`, así que
 # este campo ya no es decoración.
-version_contrato_requerida: "3.x"
+version_contrato_requerida: "4.x"
 
 operaciones:
   consultarSalud:
@@ -84,6 +84,9 @@ operaciones:
       - lineas
       - total_centavos
       - estado
+      # Desde la 4.0.0. Se entrega una sola vez, aqui, y es con lo que el
+      # cliente consulta despues su propio pedido.
+      - token_consulta
     codigos_manejados: ["201", "404", "409", "422"]
 
   iniciarIntentoDePago:
@@ -105,7 +108,12 @@ operaciones:
       Averiguar en qué quedó el pago al volver de la pasarela. Es la operación
       que existe porque la confirmación llega por un canal asíncrono: sin ella
       el usuario se quedaría mirando una pantalla que nunca cambia.
-    campos_leidos: [pedido_id, estado, codigo_canje, total_centavos]
+    campos_leidos: [pedido_id, estado, codigo_canje, total_centavos, lineas]
+    # Desde la 4.0.0 hay que mandar el token que devolvio `crearPedido`. Es el
+    # salto de MAYOR: antes esta consulta no pedia nada, y como los
+    # identificadores son secuenciales cualquiera podia recorrerlos y cosechar
+    # los codigos de canje.
+    cabeceras_enviadas: ["X-Token-Pedido"]
     codigos_manejados: ["200", "404"]
 
   # --- Sesiones del panel (contrato 2.0.0) ------------------------------------

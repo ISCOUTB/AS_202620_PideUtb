@@ -56,9 +56,14 @@ function limpiarError() {
  * genérico en lugar de romper la página.
  */
 async function api(ruta, opciones = {}) {
+  // Las cabeceras se **fusionan**, no se reemplazan. Con el `...opciones`
+  // detrás del objeto entero, pasar una sola cabecera borraba `Content-Type` y
+  // el `POST` dejaba de llevar tipo: funcionaba por casualidad mientras nadie
+  // pasara cabeceras, y la primera que lo hizo tuvo que repetirla a mano.
+  const { headers, ...resto } = opciones;
   const respuesta = await fetch(`${CONFIG.API}${ruta}`, {
-    headers: { "Content-Type": "application/json" },
-    ...opciones,
+    ...resto,
+    headers: { "Content-Type": "application/json", ...headers },
   });
 
   if (respuesta.ok) return respuesta.json();
@@ -121,6 +126,20 @@ const carrito = new Map();
 
 /** Método de pago elegido, o `null` mientras no se haya elegido ninguno. */
 let metodoElegido = null;
+
+/**
+ * Token con el que se consulta el pedido.
+ *
+ * Lo entrega la API **una sola vez**, al crear el pedido, y sin él
+ * `GET /v1/pedidos/{id}` responde `404`. Existe porque los identificadores son
+ * secuenciales: sin token, cualquiera podía recorrerlos y cosechar los códigos
+ * de canje de los pedidos pagados (contrato 4.0.0).
+ *
+ * Vive en memoria, como el resto del pedido: recargar la página pierde el
+ * pedido igual que antes de esto, porque no hay cuentas de cliente y no hay
+ * dónde volver a buscarlo.
+ */
+let tokenDelPedido = null;
 
 /**
  * Referencia del cobro en curso.
@@ -639,6 +658,7 @@ async function pagarCarrito() {
       method: "POST",
       body: JSON.stringify({ lineas }),
     });
+    tokenDelPedido = pedidoActual.token_consulta;
   } catch (e) {
     const mensajes = {
       404: "Uno de los productos ya no existe en la carta.",
@@ -846,7 +866,12 @@ function detenerConsultas() {
 
 async function consultarEstado() {
   try {
-    const pedido = await api(`/v1/pedidos/${pedidoActual.pedido_id}`);
+    // El token va en una cabecera y no en la dirección: una URL acaba en los
+    // registros del servidor y del proxy, y este token es lo que permite leer
+    // el código de canje.
+    const pedido = await api(`/v1/pedidos/${pedidoActual.pedido_id}`, {
+      headers: { "X-Token-Pedido": tokenDelPedido },
+    });
     pedidoActual = pedido;
 
     // El pedido sigue en `pendiente_pago`. Eso **no** quiere decir que no haya
@@ -1012,6 +1037,7 @@ $("dejar-de-esperar").addEventListener("click", () => {
 
 $("nuevo-pedido").addEventListener("click", () => {
   pedidoActual = null;
+  tokenDelPedido = null;
   referenciaDelCobro = null;
   // El carrito se vacia: sin esto el pedido siguiente empezaria con lo que la
   // persona acaba de pagar y recoger.

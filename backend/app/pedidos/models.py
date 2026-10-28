@@ -55,3 +55,14 @@ class Pedido(BaseModel):
 
     estado: EstadoPedido = EstadoPedido.PENDIENTE_PAGO
     codigo_canje: str | None = None
+
+    #: Identificador no adivinable para consultar el pedido sin tener cuenta.
+    #:
+    #: No hay cuentas de cliente, y es una decisión (arc42 §8.8): pedir comida
+    #: no debería exigir registrarse. Pero el identificador del pedido es
+    #: secuencial, así que sin esto **cualquiera podía recorrer `/v1/pedidos/1`,
+    #: `/2`, `/3`… y cosechar los códigos de canje** de los pedidos pagados.
+    #:
+    #: Lo entrega la API una sola vez, al crear el pedido. Va en el modelo y no
+    #: solo en la respuesta porque hay que compararlo contra el almacenado.
+    token_consulta: str = Field(min_length=16)

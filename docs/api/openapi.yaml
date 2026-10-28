@@ -14,7 +14,7 @@ openapi: 3.1.0
 
 info:
   title: PideUTB API
-  version: 3.2.0
+  version: 4.0.0
   summary: Pedidos de comida dentro del campus universitario.
   description: |
     Superficie **síncrona** de PideUTB: consulta de menú, creación y consulta
@@ -446,6 +446,19 @@ paths:
         haber llegado todavía (ver [ADR-0003](../adr/0003-estrategia-integracion.md)
         y arc42 §6.3).
       parameters:
+        - name: X-Token-Pedido
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 16
+          description: |
+            El `token_consulta` que devolvió `crearPedido`.
+
+            **Obligatorio desde la 4.0.0.** Sin él, con uno equivocado o con un
+            pedido inexistente la respuesta es la misma, `404`: distinguirlos le
+            diría a quien prueba números cuáles existen, que es el criterio que
+            I-1 ya fijó para la cola del mostrador.
         - $ref: "#/components/parameters/PedidoId"
       responses:
         "200":
@@ -1123,6 +1136,7 @@ components:
         - total_centavos
         - estado
         - codigo_canje
+        - token_consulta
       properties:
         pedido_id:
           type: integer
@@ -1154,6 +1168,22 @@ components:
             el importe que se cobra, y debe haber una sola fuente de verdad.
         estado:
           $ref: "#/components/schemas/EstadoPedido"
+        token_consulta:
+          type: [string, "null"]
+          minLength: 16
+          description: |
+            Identificador no adivinable con el que consultar este pedido.
+
+            **Se entrega una sola vez**, en la respuesta de `crearPedido`, y es
+            `null` en cualquier otra lectura: devolverlo también al consultar lo
+            volvería inútil, porque bastaría acertar un identificador una vez
+            para tenerlo para siempre.
+
+            Existe porque no hay cuentas de cliente, y eso es una decisión y no
+            una carencia (arc42 §8.8): pedir comida no debería exigir
+            registrarse, y no registrar es lo que hace que no haya datos
+            personales que proteger. Un pedido necesita entonces algo que lo
+            identifique sin identificar a nadie.
         codigo_canje:
           type: [string, "null"]
           pattern: "^[A-Z0-9]{6}$"

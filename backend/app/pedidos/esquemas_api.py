@@ -59,6 +59,12 @@ class PedidoResponse(BaseModel):
     #: «ausente» y «vacío», que es una fuente clásica de fallos en el cliente.
     codigo_canje: str | None
 
+    #: Se entrega **una sola vez**, en la respuesta de `crearPedido`, y es
+    #: `null` en cualquier otra lectura. Con él se consulta el pedido sin tener
+    #: cuenta; devolverlo también al consultar lo volvería inútil, porque
+    #: bastaría acertar un identificador una vez para tenerlo para siempre.
+    token_consulta: str | None
+
     @classmethod
     def desde_contrato(cls, pedido: PedidoPublicado) -> "PedidoResponse":
         return cls(**pedido.model_dump())

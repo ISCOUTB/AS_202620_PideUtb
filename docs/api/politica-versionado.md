@@ -201,6 +201,11 @@ El riesgo de esta excepción es evidente: justifica saltarse el aviso, y casi
 cualquier cambio se puede presentar como «de seguridad». El punto 4 es lo que la
 acota, y es comprobable: basta mirar cuántos consumidores declara `contracts/`.
 
+**Se ha usado dos veces**, y las dos cumplen el punto 4 con un solo consumidor
+declarado: la 2.0.0 ([V-10](../violaciones.md#v-10), el panel pasa a exigir
+sesión) y la 4.0.0 ([V-13](../violaciones.md#v-13), consultar un pedido pasa a
+exigir su token). En las dos, lo viejo no era anterior: era la puerta abierta.
+
 ---
 
 ## 6. Historial
@@ -211,7 +216,10 @@ acota, y es comprobable: basta mirar cuántos consumidores declara `contracts/`.
 | **1.1.0** | `/v1` | Soportada | [`historial/openapi-1.1.0.yaml`](historial/openapi-1.1.0.yaml) | `/health` sondea dependencias; nuevo `503`; nueva operación `/metricas`. |
 | **1.2.0** | `/v1` | Soportada | [`historial/openapi-1.2.0.yaml`](historial/openapi-1.2.0.yaml) | Operaciones del mostrador sobre el estado del pedido. |
 | **2.0.0** | `/v1` | Soportada | [`historial/openapi-2.0.0.yaml`](historial/openapi-2.0.0.yaml) | **Incompatible.** Autenticación del panel: el mostrador pasa a exigir sesión ([V-10](../violaciones.md#v-10)). El prefijo no cambió, por §5 bis. |
-| **3.0.0** | `/v1` | **Vigente** | [`historial/openapi-3.0.0.yaml`](historial/openapi-3.0.0.yaml) | **Incompatible.** Carrito: un pedido pasa de un producto a varios. Ver abajo. |
+| **3.0.0** | `/v1` | Soportada | [`historial/openapi-3.0.0.yaml`](historial/openapi-3.0.0.yaml) | **Incompatible.** Carrito: un pedido pasa de un producto a varios. Ver abajo. |
+| **3.1.0** | `/v1` | Soportada | [`historial/openapi-3.1.0.yaml`](historial/openapi-3.1.0.yaml) | Compatible. Promociones por franja horaria: `precio_antes_centavos` y `promocion_hasta` en `ItemMenu`. |
+| **3.2.0** | `/v1` | Soportada | [`historial/openapi-3.2.0.yaml`](historial/openapi-3.2.0.yaml) | Compatible. Nueva operación `obtenerIntentoDePago`, para distinguir un pago rechazado de uno que aún no ha confirmado ([R-11](../arc42/arc42.md#riesgos)). |
+| **4.0.0** | `/v1` | **Vigente** | [`historial/openapi-4.0.0.yaml`](historial/openapi-4.0.0.yaml) | **Incompatible.** `obtenerPedido` exige `X-Token-Pedido`: era público y los identificadores son secuenciales, así que cualquiera podía cosechar códigos de canje ([V-13](../violaciones.md#v-13)). El prefijo no cambió, por §5 bis. |
 
 ### El caso 3.0.0: por qué el carrito obliga a subir MAYOR
 
