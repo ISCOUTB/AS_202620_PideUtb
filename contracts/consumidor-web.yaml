@@ -92,6 +92,14 @@ operaciones:
     campos_leidos: [referencia_pago, monto_centavos, estado_pago, url_checkout]
     codigos_manejados: ["201", "404", "409", "422"]
 
+  obtenerIntentoDePago:
+    proposito: >
+      Distinguir un pago rechazado de uno que todavia no ha confirmado,
+      mientras la pantalla de espera sondea. El pedido queda en
+      `pendiente_pago` en los dos casos.
+    campos_leidos: [estado_pago]
+    codigos_manejados: ["200", "404"]
+
   obtenerPedido:
     proposito: >
       Averiguar en qué quedó el pago al volver de la pasarela. Es la operación

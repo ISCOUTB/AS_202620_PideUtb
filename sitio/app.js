@@ -122,6 +122,16 @@ const carrito = new Map();
 /** Método de pago elegido, o `null` mientras no se haya elegido ninguno. */
 let metodoElegido = null;
 
+/**
+ * Referencia del cobro en curso.
+ *
+ * Hace falta porque el pedido **no puede decir si el pago fue rechazado**: un
+ * rechazo lo deja en `pendiente_pago`, igual que un pago que todavía no ha
+ * confirmado. El estado del cobro vive en el contexto Pagos y se consulta por
+ * su referencia.
+ */
+let referenciaDelCobro = null;
+
 /** Categoría activa del filtro. `null` = todas. */
 let categoriaActiva = null;
 
@@ -611,6 +621,14 @@ async function pagarCarrito() {
   boton.disabled = true;
   boton.textContent = "Creando tu pedido\u2026";
 
+  // Un pedido ya creado no se vuelve a crear. Es lo que hace que reintentar
+  // tras un rechazo abra **otro cobro del mismo pedido** y no un pedido
+  // duplicado — y de paso, que un doble toque en «Pagar» no cueste dos veces.
+  if (pedidoActual !== null && pedidoActual.estado === "pendiente_pago") {
+    await pagar(metodoElegido);
+    return;
+  }
+
   const lineas = [];
   for (const linea of carrito.values()) {
     lineas.push({ item_id: linea.item.item_id, cantidad: linea.cantidad });
@@ -687,6 +705,8 @@ async function pagar(metodo) {
     // `estado_pago` llega en `pendiente`: el cobro aún no ocurrió. Se pasa a
     // la pantalla de espera y se consulta el pedido, que es la única forma de
     // enterarse de algo que llega por otro canal.
+    referenciaDelCobro = intento.referencia_pago;
+
     mostrar("espera");
     ofrecerLaPasarela(intento.url_checkout);
     consultarEstadoPeriodicamente();
@@ -750,6 +770,73 @@ function consultarEstadoPeriodicamente() {
   lanzar(consultarEstado());
 }
 
+/**
+ * Pregunta por el cobro y, si fue rechazado, lo cuenta.
+ *
+ * Solo se llama cuando el pedido sigue en `pendiente_pago`, que es el único
+ * caso en que los dos estados son indistinguibles desde el pedido. Mientras
+ * el cobro también esté pendiente no se hace nada: la pantalla de espera ya
+ * dice lo correcto.
+ *
+ * Un fallo aquí **no se muestra**. Esta consulta es un extra sobre el sondeo
+ * del pedido, y una pantalla de espera que empieza a enseñar errores de red
+ * mientras espera es peor que una que espera.
+ */
+async function mirarSiElCobroFueRechazado() {
+  if (referenciaDelCobro === null) return;
+
+  let intento;
+  try {
+    intento = await api(`/v1/pagos/intentos/${referenciaDelCobro}`);
+  } catch {
+    return;
+  }
+
+  if (intento.estado_pago !== "rechazado") return;
+
+  detenerConsultas();
+  mostrarCobroRechazado();
+}
+
+function mostrarCobroRechazado() {
+  $("titulo-resultado").textContent = "El pago fue rechazado";
+
+  const cuerpo = $("cuerpo-resultado");
+  cuerpo.replaceChildren();
+
+  const linea = document.createElement("div");
+  linea.className = "estado-linea";
+  const punto = document.createElement("span");
+  punto.className = "punto mal";
+  const texto = document.createElement("span");
+  // No se afirma por qué: la pasarela no nos lo dice, e inventar un motivo
+  // —«fondos insuficientes»— sería peor que no darlo.
+  texto.textContent =
+    "Tu pedido sigue guardado y no se te cobró nada. Podés intentarlo otra " +
+    "vez, con el mismo método o con otro.";
+  linea.append(punto, texto);
+  cuerpo.append(linea);
+
+  cuerpo.append(dibujarResumen(pedidoActual));
+
+  // Vuelve a la pantalla del pedido, donde están los métodos y «Pagar». El
+  // pedido ya existe, así que ese botón abre **otro cobro del mismo pedido**.
+  const reintentar = document.createElement("button");
+  reintentar.id = "reintentar-pago";
+  reintentar.textContent = "Intentar el pago otra vez";
+  reintentar.addEventListener("click", () => {
+    limpiarError();
+    metodoElegido = null;
+    dibujarLineasDelCarrito();
+    dibujarResumenDelCarrito();
+    dibujarMetodos();
+    mostrar("pedido");
+  });
+  cuerpo.append(reintentar);
+
+  mostrar("resultado");
+}
+
 function detenerConsultas() {
   if (temporizadorConsulta !== null) {
     clearInterval(temporizadorConsulta);
@@ -762,9 +849,21 @@ async function consultarEstado() {
     const pedido = await api(`/v1/pedidos/${pedidoActual.pedido_id}`);
     pedidoActual = pedido;
 
-    // Mientras siga pendiente de pago no hay nada nuevo que mostrar: el evento
-    // de la pasarela todavía no llegó, y puede no llegar nunca.
-    if (pedido.estado === "pendiente_pago") return;
+    // El pedido sigue en `pendiente_pago`. Eso **no** quiere decir que no haya
+    // pasado nada: un cobro rechazado deja el pedido exactamente igual que uno
+    // que todavía no ha confirmado. Se pregunta por el cobro, que es quien lo
+    // sabe.
+    //
+    // El orden importa y no es casual. El pedido se consulta **primero**
+    // porque es quien tiene el código de canje: `procesar_evento` escribe el
+    // pedido antes que el intento a propósito —«falla hacia el cliente»— y en
+    // esa ventana el pedido ya está pagado mientras el cobro figura pendiente.
+    // Preguntando antes por el cobro, quien ya tiene su código seguiría
+    // esperando.
+    if (pedido.estado === "pendiente_pago") {
+      await mirarSiElCobroFueRechazado();
+      return;
+    }
 
     detenerConsultas();
     mostrarResultado(pedido);
@@ -913,6 +1012,7 @@ $("dejar-de-esperar").addEventListener("click", () => {
 
 $("nuevo-pedido").addEventListener("click", () => {
   pedidoActual = null;
+  referenciaDelCobro = null;
   // El carrito se vacia: sin esto el pedido siguiente empezaria con lo que la
   // persona acaba de pagar y recoger.
   carrito.clear();

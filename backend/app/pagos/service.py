@@ -208,6 +208,28 @@ def iniciar_intento(pedido_id: int, metodo: MetodoDePago) -> IntentoPagoPublicad
 # Operación asíncrona
 # --------------------------------------------------------------------------
 
+def obtener_intento(referencia_pago: str) -> IntentoPagoPublicado | None:
+    """El estado de un cobro, para quien lo abrió.
+
+    Existe por un hueco concreto ([R-11](../../../docs/arc42/arc42.md#riesgos)):
+    un pago **rechazado** deja el pedido en `pendiente_pago`, igual que un pago
+    que todavía no ha confirmado. Es lo correcto —un cobro rechazado no cancela
+    un pedido, permite reintentarlo— pero desde fuera los dos casos eran la
+    misma respuesta, así que la pantalla de espera se quedaba girando para
+    siempre después de un rechazo.
+
+    El pedido no puede decirlo porque no es suyo: el estado del cobro es de
+    Pagos (ADR-0002). Publicarlo dentro de `Pedido` obligaría a que el router de
+    Pedidos importara este módulo, que ya importa a Pedidos — un ciclo entre
+    contextos justo en la frontera que ADR-0001 mantiene separada. Por eso se
+    publica aquí, donde el dato vive.
+    """
+    intento = repository.buscar_por_referencia(referencia_pago)
+    if intento is None:
+        return None
+    return _publicar(intento)
+
+
 def procesar_evento(
     referencia_pago: str, estado_pago: EstadoPago
 ) -> tuple[PedidoPublicado, bool]:

@@ -37,7 +37,7 @@ CITAS = [
     ("backend/app/usuarios/router.py", 16, 'prefix="/v1/sesiones"'),
     ("backend/app/pagos/router.py", 21, 'prefix="/v1/pagos"'),
     ("backend/app/pagos/router.py", 25, '"/intentos"'),
-    ("backend/app/pagos/router.py", 42, '"/eventos"'),
+    ("backend/app/pagos/router.py", 64, '"/eventos"'),
 
     # §1 — Los paths del contrato
     ("docs/api/openapi.yaml", 85, "/health:"),
@@ -48,7 +48,7 @@ CITAS = [
     ("docs/api/openapi.yaml", 354, "/v1/pedidos/{pedido_id}/estado:"),
     ("docs/api/openapi.yaml", 438, "/v1/pedidos/{pedido_id}:"),
     ("docs/api/openapi.yaml", 462, "/v1/pagos/intentos:"),
-    ("docs/api/openapi.yaml", 495, "/v1/pagos/eventos:"),
+    ("docs/api/openapi.yaml", 538, "/v1/pagos/eventos:"),
 
     # §2 — El pipeline ejecuta la prueba de contrato
     (".github/workflows/ci.yml", 109, "Ejecutar pruebas"),

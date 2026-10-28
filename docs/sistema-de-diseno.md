@@ -583,7 +583,7 @@ mejora ningún umbral.
 
 ## Pantallas de referencia
 
-Siete pantallas: cuatro del cliente, dos del mostrador y una que no es de
+Ocho pantallas: cinco del cliente, dos del mostrador y una que no es de
 PideUTB. Son todas las que hoy existen.
 
 <a id="p-carta"></a>
@@ -701,12 +701,53 @@ pedido recién creado, así que se abre en otra pestaña y esta se queda
 sondeando. La distinción la hace el origen de la URL que devuelve la API, no una
 segunda bandera en el frontend que pudiera contradecirla.
 
-**Lo que esta pantalla todavía no sabe decir.** Un pago *rechazado* deja el
-pedido en «pendiente de pago», igual que un pago que aún no ha confirmado, y la
-API no publica el estado del cobro: desde aquí los dos casos son
-indistinguibles, así que un rechazo deja la rueda girando. No es un efecto de la
-pasarela simulada —pasa igual con una real— sino un hueco del contrato, anotado
-en arc42 §11.
+**Un rechazo sale de esta pantalla.** Un pago rechazado deja el pedido en
+«pendiente de pago», igual que uno que aún no ha confirmado, así que esta
+pantalla no puede distinguirlos mirando el pedido: pregunta además por el cobro,
+que es quien lo sabe, y solo cuando el pedido no se ha movido.
+
+El resultado es la [pantalla de rechazo](#p-rechazo). Lo que **no** se hace es
+sondear el cobro en vez del pedido: hay una ventana en la que el pedido ya está
+pagado y el cobro todavía figura pendiente —está puesta así a propósito, para
+fallar hacia el cliente— y preguntando primero por el cobro, quien ya tiene su
+código seguiría esperando.
+
+<a id="p-rechazo"></a>
+
+### El pago rechazado
+
+```
+El pago fue rechazado
+
+●  Tu pedido sigue guardado y no se te
+   cobró nada. Podés intentarlo otra vez,
+   con el mismo método o con otro.
+
+┌──────────────────────────────────┐
+│  1 × Salchipapas      $ 17.300   │
+│  ──────────────────────────────  │
+│  Total               $ 17.300    │
+└──────────────────────────────────┘
+
+[ Intentar el pago otra vez ]
+
+[ Hacer otro pedido         ]
+```
+
+Tres cosas que esta pantalla dice y que no son adorno:
+
+- **«no se te cobró nada».** Es la primera pregunta de quien ve un rechazo, y
+  no responderla deja a alguien revisando su cuenta en vez de volver a
+  intentarlo.
+- **«sigue guardado».** El pedido existe y es el mismo: reintentar abre otro
+  cobro del pedido que ya está, no uno nuevo. Es también lo que impide que un
+  doble toque en «Pagar» cueste dos veces.
+- **No dice por qué.** La pasarela no nos lo dice. Un motivo inventado
+  —«fondos insuficientes»— sería peor que no darlo.
+
+«Intentar otra vez» devuelve a [Tu pedido](#p-pedido) con los métodos sin
+marcar: tras un rechazo, reintentar con la misma tarjeta suele no servir de
+nada, así que la elección se vuelve a abrir en vez de repetirse sola.
 
 <a id="p-codigo"></a>
 

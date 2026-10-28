@@ -462,8 +462,10 @@ body:has(.barra-carrito:not(.oculto)) { padding-bottom: 104px; }
 }
 
 /* Cobrar ocupa el ancho entero: es la acción de la pantalla, y con ancho
-   automático quedaba más estrecha que las tres opciones que tiene encima. */
-#pagar { width: 100%; margin-top: var(--e4); }
+   automático quedaba más estrecha que las tres opciones que tiene encima.
+   Reintentar tras un rechazo es la misma acción y lleva el mismo peso. */
+#pagar,
+#reintentar-pago { width: 100%; margin-top: var(--e4); }
 
 .metodo.elegido {
   background: var(--azul-niebla);

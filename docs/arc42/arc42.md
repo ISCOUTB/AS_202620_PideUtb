@@ -2125,7 +2125,7 @@ solo se vigila leyendo esta tabla se hereda sin revisarse.
 | **R-08** | **No se puede saber qué persona avanzó un pedido.** `avanzar_estado` recibe el establecimiento, no el usuario | — | Medio: afecta a la auditoría del canje, que es lo que vale dinero | Ninguna: el dato no se guarda |
 | **R-09** | **`GET /metricas` es público** y publica el volumen de tráfico por operación | — | Bajo: el inventario de operaciones ya es público; el volumen no lo era | Ninguna automática |
 | **R-10** | **La contraseña inicial sigue en el panel, en claro, mucho después de usarse** | 1 uso real, vigente indefinidamente | Medio: es una credencial válida y visible. No se puede rotar por la deuda D-04 | Ninguna |
-| **R-11** | **Un pago rechazado es indistinguible de uno que aún no ha confirmado**, para quien lo hizo. El rechazo se guarda en el intento, y el intento no se publica | El pedido queda en `pendiente_pago` en los dos casos | Medio: quien pagó mal se queda esperando sin saber que tiene que reintentar. **No lo causa la pasarela simulada**: pasa igual con una real | Ninguna automática. El hueco es del contrato, no del código |
+| **R-11** | ~~Un pago rechazado es indistinguible de uno que aún no ha confirmado~~ · **Cerrado.** Se publica el estado del cobro (`GET /v1/pagos/intentos/{ref}`, contrato 3.2.0) y la pantalla de espera ofrece reintentar | — | — | `test_tras_un_rechazo_el_pedido_y_el_cobro_dicen_cosas_distintas` y su pareja `..._los_dos_dicen_pendiente`, que es la que impide que pase con un endpoint que diga «rechazado» siempre |
 | **R-12** | **Con `PIDEUTB_URL_PASARELA_SIMULADA` definida, cualquiera que alcance `/v1/pagos/simulador/{ref}` puede dar un pedido por pagado** | Sin la variable la ruta responde `404` · hoy está definida solo en el despliegue de demostración, desde el panel | **Alto donde esté encendida**: el código de canje es lo que vale dinero | `test_sin_configurar_el_simulador_no_existe` fija que apagada no existe. Que esté apagada en producción **no lo vigila nada**: es configuración |
 
 #### R-01 y R-02 en detalle, que son los dos que tienen número
@@ -2148,23 +2148,38 @@ por turno y panel— y la medición quedó ejecutable en `medir_esc03.py`, que
 devuelve código de error si el umbral deja de cumplirse. El detalle está en
 [§10.7](#evaluacion).
 
-#### R-11 y R-12 en detalle, que son los dos que trajo la pasarela simulada
+#### R-11 y R-12 en detalle
 
-**R-11 es un hueco del contrato, no un defecto de implementación.** `procesar_evento`
-guarda el rechazo donde corresponde —el intento pasa a `rechazado`— y deja el
-pedido en `pendiente_pago`, que es lo correcto: un cobro rechazado no cancela un
-pedido, permite reintentarlo. Lo que falta es que el cliente pueda enterarse. El
-contrato publica el pedido y no el intento, así que desde el sitio «rechazado» y
-«todavía no» son la misma respuesta, y la pantalla de espera sigue girando.
+**R-11, cerrado, y era un hueco del contrato y no un defecto de
+implementación.** `procesar_evento` guardaba el rechazo donde corresponde —el
+intento pasa a `rechazado`— y dejaba el pedido en `pendiente_pago`, que es lo
+correcto: un cobro rechazado no cancela un pedido, permite reintentarlo. Lo que
+faltaba era que el cliente pudiera enterarse. El contrato publicaba el pedido y
+no el intento, así que desde el sitio «rechazado» y «todavía no» eran la misma
+respuesta, y la pantalla de espera seguía girando.
 
-Se comprobó en el navegador contra PostgreSQL: con el intento en `rechazado`, el
-sondeo no cambia de pantalla.
+Se comprobó en el navegador antes de tocar nada: con el intento en `rechazado`,
+el sondeo no cambiaba de pantalla.
 
-La corrección conocida es publicar el estado del cobro —un `GET` del intento, o
-el estado del pago dentro del pedido— y es un cambio de contrato con subida de
-versión, no un arreglo local. Se anota en vez de improvisarse porque el estado
-que hoy se devuelve **no es incorrecto**, solo incompleto, y la diferencia
-importa: no hay nada que reparar, hay algo que añadir.
+**Dónde se publica, y por qué no dentro de `Pedido`.** La opción cómoda era
+añadir `estado_pago` a la respuesta del pedido: el cliente ya la sondea y no
+haría falta una petición más. Se descartó porque obligaría al router de Pedidos
+a importar `pagos.service`, que ya importa `pedidos.service` — un ciclo entre
+contextos justo en la frontera que [ADR-0001](../adr/0001-estilo-arquitectonico.md)
+mantiene separada, y por la comodidad de ahorrar una consulta en una pantalla
+que solo ve una persona. Se publica donde el dato vive: `GET
+/v1/pagos/intentos/{referencia_pago}`.
+
+**El orden del sondeo tampoco es casual.** El cliente consulta **primero** el
+pedido y solo pregunta por el cobro si sigue en `pendiente_pago`. Es por la
+ventana de `conciliar`: `procesar_evento` escribe el pedido antes que el intento
+a propósito —falla hacia el cliente— y en esa ventana el pedido ya está pagado
+mientras el cobro figura pendiente. Sondeando el cobro primero, quien ya tiene
+su código seguiría esperando, que es exactamente el fallo que ese orden de
+escritura existe para evitar.
+
+Lo que el cliente **no** afirma es por qué se rechazó. La pasarela no lo dice, y
+un motivo inventado —«fondos insuficientes»— sería peor que no darlo.
 
 **R-12 es el precio de poder demostrar el flujo.** La pasarela simulada existe
 porque no hay cuenta de comercio: sin ella no se puede recorrer pedido → cobro →

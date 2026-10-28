@@ -454,3 +454,114 @@ def test_el_simulador_no_aparece_en_la_documentacion(con_pasarela_simulada):
     """
     rutas = client.get("/openapi.json").json()["paths"]
     assert not [r for r in rutas if "simulador" in r]
+
+
+# --------------------------------------------------------------------------
+# R-11: un rechazo tiene que poder distinguirse de «todavía no»
+#
+# El pedido queda en `pendiente_pago` en los dos casos, y es lo correcto: un
+# cobro rechazado no cancela un pedido, permite reintentarlo. Lo que faltaba era
+# que el cliente pudiera enterarse, y por eso se publica el estado del cobro.
+# --------------------------------------------------------------------------
+
+def test_tras_un_rechazo_el_pedido_y_el_cobro_dicen_cosas_distintas():
+    """**La prueba del hueco.** Es la pareja que lo definía.
+
+    Si el intento dejara de guardar el rechazo, o si el pedido empezara a
+    cancelarse por un cobro rechazado, esta prueba falla por un lado o por el
+    otro.
+    """
+    pedido = _crear_pedido()
+    intento = _abrir_intento(pedido["pedido_id"])
+    _enviar_evento(intento["referencia_pago"], "rechazado")
+
+    consultado = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()
+    cobro = client.get(f"/v1/pagos/intentos/{intento['referencia_pago']}").json()
+
+    assert consultado["estado"] == "pendiente_pago", "el pedido sigue en pie"
+    assert consultado["codigo_canje"] is None
+    assert cobro["estado_pago"] == "rechazado", "y el cobro dice por qué"
+
+
+def test_mientras_nadie_confirma_los_dos_dicen_pendiente():
+    """El otro lado de la pareja: sin evento, nada ha pasado.
+
+    Sin esta, la de arriba pasaría con un endpoint que devolviera `rechazado`
+    siempre.
+    """
+    pedido = _crear_pedido()
+    intento = _abrir_intento(pedido["pedido_id"])
+
+    consultado = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()
+    cobro = client.get(f"/v1/pagos/intentos/{intento['referencia_pago']}").json()
+
+    assert consultado["estado"] == "pendiente_pago"
+    assert cobro["estado_pago"] == "pendiente"
+
+
+def test_consultar_un_cobro_aprobado():
+    pedido = _crear_pedido()
+    intento = _abrir_intento(pedido["pedido_id"])
+    _enviar_evento(intento["referencia_pago"], "aprobado")
+
+    cobro = client.get(f"/v1/pagos/intentos/{intento['referencia_pago']}").json()
+
+    assert cobro["estado_pago"] == "aprobado"
+    assert cobro["pedido_id"] == pedido["pedido_id"]
+
+
+def test_consultar_un_cobro_no_revela_el_codigo_de_canje():
+    """La referencia solo lleva seis dígitos hexadecimales aleatorios.
+
+    No es un secreto fuerte, así que esta respuesta no puede contener nada que
+    necesite uno. El código de canje es lo que vale dinero: se presenta en el
+    mostrador para llevarse la comida.
+    """
+    pedido = _crear_pedido()
+    intento = _abrir_intento(pedido["pedido_id"])
+    _enviar_evento(intento["referencia_pago"], "aprobado")
+
+    cobro = client.get(f"/v1/pagos/intentos/{intento['referencia_pago']}").json()
+
+    assert "codigo_canje" not in cobro
+    codigo = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()["codigo_canje"]
+    assert codigo, "existe, pero no por esta puerta"
+    assert codigo not in str(cobro)
+
+
+def test_consultar_una_referencia_inventada_responde_404():
+    assert client.get("/v1/pagos/intentos/pago-inventado").status_code == 404
+
+
+def test_tras_un_rechazo_se_puede_abrir_otro_cobro_del_mismo_pedido():
+    """Reintentar no crea un pedido nuevo: abre otro cobro del que ya existe.
+
+    Es lo que hace útil enterarse del rechazo. El cobro anterior conserva su
+    estado —no se reescribe la historia— y el nuevo nace pendiente.
+    """
+    pedido = _crear_pedido()
+    primero = _abrir_intento(pedido["pedido_id"], metodo="tarjeta")
+    _enviar_evento(primero["referencia_pago"], "rechazado")
+
+    segundo = _abrir_intento(pedido["pedido_id"], metodo="nequi")
+
+    assert segundo["referencia_pago"] != primero["referencia_pago"]
+    assert segundo["pedido_id"] == pedido["pedido_id"], "el mismo pedido"
+    assert segundo["estado_pago"] == "pendiente"
+
+    viejo = client.get(f"/v1/pagos/intentos/{primero['referencia_pago']}").json()
+    assert viejo["estado_pago"] == "rechazado", "el intento rechazado no se toca"
+
+
+def test_el_segundo_cobro_aprobado_genera_el_codigo_una_sola_vez():
+    """Y el reintento termina donde tenía que terminar."""
+    pedido = _crear_pedido()
+    primero = _abrir_intento(pedido["pedido_id"])
+    _enviar_evento(primero["referencia_pago"], "rechazado")
+
+    segundo = _abrir_intento(pedido["pedido_id"])
+    _enviar_evento(segundo["referencia_pago"], "aprobado")
+
+    consultado = client.get(f"/v1/pedidos/{pedido['pedido_id']}").json()
+    assert consultado["estado"] == "pagado"
+    assert consultado["codigo_canje"]

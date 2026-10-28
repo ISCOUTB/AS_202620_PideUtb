@@ -14,7 +14,7 @@ openapi: 3.1.0
 
 info:
   title: PideUTB API
-  version: 3.1.0
+  version: 3.2.0
   summary: Pedidos de comida dentro del campus universitario.
   description: |
     Superficie **síncrona** de PideUTB: consulta de menú, creación y consulta
@@ -489,6 +489,49 @@ paths:
           $ref: "#/components/responses/NoEncontrado"
         "409":
           $ref: "#/components/responses/Conflicto"
+        "422":
+          $ref: "#/components/responses/ErrorDeValidacion"
+
+  /v1/pagos/intentos/{referencia_pago}:
+    get:
+      operationId: obtenerIntentoDePago
+      tags: [pagos]
+      summary: Consulta el estado de un cobro.
+      description: |
+        Existe para que el cliente pueda distinguir **«rechazado»** de
+        **«todavía no»**.
+
+        Un cobro rechazado deja el pedido en `pendiente_pago`, igual que uno que
+        aún no ha confirmado. Es lo correcto —un rechazo no cancela el pedido,
+        permite reintentarlo— pero desde `GET /v1/pedidos/{pedido_id}` los dos
+        casos son la misma respuesta, así que la pantalla de espera no podía
+        saber que tenía que ofrecer otro intento.
+
+        El estado del cobro no se publica dentro de `Pedido` porque no es suyo:
+        pertenece al contexto Pagos (arc42 §8.2). Vive aquí, donde está el dato.
+
+        **Qué no devuelve.** Ni el código de canje ni datos de quien paga — que
+        el sistema además no guarda (arc42 §8.8). La referencia lleva seis
+        dígitos hexadecimales aleatorios y no es un secreto fuerte, así que esta
+        respuesta está acotada a lo que no necesita uno.
+      parameters:
+        - name: referencia_pago
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+          description: La que devolvió `iniciarIntentoDePago`.
+      responses:
+        "200":
+          description: El intento existe.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntentoPago"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
         "422":
           $ref: "#/components/responses/ErrorDeValidacion"
 

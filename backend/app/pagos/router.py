@@ -38,6 +38,28 @@ def iniciar_intento(datos: IniciarPagoRequest) -> IntentoPagoResponse:
     return IntentoPagoResponse.desde_contrato(intento)
 
 
+@router.get(
+    "/intentos/{referencia_pago}",
+    responses={404: {"model": ErrorDeNegocio}, 422: {"model": ErrorDeValidacion}},
+    summary="Consulta el estado de un cobro.",
+)
+def obtener_intento(referencia_pago: str) -> IntentoPagoResponse:
+    """Para que el cliente distinga «rechazado» de «todavía no» (R-11).
+
+    La referencia no es secuencial: la genera PideUTB al abrir el intento y
+    lleva seis dígitos hexadecimales aleatorios. No es un secreto fuerte, y por
+    eso aquí no se publica nada que lo necesite — ni código de canje, ni datos
+    de quien paga, que el sistema además no guarda (arc42 §8.8).
+    """
+    intento = service.obtener_intento(referencia_pago)
+    if intento is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"La referencia de pago '{referencia_pago}' no existe",
+        )
+    return IntentoPagoResponse.desde_contrato(intento)
+
+
 @router.post(
     "/eventos",
     status_code=202,
