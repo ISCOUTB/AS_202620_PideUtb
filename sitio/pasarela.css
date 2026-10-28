@@ -1,0 +1,78 @@
+/* Pasarela de pruebas — lo justo para que no parezca PideUTB.
+   ==========================================================================
+
+   Hereda `estilos.css` entero y solo cambia lo que tiene que cambiar. Esa es
+   la decisión de esta hoja: **la pasarela se distingue, no se rediseña**.
+
+   Por qué se distingue. Esta página representa a otro sistema. Vestida con el
+   azul y el filete de la universidad, una demostración enseñaría a PideUTB
+   cobrándose a sí mismo, que es justo lo que no ocurre: el cobro lo hace un
+   tercero y la confirmación vuelve por un canal aparte (ADR-0003). El gris
+   hace visible esa frontera sin necesidad de explicarla.
+
+   Por qué no se rediseña. Reutilizar los componentes —tarjeta, resumen,
+   botón, punto de estado— mantiene una sola hoja que mantener y un solo
+   sitio donde arreglar un contraste. */
+
+:root {
+  /* El mismo papel y la misma tinta; el acento deja de ser el azul de la UTB.
+     #2B2F38 da 11,2:1 sobre blanco, de sobra para texto y para un botón. */
+  --azul: #2b2f38;
+  --azul-hundido: #1b1e25;
+  --azul-niebla: #eef0f3;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Sobre fondo oscuro el gris oscuro desaparece: se sube hasta que el texto
+       blanco encima siga leyéndose. */
+    --azul: #aeb6c4;
+    --azul-hundido: #c6cdd8;
+    --azul-niebla: #22262e;
+  }
+}
+
+/* La cabecera pierde el filete de tres colores, que es la firma de la marca. */
+.pasarela header::after { display: none; }
+
+.pasarela h1 {
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+  margin: var(--e2) 0 0;
+}
+
+.pasarela-marca {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tinta-tenue);
+}
+
+/* La referencia es una cadena para comparar carácter a carácter, no para leer:
+   va en monoespaciada como el código de canje. */
+.referencia {
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+
+/* Los dos botones a ancho completo y apilados: en esta pantalla no hay nada
+   más que decidir, y «Pagar» y «Rechazar» no deben quedar uno al lado del otro
+   al alcance del mismo pulgar. */
+#aprobar,
+#rechazar {
+  width: 100%;
+  margin-top: var(--e4);
+}
+
+#rechazar { margin-top: var(--e2); }
+
+.volver {
+  display: inline-block;
+  margin-top: var(--e5);
+  font-weight: 650;
+}
+
+.pasarela footer { margin-top: var(--e7); }

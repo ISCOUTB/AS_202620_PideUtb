@@ -13,6 +13,7 @@ from app.pagos import service
 from app.pagos.esquemas_api import (
     AcuseDeEventoResponse,
     EventoPagoRequest,
+    EventoSimuladoRequest,
     IniciarPagoRequest,
     IntentoPagoResponse,
 )
@@ -34,6 +35,28 @@ def iniciar_intento(datos: IniciarPagoRequest) -> IntentoPagoResponse:
     except service.PedidoNoCobrableError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
+    return IntentoPagoResponse.desde_contrato(intento)
+
+
+@router.get(
+    "/intentos/{referencia_pago}",
+    responses={404: {"model": ErrorDeNegocio}, 422: {"model": ErrorDeValidacion}},
+    summary="Consulta el estado de un cobro.",
+)
+def obtener_intento(referencia_pago: str) -> IntentoPagoResponse:
+    """Para que el cliente distinga «rechazado» de «todavía no» (R-11).
+
+    La referencia no es secuencial: la genera PideUTB al abrir el intento y
+    lleva seis dígitos hexadecimales aleatorios. No es un secreto fuerte, y por
+    eso aquí no se publica nada que lo necesite — ni código de canje, ni datos
+    de quien paga, que el sistema además no guarda (arc42 §8.8).
+    """
+    intento = service.obtener_intento(referencia_pago)
+    if intento is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"La referencia de pago '{referencia_pago}' no existe",
+        )
     return IntentoPagoResponse.desde_contrato(intento)
 
 
@@ -71,6 +94,40 @@ async def recibir_evento(
     except service.ReferenciaDesconocidaError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except service.PedidoNoEncontradoError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    return AcuseDeEventoResponse(
+        recibido=True,
+        pedido_id=pedido.pedido_id,
+        estado=pedido.estado,
+        duplicado=duplicado,
+    )
+
+
+@router.post(
+    "/simulador/{referencia_pago}",
+    status_code=202,
+    include_in_schema=False,
+    summary="Hace de pasarela cuando no hay pasarela.",
+)
+def simular_evento(
+    referencia_pago: str, datos: EventoSimuladoRequest
+) -> AcuseDeEventoResponse:
+    """Existe solo donde `PIDEUTB_URL_PASARELA_SIMULADA` esté definida.
+
+    **Fuera de la documentación a propósito** (`include_in_schema=False`): no
+    es parte del contrato que el frontend consume, es un doble del sistema
+    externo. Publicarla la congelaría en una versión y obligaría a mantenerla.
+
+    Sin la variable responde `404`, el mismo código que daría una ruta que no
+    existe. Es deliberado: un `403` confirmaría que la ruta está ahí y solo
+    hace falta la configuración adecuada.
+    """
+    try:
+        pedido, duplicado = service.simular_evento(referencia_pago, datos.estado_pago)
+    except service.PasarelaSimuladaApagadaError:
+        raise HTTPException(status_code=404, detail="Not Found")
+    except service.ReferenciaDesconocidaError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
     return AcuseDeEventoResponse(

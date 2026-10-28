@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es-CO">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pasarela de pruebas — PideUTB</title>
+  <meta name="robots" content="noindex">
+  <!-- Gris y no azul: esta página representa a **otro** sistema. Si llevara la
+       identidad de la UTB, una demostración enseñaría a PideUTB cobrándose a sí
+       mismo, que es justo lo que no pasa. -->
+  <meta name="theme-color" content="#2B2F38">
+  <link rel="stylesheet" href="estilos.css">
+  <link rel="stylesheet" href="pasarela.css">
+</head>
+<body class="pasarela">
+
+<header>
+  <p class="pasarela-marca">Pasarela de pruebas</p>
+  <h1>Confirmá tu pago</h1>
+</header>
+
+<main>
+
+  <!-- Falta la referencia en la dirección: no se inventa nada -->
+  <section id="pantalla-sin-referencia" class="pantalla">
+    <div class="error" role="alert">
+      Esta página se abre desde PideUTB al pagar un pedido. No hay ninguna
+      referencia de pago en la dirección.
+    </div>
+    <a class="volver" href="index.html">Ir a PideUTB</a>
+  </section>
+
+  <!-- El cobro -->
+  <section id="pantalla-cobro" class="pantalla">
+    <dl class="resumen">
+      <dt>Comercio</dt>
+      <dd>PideUTB</dd>
+      <dt>Método</dt>
+      <dd id="metodo"></dd>
+      <dt>Referencia</dt>
+      <dd id="referencia" class="referencia"></dd>
+      <dt class="total">Total</dt>
+      <dd id="monto" class="total"></dd>
+    </dl>
+
+    <button id="aprobar">Pagar</button>
+    <button id="rechazar" class="secundario">Rechazar el pago</button>
+
+    <p class="nota">
+      Ambiente de pruebas. No se mueve dinero real y no se piden datos de
+      ninguna tarjeta.
+    </p>
+  </section>
+
+  <!-- Resuelto: se avisó a PideUTB y la respuesta viaja por su cuenta -->
+  <section id="pantalla-resuelto" class="pantalla">
+    <div class="estado-linea">
+      <span id="punto-resuelto" class="punto" aria-hidden="true"></span>
+      <span id="texto-resuelto"></span>
+    </div>
+    <p class="nota">
+      Ya avisamos a PideUTB. Volvé a la pestaña del pedido: el estado aparece
+      ahí en cuanto el aviso llegue.
+    </p>
+    <a class="volver" href="index.html">Volver a PideUTB</a>
+  </section>
+
+  <div id="error" class="error oculto" role="alert"></div>
+
+</main>
+
+<footer>
+  <p class="nota">
+    Esta pasarela no existe fuera de este despliegue de demostración. Sustituye
+    a la real para poder recorrer el flujo completo sin una cuenta de comercio.
+  </p>
+</footer>
+
+<script src="config.js"></script>
+<script src="pasarela.js"></script>
+</body>
+</html>

@@ -40,25 +40,39 @@
   <!-- Pantalla 1 · la carta -->
   <section id="pantalla-carta" class="pantalla">
     <h2>Carta</h2>
-    <ul id="lista-items" class="items"></ul>
+
+    <!-- Filtro por categoría. Se construye desde los datos: las categorías
+         salen de los propios productos, así que añadir una en la base la hace
+         aparecer aquí sin tocar el marcado. -->
+    <div id="categorias" class="categorias" role="group" aria-label="Filtrar por categoría"></div>
+
+    <ul id="lista-items" class="items catalogo"></ul>
   </section>
 
   <!-- Pantalla 2 · confirmar el pedido y elegir método de pago -->
   <section id="pantalla-pedido" class="pantalla">
     <h2>Tu pedido</h2>
 
+    <ul id="lineas-pedido" class="items lineas"></ul>
+
     <dl id="resumen-pedido" class="resumen"></dl>
 
     <h3>¿Cómo querés pagar?</h3>
     <!-- Los tres métodos son los que declara contracts/consumidor-web.yaml.
-         Añadir uno aquí sin declararlo allí rompe la prueba de contrato. -->
-    <div class="metodos" role="group" aria-label="Método de pago">
-      <button class="metodo" data-metodo="tarjeta">Tarjeta</button>
-      <button class="metodo" data-metodo="nequi">Nequi</button>
-      <button class="metodo" data-metodo="pse">PSE</button>
+         Añadir uno aquí sin declararlo allí rompe la prueba de contrato.
+
+         Elegir ya no cobra: ahora son opciones que se marcan, y el cobro lo
+         dispara «Pagar». Antes el método y la confirmación eran el mismo
+         gesto, y un toque accidental en la lista de métodos cobraba. -->
+    <div class="metodos" role="radiogroup" aria-label="Método de pago">
+      <button class="metodo" data-metodo="tarjeta" role="radio" aria-checked="false">Tarjeta</button>
+      <button class="metodo" data-metodo="nequi" role="radio" aria-checked="false">Nequi</button>
+      <button class="metodo" data-metodo="pse" role="radio" aria-checked="false">PSE</button>
     </div>
 
-    <button id="volver-a-carta" class="secundario">Volver a la carta</button>
+    <button id="pagar" disabled>Elegí un método de pago</button>
+
+    <button id="volver-a-carta" class="secundario">Seguir pidiendo</button>
   </section>
 
   <!-- Pantalla 3 · esperando la confirmación del pago.
@@ -73,6 +87,13 @@
         La pasarela confirma por su cuenta. Si tarda, tu pedido sigue guardado.
       </p>
     </div>
+    <!-- Solo aparece cuando el checkout vive en este mismo sitio, es decir
+         cuando el despliegue tiene pasarela simulada. Contra una pasarela de
+         verdad, un despliegue real redirige en vez de ofrecer un enlace. -->
+    <a id="ir-a-pasarela" class="boton oculto" target="_blank" rel="noopener">
+      Ir a la pasarela y pagar
+    </a>
+
     <button id="dejar-de-esperar" class="secundario">Consultar más tarde</button>
   </section>
 
@@ -87,6 +108,17 @@
   <div id="error" class="error oculto" role="alert"></div>
 
 </main>
+
+<!-- Barra del carrito. Vive fuera de las pantallas a propósito: acompaña a
+     quien navega la carta, y desaparece cuando el carrito está vacío en vez
+     de ocupar sitio diciendo «0 productos». -->
+<div id="barra-carrito" class="barra-carrito oculto" role="status" aria-live="polite">
+  <div class="barra-carrito-datos">
+    <strong id="carrito-cuenta"></strong>
+    <span id="carrito-total" class="carrito-total"></span>
+  </div>
+  <button id="ver-pedido">Ver mi pedido</button>
+</div>
 
 <footer>
   <p>

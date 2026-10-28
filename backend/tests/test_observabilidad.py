@@ -100,7 +100,7 @@ def test_las_metricas_reportan_la_operacion_ligada_a_esc02():
     """
     LATENCIAS.limpiar()
 
-    client.post("/v1/pedidos", json={"item_id": 1, "cantidad": 1})
+    client.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}]})
     resumen = client.get("/metricas").json()
 
     operacion = resumen["operaciones"]["POST /v1/pedidos"]

@@ -21,20 +21,25 @@ En CI la aporta un contenedor de PostgreSQL efímero.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import re
+import secrets
 from pathlib import Path
 
 import pytest
 
 from app import base_de_datos
 from app.menu import repository as menu_repo
+from app.menu.models import ItemMenu
 from app.pagos import repository as pagos_repo
 from app.pagos.contracts import EstadoPago, MetodoDePago
 from app.pagos.models import IntentoPago
 from app.pedidos import repository as pedidos_repo
 from app.pedidos.contracts import EstadoPedido
+from app.pedidos.models import LineaPedido, Pedido
 from app.usuarios import repository as usuarios_repo
+from app.usuarios.models import Establecimiento, Usuario
 
 RAIZ = Path(__file__).resolve().parent.parent
 MIGRACIONES = RAIZ / "migraciones"
@@ -77,19 +82,73 @@ def implementacion(request, monkeypatch):
 
 
 def _preparar_base_de_datos() -> None:
-    """Aplica el esquema y deja las tablas transaccionales vacías.
+    """Aplica las migraciones que falten y deja vacías las tablas transaccionales.
 
     La semilla **no** se borra: los identificadores 1 a 4 están escritos en las
     pruebas y en los ejemplos del contrato.
+
+    ### Por qué se reconstruye y no se mira «si existe el esquema»
+
+    Antes se miraba si existía la tabla `pedidos` y, si existía, no se aplicaba
+    nada. Funcionaba en CI, donde el contenedor es nuevo en cada ejecución, y
+    **se rompía en el portátil**: una base de pruebas creada con cuatro
+    migraciones no recibía nunca la quinta, así que las consultas pedían
+    columnas que allí no estaban. El fallo salía como `UndefinedColumn` en
+    pruebas que no tenían nada que ver con el cambio, y desaparecía borrando la
+    base a mano — lo que lo convertía en algo que «a veces pasa».
+
+    Ahora, si el registro de migraciones no da cuenta **exactamente** de los
+    archivos que hay en el repositorio, el esquema se tira y se vuelve a
+    levantar entero. Una base de pruebas solo contiene la semilla, así que
+    reconstruirla cuesta un segundo y garantiza lo único que la suite necesita
+    de ella: que sea la que el repositorio describe. Aplicar «las que falten»
+    sería más fino y no serviría — una base con el esquema puesto pero sin
+    registro, que es como quedan todas las anteriores a este cambio, volvería a
+    intentar la primera migración y chocaría.
+
+    Esto **no** es lo que hace producción. Allí nada se reconstruye:
+    `scripts/migrar.py` aplica lo pendiente y se niega si un archivo aplicado
+    cambió. La diferencia es deliberada y está en lo que se puede perder.
     """
     import psycopg
 
+    archivos = sorted(MIGRACIONES.glob("*.sql"))
+
     with psycopg.connect(URL_PRUEBAS) as conexion:
         with conexion.cursor() as cur:
-            cur.execute("SELECT to_regclass('public.pedidos')")
-            if cur.fetchone()[0] is None:
-                for archivo in sorted(MIGRACIONES.glob("*.sql")):
+            cur.execute(
+                "CREATE TABLE IF NOT EXISTS migraciones_aplicadas ("
+                "  nombre text PRIMARY KEY,"
+                "  huella text NOT NULL,"
+                "  aplicada_en timestamptz NOT NULL DEFAULT now())"
+            )
+            cur.execute("SELECT nombre, huella FROM migraciones_aplicadas")
+            aplicadas = dict(cur.fetchall())
+
+            esperadas = {
+                archivo.name: hashlib.sha256(
+                    archivo.read_text(encoding="utf-8").encode("utf-8")
+                ).hexdigest()[:16]
+                for archivo in archivos
+            }
+
+            if aplicadas != esperadas:
+                cur.execute("DROP SCHEMA public CASCADE")
+                cur.execute("CREATE SCHEMA public")
+                cur.execute(
+                    "CREATE TABLE migraciones_aplicadas ("
+                    "  nombre text PRIMARY KEY,"
+                    "  huella text NOT NULL,"
+                    "  aplicada_en timestamptz NOT NULL DEFAULT now())"
+                )
+                for archivo in archivos:
                     cur.execute(archivo.read_text(encoding="utf-8"))
+                    cur.execute(
+                        "INSERT INTO migraciones_aplicadas (nombre, huella) "
+                        "VALUES (%s, %s)",
+                        (archivo.name, esperadas[archivo.name]),
+                    )
+
             # `RESTART IDENTITY` devuelve la secuencia a su inicio, para que el
             # primer pedido de cada prueba vuelva a ser el 1 y las aserciones no
             # dependan del orden de ejecución.
@@ -108,6 +167,14 @@ def test_la_carta_de_un_establecimiento_llega_ordenada(implementacion):
     assert [i.nombre for i in items] == ["Arepa de huevo", "Jugo de mango"]
     # El precio es un entero en centavos (V-07), no un decimal.
     assert items[0].precio_centavos == 400000
+
+    # La categoría se lee de la fila, no se deduce. Se comprueba el valor y no
+    # solo que no sea nulo porque `categoria` y `descripcion` son del mismo
+    # tipo: intercambiarlas en `_desde_fila` no daría error, daría datos
+    # cruzados, y la comprobación estructural de más abajo no lo vería.
+    assert [i.categoria for i in items] == ["Asados", "Bebidas"]
+    assert items[0].descripcion is None
+    assert items[0].imagen is None
 
 
 def test_un_item_agotado_se_lee_como_agotado(implementacion):
@@ -138,11 +205,23 @@ def test_el_establecimiento_inactivo_se_lee_como_inactivo(implementacion):
 def _crear_pedido() -> object:
     return pedidos_repo.crear(
         establecimiento_id=1,
-        item_id=1,
-        nombre_item="Arepa de huevo",
-        precio_unitario_centavos=400000,
-        cantidad=2,
+        lineas=[
+            LineaPedido(
+                item_id=1,
+                nombre_item="Arepa de huevo",
+                precio_unitario_centavos=400000,
+                cantidad=2,
+                total_linea_centavos=800000,
+            )
+        ],
         total_centavos=800000,
+        # Desde el contrato 4.0.0 el pedido lleva un token de consulta. Lo
+        # genera el servicio, no el repositorio, para que las dos
+        # implementaciones reciban el mismo valor.
+        #
+        # Aquí se genera uno distinto por llamada porque la base impone que sean
+        # únicos: con una constante, el segundo pedido de una prueba chocaba.
+        token_consulta=secrets.token_urlsafe(24),
     )
 
 
@@ -329,6 +408,65 @@ def test_un_pedido_puede_reintentar_tras_un_rechazo(implementacion):
 
 
 # ---------------------------------------------------------------------------
+# Lo que el SELECT pide y lo que el modelo tiene son la misma lista
+# ---------------------------------------------------------------------------
+#
+# Esta sección nació de un fallo real: se añadieron `imagen`, `categoria` y
+# `descripcion` a `ItemMenu` y a la tabla, pero no a la lista de columnas del
+# `SELECT`. La suite entera siguió en verde —ninguna aserción nombraba los
+# campos nuevos— y la API devolvía `null` en los tres contra PostgreSQL. En
+# memoria funcionaba, que es lo que hizo tardar en verlo.
+#
+# La defensa no es acordarse de escribir una aserción por campo. Es esta: la
+# lista de columnas y los campos del modelo tienen que ser **la misma lista en
+# el mismo orden**, porque `_desde_fila` lee la tupla por posición. Añadir un
+# campo sin añadir su columna rompe aquí, sin que nadie tenga que acordarse.
+
+# Campos que el modelo tiene y la fila no, con el motivo. Cada entrada es una
+# excepción consciente: si se vacía esta lista, la comprobación es exacta.
+CAMPOS_QUE_NO_SON_COLUMNAS = {
+    # Las líneas viven en `pedido_lineas`; `_desde_fila` las recibe aparte.
+    "lineas",
+}
+
+
+@pytest.mark.parametrize(
+    "nombre, columnas, modelo",
+    [
+        ("menu_items", menu_repo._COLUMNAS, ItemMenu),
+        ("pagos_intentos", pagos_repo._COLUMNAS, IntentoPago),
+        ("pedidos", pedidos_repo._COLUMNAS, Pedido),
+        ("pedido_lineas", pedidos_repo._COLUMNAS_LINEA, LineaPedido),
+        ("establecimientos", usuarios_repo._COLUMNAS, Establecimiento),
+        ("usuarios", usuarios_repo._COLUMNAS_USUARIO, Usuario),
+    ],
+)
+def test_el_select_pide_exactamente_los_campos_del_modelo(nombre, columnas, modelo):
+    """No necesita PostgreSQL: compara dos declaraciones del propio código."""
+    del_sql = [c.strip() for c in columnas.split(",")]
+    del_modelo = [
+        campo for campo in modelo.model_fields if campo not in CAMPOS_QUE_NO_SON_COLUMNAS
+    ]
+
+    faltan = [c for c in del_modelo if c not in del_sql]
+    assert not faltan, (
+        f"{nombre}: el modelo tiene {faltan} y el SELECT no los pide. "
+        "Contra PostgreSQL llegarían vacíos; en memoria no se nota."
+    )
+
+    sobran = [c for c in del_sql if c not in del_modelo]
+    assert not sobran, f"{nombre}: el SELECT pide {sobran}, que el modelo no tiene"
+
+    # El orden importa porque `_desde_fila` indexa la tupla por posición: dos
+    # columnas del mismo tipo intercambiadas no darían error, darían datos
+    # cruzados.
+    assert del_sql == del_modelo, (
+        f"{nombre}: las columnas están en otro orden que los campos; "
+        "`_desde_fila` lee por posición"
+    )
+
+
+# ---------------------------------------------------------------------------
 # La semilla de memoria y la del SQL dicen lo mismo
 # ---------------------------------------------------------------------------
 
@@ -442,21 +580,42 @@ def test_la_base_de_datos_rechaza_un_codigo_de_canje_sin_pago(monkeypatch):
 
 @sin_postgres
 def test_la_base_de_datos_rechaza_un_total_incoherente(monkeypatch):
-    """Un error de cálculo en el código no llega a escribirse."""
+    """Un error de cálculo en el código no llega a escribirse.
+
+    Hasta la migración 004 lo impedía un `CHECK` de fila:
+    `total_centavos = precio_unitario_centavos * cantidad`. Con el carrito esa
+    restricción dejó de poder existir —el total pasó a ser una **suma de otra
+    tabla**, y un `CHECK` de fila no ve otra tabla— así que la vigila un
+    disparador diferido.
+
+    Lo que esta prueba comprueba no cambió: que un total que no cuadra con sus
+    líneas **no llegue a escribirse**. Lo que cambió es quién lo rechaza, y por
+    eso la excepción que se espera es otra.
+    """
     import psycopg
 
     monkeypatch.setenv("PIDEUTB_DATABASE_URL", URL_PRUEBAS)
     base_de_datos.cerrar_pool()
     _preparar_base_de_datos()
 
-    with pytest.raises(psycopg.errors.CheckViolation):
+    # Todo lo que puede lanzar y **no** es lo que se espera se prepara fuera del
+    # bloque. Dentro queda una sola llamada: si el token o la línea fallaran
+    # ahí, la prueba pasaría por el motivo equivocado y nadie lo notaría.
+    linea = LineaPedido(
+        item_id=1,
+        nombre_item="Arepa de huevo",
+        precio_unitario_centavos=400000,
+        cantidad=2,
+        total_linea_centavos=800000,
+    )
+    token = secrets.token_urlsafe(24)
+
+    with pytest.raises(psycopg.errors.RaiseException):
         pedidos_repo.crear(
             establecimiento_id=1,
-            item_id=1,
-            nombre_item="Arepa de huevo",
-            precio_unitario_centavos=400000,
-            cantidad=2,
-            total_centavos=1,          # no es 400000 * 2
+            lineas=[linea],
+            total_centavos=1,          # no es la suma de las líneas
+            token_consulta=token,
         )
 
     base_de_datos.cerrar_pool()

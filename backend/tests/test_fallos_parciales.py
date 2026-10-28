@@ -46,7 +46,7 @@ def almacenamiento_limpio():
 
 def _pedido_con_intento() -> tuple[int, str]:
     """Un pedido con su cobro abierto, listo para recibir el aviso."""
-    pedido = pedidos_service.crear_pedido(item_id=1, cantidad=1)
+    pedido = pedidos_service.crear_pedido([(1, 1)])
     intento = pagos_service.iniciar_intento(pedido.pedido_id, MetodoDePago.NEQUI)
     return pedido.pedido_id, intento.referencia_pago
 

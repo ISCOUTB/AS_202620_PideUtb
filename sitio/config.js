@@ -23,8 +23,18 @@ const CONFIG = {
   API_LOCAL: "http://127.0.0.1:8000",
 
   // Establecimiento que se muestra en la portada. Con un solo punto de venta
-  // en el seed, no hace falta un selector todavía.
-  ESTABLECIMIENTO_ID: 1,
+  // real, no hace falta un selector todavía.
+  //
+  // El 5 es El Asao, la zona de asados de la cafetería: un punto de venta con
+  // su propia carta y su propio mostrador. Los establecimientos 1 a 4 siguen
+  // existiendo, pero son los casos de prueba de la semilla —uno inactivo, uno
+  // sin carta— y no se muestran.
+  //
+  // Su carta vive solo en PostgreSQL (migración `005`). Apuntando aquí a un
+  // establecimiento que la base no tenga, la portada diría «todavía no cargó su
+  // carta» en vez de fallar, así que hay una prueba que ata este número a los
+  // datos: `test_el_establecimiento_de_la_portada_tiene_carta`.
+  ESTABLECIMIENTO_ID: 5,
 
   // A partir de cuántos milisegundos se avisa al usuario de que la comprobación
   // inicial está tardando.

@@ -1,0 +1,1305 @@
+# Contrato de la API pública de PideUTB.
+#
+# Este archivo es la FUENTE ÚNICA DE VERDAD de la superficie HTTP del sistema.
+# Se escribe antes que el código (API-first) y el pipeline falla si el código
+# deja de cumplirlo: ver `backend/tests/test_contrato_api.py`.
+#
+# Reglas de evolución y qué cuenta como cambio incompatible:
+#   docs/api/politica-versionado.md
+#
+# La versión congelada de cada release vive en `docs/api/historial/`, y es
+# contra ella que `oasdiff` compara en CI para detectar roturas.
+
+openapi: 3.1.0
+
+info:
+  title: PideUTB API
+  version: 3.2.0
+  summary: Pedidos de comida dentro del campus universitario.
+  description: |
+    Superficie **síncrona** de PideUTB: consulta de menú, creación y consulta
+    de pedidos, e inicio del cobro.
+
+    La confirmación del pago **no ocurre aquí**: llega de forma asíncrona por
+    webhook y está descrita en [`asyncapi.yaml`](asyncapi.yaml). El porqué de
+    esa separación —y la alternativa descartada— está en
+    [ADR-0003](../adr/0003-estrategia-integracion.md).
+
+    ### Unidad monetaria
+
+    Todos los importes son **enteros en centavos de peso colombiano**
+    (`100` = 1 COP). No se usan decimales de punto flotante en ningún campo de
+    dinero. El nombre de cada campo lleva el sufijo `_centavos` para que la
+    unidad viaje en el contrato y no en la documentación: un campo llamado
+    `precio` que a veces son pesos y a veces centavos es exactamente la clase
+    de ambigüedad que este proyecto ya corrigió en su lenguaje ubicuo
+    (arc42 §8.1).
+
+    La elección de la unidad menor no es estética: es la que usa la pasarela de
+    pagos, de modo que el número que guarda el pedido y el que se envía a
+    cobrar son el mismo, sin conversión intermedia donde perder precisión.
+
+    ### Lectura tolerante
+
+    Un consumidor **debe ignorar los campos que no conozca**. Añadir un campo a
+    una respuesta se considera un cambio compatible precisamente bajo esa
+    condición; un consumidor que falle ante campos desconocidos rompe esa
+    garantía por su cuenta.
+  contact:
+    name: Equipo PideUTB
+    url: https://github.com/ISCOUTB/AS_202620_PideUtb
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: https://api-pideutb.iscoutb.dev
+    description: |
+      Despliegue del laboratorio. El sitio se sirve en `pideutb.iscoutb.dev`, es
+      decir **otro origen**: las llamadas del panel son peticiones entre
+      orígenes y dependen de `PIDEUTB_ORIGENES_PERMITIDOS`.
+  - url: http://127.0.0.1:8000
+    description: Desarrollo local, sin prefijo.
+
+tags:
+  - name: operacion
+    description: |
+      Endpoints operativos. **No forman parte de la promesa de compatibilidad
+      de `/v1`**: existen para que la plataforma de despliegue compruebe si el
+      proceso está vivo, y pueden cambiar sin bump de versión mayor.
+  - name: menu
+    description: Contexto Catálogo — consulta de ítems por establecimiento.
+  - name: pedidos
+    description: Contexto Pedidos — creación y consulta de pedidos.
+  - name: pagos
+    description: |
+      Contexto Pagos — inicio del cobro y recepción del evento de la pasarela.
+      El primero es síncrono; el segundo es el punto de entrada asíncrono.
+  - name: sesiones
+    description: |
+      Contexto Cuentas — abrir y cerrar la sesión con la que se opera el panel
+      del mostrador. Nuevo en la 2.0.0, y la razón del salto de MAYOR: las dos
+      operaciones del panel pasaron a exigir la credencial que se obtiene aquí.
+
+paths:
+  /health:
+    get:
+      operationId: consultarSalud
+      tags: [operacion]
+      summary: Comprueba que el servicio y sus dependencias responden.
+      description: |
+        Sonda de disponibilidad. **Sondea de verdad** cada dependencia de la
+        que el servicio depende y solo reporta las que interrogó: una
+        dependencia que no aparece en `dependencias` es una que no se
+        comprobó, nunca una que se dio por buena.
+
+        El campo `tipo` de cada entrada evita la lectura optimista: hoy el
+        almacenamiento responde `tipo: memoria`, que es la verdad
+        (`docs/violaciones.md`, V-09).
+
+        Devuelve `503` cuando alguna dependencia está caída. La plataforma de
+        despliegue decide si enruta tráfico leyendo el **código HTTP**, así que
+        un `200` con un cuerpo que dijera «mal» la dejaría mandando usuarios a
+        un servicio roto.
+      responses:
+        "200":
+          description: Todas las dependencias sondeadas responden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstadoServicio"
+        "503":
+          description: Alguna dependencia sondeada no responde.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServicioNoDisponible"
+
+  /metricas:
+    get:
+      operationId: consultarMetricas
+      tags: [operacion]
+      summary: Latencias observadas por operación.
+      description: |
+        Percentiles de latencia de las últimas peticiones atendidas, para poder
+        hablar con números del escenario **ESC-02** (*el proceso completo de
+        pedir toma menos de 2 minutos en el 90 % de los intentos*).
+
+        No mide ESC-02 entera: esos 120 segundos incluyen el tiempo que tarda
+        una persona en decidir. Mide la parte del presupuesto que el servidor
+        controla, en `p95_ms` de la clave `POST /v1/pedidos`.
+
+        Alcance declarado: mide **un** proceso, sobre una ventana de las
+        últimas `ventana_maxima` peticiones, y se reinicia con el servicio. Se
+        publica la ventana junto a los datos porque un percentil sin su ventana
+        no es interpretable.
+      responses:
+        "200":
+          description: Resumen de latencias.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Metricas"
+
+  /v1/menu/items/{item_id}:
+    get:
+      operationId: obtenerItemMenu
+      tags: [menu]
+      summary: Consulta un ítem del menú.
+      description: |
+        Detalle de un solo ítem. El precio que devuelve es el vigente en el
+        catálogo, no el de ningún pedido: una vez creado el pedido, el importe
+        que vale es el que quedó congelado en él
+        (`docs/violaciones.md`, V-06).
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      responses:
+        "200":
+          description: El ítem existe.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemMenu"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "422":
+          $ref: "#/components/responses/ErrorDeValidacion"
+
+  /v1/menu/establecimientos/{establecimiento_id}/items:
+    get:
+      operationId: listarItemsDeEstablecimiento
+      tags: [menu]
+      summary: Lista los ítems que ofrece un establecimiento.
+      description: |
+        La respuesta es un **objeto con una lista dentro**, no una lista
+        desnuda. Devolver `[...]` en la raíz obliga a un cambio incompatible el
+        día que haga falta añadir paginación o metadatos; el sobre permite
+        añadirlos como campos nuevos, que es un cambio compatible.
+      parameters:
+        - $ref: "#/components/parameters/EstablecimientoId"
+        - name: solo_disponibles
+          in: query
+          required: false
+          description: Si es `true`, omite los ítems marcados como no disponibles.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: |
+            Listado del establecimiento. Un establecimiento que existe pero no
+            tiene ítems devuelve `200` con `items: []`, no `404`: la ausencia
+            de productos no es un error del cliente.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListaItemsMenu"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "422":
+          $ref: "#/components/responses/ErrorDeValidacion"
+
+  /v1/sesiones:
+    post:
+      operationId: iniciarSesion
+      tags: [sesiones]
+      summary: Abre una sesión.
+      description: |
+        Comprueba las credenciales del personal del establecimiento y devuelve
+        el token con el que se opera el panel.
+
+        Responde `401` **tanto si el correo no existe como si la contraseña es
+        incorrecta**, con el mismo mensaje. Distinguirlos permitiría averiguar
+        qué correos están registrados probándolos uno a uno.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IniciarSesionRequest"
+      responses:
+        "201":
+          description: Sesión abierta.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sesion"
+        "401":
+          description: Credenciales incorrectas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDeNegocio"
+        "422":
+          $ref: "#/components/responses/ErrorDeValidacion"
+
+    delete:
+      operationId: cerrarSesion
+      tags: [sesiones]
+      summary: Cierra la sesión actual.
+      description: |
+        Borra **la** sesión con la que se llama, no todas las del usuario: quien
+        entra desde dos navegadores y sale en uno espera seguir dentro en el
+        otro.
+      security:
+        - SesionDeMostrador: []
+      responses:
+        "204":
+          description: Sesión cerrada.
+        "401":
+          description: |
+            No hay sesión válida que cerrar.
+
+            Una cabecera `Authorization` malformada también cae aquí, y no en un
+            `422`: una credencial que no se entiende es una petición no
+            autenticada, no un error de forma.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDeNegocio"
+
+  /v1/pedidos:
+    post:
+      operationId: crearPedido
+      tags: [pedidos]
+      summary: Crea un pedido.
+      description: |
+        El cliente solo decide **qué ítem** quiere y **cuántos**. El
+        establecimiento se deriva del ítem y no se acepta del cliente: aceptarlo
+        permitía asignar el pedido a un punto que no vende ese producto
+        (`docs/violaciones.md`, V-01).
+
+        Los campos no declarados en la petición **se ignoran** en lugar de
+        producir un error. Esa decisión es deliberada y forma parte del
+        contrato: un cliente que siga enviando `establecimiento_id` por
+        costumbre no se rompe, pero tampoco consigue influir en el resultado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CrearPedidoRequest"
+      responses:
+        "201":
+          description: Pedido creado, a la espera de pago.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pedido"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "409":
+          $ref: "#/components/responses/Conflicto"
+        "422":
+          $ref: "#/components/responses/ErrorDeValidacion"
+
+    get:
+      operationId: listarPedidosDeEstablecimiento
+      security:
+        - SesionDeMostrador: []
+      tags: [pedidos]
+      summary: Lista los pedidos de un establecimiento.
+      description: |
+        Los pedidos que el mostrador tiene que atender, del más reciente al más
+        antiguo: quien atiende necesita ver arriba lo que acaba de entrar, no lo
+        que lleva media hora resuelto.
+
+        Devuelve **todos** los estados, incluidos los ya entregados. Ocultarlos
+        obligaría a recordar qué se acaba de entregar para poder corregirse, y
+        [ESC-03](../arc42/arc42.md#esc-03) pide resolver en tres interacciones.
+
+        `establecimiento_id` es **obligatorio** y no un filtro opcional: sin él,
+        esta ruta devolvería los pedidos de todo el campus a quien preguntara.
+      parameters:
+        - name: establecimiento_id
+          in: query
+          required: true
+          description: Establecimiento cuyos pedidos se consultan.
+          schema:
+            type: integer
+            minimum: 1
+          example: 1
+      responses:
+        "200":
+          description: Pedidos del establecimiento.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListaDePedidos"
+        "401":
+          description: |
+            Falta la sesión o ya no es válida. Es la regla **I-12** de
+            [`politica-versionado.md`](politica-versionado.md) en acción: estas
+            operaciones no pedían credencial hasta la versión 2.0.0.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDeNegocio"
+        "403":
+          description: |
+            La sesión es válida pero no alcanza para esta operación: personal
+            pidiendo un establecimiento que no es el suyo, o un rol sin permiso.
+
+            Nótese que un **pedido** de otro establecimiento responde `404`, no
+            `403`: confirmar que existe permitiría enumerarlos probando
+            identificadores.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDeNegocio"
+        "422":
+          $ref: "#/components/responses/ErrorDeValidacion"
+
+  /v1/pedidos/{pedido_id}/estado:
+    post:
+      operationId: cambiarEstadoDePedido
+      security:
+        - SesionDeMostrador: []
+      tags: [pedidos]
+      summary: Avanza el estado de un pedido.
+      description: |
+        Mueve el pedido dentro de la máquina de estados del mostrador. Es la
+        operación que cierra [ESC-03](../arc42/arc42.md#esc-03).
+
+        **Transiciones permitidas:**
+
+        | Desde | Hacia |
+        |---|---|
+        | `pagado` | `en_preparacion`, `cancelado` |
+        | `en_preparacion` | `listo_para_recoger`, `cancelado` |
+        | `listo_para_recoger` | `entregado` |
+
+        Dos ausencias son deliberadas:
+
+        - **`pendiente_pago` no es origen de ninguna.** El mostrador **no puede
+          marcar un pedido como pagado**: esa transición solo la dispara el
+          webhook firmado de la pasarela (`asyncapi.yaml`). Si esta operación
+          pudiera hacerla, cualquiera comería gratis, porque todavía no hay
+          autenticación (`docs/violaciones.md`, V-10).
+        - **`entregado` y `cancelado` son finales.** Volver atrás desde ellos es
+          un error de registro, no una operación del negocio, y permitirlo haría
+          imposible contar cuántos pedidos se sirvieron.
+
+        Es un sub-recurso con nombre y no un `PATCH` sobre el pedido: `PATCH`
+        sugeriría que cualquier campo se puede modificar, y lo único que el
+        mostrador puede tocar es el estado. La forma de la ruta dice qué está
+        permitido.
+      parameters:
+        - $ref: "#/components/parameters/PedidoId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CambiarEstadoRequest"
+      responses:
+        "200":
+          description: Estado actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pedido"
+        "401":
+          description: |
+            Falta la sesión o ya no es válida. Es la regla **I-12** de
+            [`politica-versionado.md`](politica-versionado.md) en acción: estas
+            operaciones no pedían credencial hasta la versión 2.0.0.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDeNegocio"
+        "403":
+          description: |
+            La sesión es válida pero no alcanza para esta operación: personal
+            pidiendo un establecimiento que no es el suyo, o un rol sin permiso.
+
+            Nótese que un **pedido** de otro establecimiento responde `404`, no
+            `403`: confirmar que existe permitiría enumerarlos probando
+            identificadores.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDeNegocio"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "409":
+          description: |
+            La transición no está permitida desde el estado actual. Es `409` y
+            no `422` porque la petición está bien formada: lo que no encaja es
+            el estado del recurso.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDeNegocio"
+        "422":
+          $ref: "#/components/responses/ErrorDeValidacion"
+
+  /v1/pedidos/{pedido_id}:
+    get:
+      operationId: obtenerPedido
+      tags: [pedidos]
+      summary: Consulta un pedido y su estado.
+      description: |
+        Es el endpoint que el frontend consulta tras volver de la pasarela,
+        porque la confirmación del pago llega por un canal distinto y puede no
+        haber llegado todavía (ver [ADR-0003](../adr/0003-estrategia-integracion.md)
+        y arc42 §6.3).
+      parameters:
+        - $ref: "#/components/parameters/PedidoId"
+      responses:
+        "200":
+          description: El pedido existe.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pedido"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "422":
+          $ref: "#/components/responses/ErrorDeValidacion"
+
+  /v1/pagos/intentos:
+    post:
+      operationId: iniciarIntentoDePago
+      tags: [pagos]
+      summary: Inicia el cobro de un pedido.
+      description: |
+        Operación **síncrona**: devuelve de inmediato la referencia del intento
+        y la URL a la que enviar al usuario. Lo que NO devuelve es el resultado
+        del cobro, porque en ese instante todavía no existe.
+
+        Es idempotente por pedido: pedir dos veces el intento del mismo pedido
+        devuelve la misma `referencia_pago` mientras siga pendiente, en lugar de
+        abrir un segundo cobro.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IniciarPagoRequest"
+      responses:
+        "201":
+          description: Intento de pago abierto.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntentoPago"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "409":
+          $ref: "#/components/responses/Conflicto"
+        "422":
+          $ref: "#/components/responses/ErrorDeValidacion"
+
+  /v1/pagos/intentos/{referencia_pago}:
+    get:
+      operationId: obtenerIntentoDePago
+      tags: [pagos]
+      summary: Consulta el estado de un cobro.
+      description: |
+        Existe para que el cliente pueda distinguir **«rechazado»** de
+        **«todavía no»**.
+
+        Un cobro rechazado deja el pedido en `pendiente_pago`, igual que uno que
+        aún no ha confirmado. Es lo correcto —un rechazo no cancela el pedido,
+        permite reintentarlo— pero desde `GET /v1/pedidos/{pedido_id}` los dos
+        casos son la misma respuesta, así que la pantalla de espera no podía
+        saber que tenía que ofrecer otro intento.
+
+        El estado del cobro no se publica dentro de `Pedido` porque no es suyo:
+        pertenece al contexto Pagos (arc42 §8.2). Vive aquí, donde está el dato.
+
+        **Qué no devuelve.** Ni el código de canje ni datos de quien paga — que
+        el sistema además no guarda (arc42 §8.8). La referencia lleva seis
+        dígitos hexadecimales aleatorios y no es un secreto fuerte, así que esta
+        respuesta está acotada a lo que no necesita uno.
+      parameters:
+        - name: referencia_pago
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+          description: La que devolvió `iniciarIntentoDePago`.
+      responses:
+        "200":
+          description: El intento existe.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntentoPago"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "422":
+          $ref: "#/components/responses/ErrorDeValidacion"
+
+  /v1/pagos/eventos:
+    post:
+      operationId: recibirEventoDePago
+      tags: [pagos]
+      summary: Recibe la confirmación de la pasarela (webhook).
+      description: |
+        **Punto de entrada asíncrono del sistema.** Lo invoca la pasarela, no el
+        frontend. La semántica del mensaje, sus garantías de entrega y el
+        tratamiento de duplicados están en [`asyncapi.yaml`](asyncapi.yaml).
+
+        Responde `202 Accepted` y no `200`: PideUTB acusa recibo del evento, no
+        afirma que el efecto de negocio haya terminado. Devolver `200` obligaría
+        a procesar de forma síncrona dentro del webhook, que es justo el
+        acoplamiento que [ADR-0003](../adr/0003-estrategia-integracion.md)
+        evita.
+
+        **La entrega es al-menos-una-vez**: la pasarela reintenta si no recibe
+        `2xx`. El mismo evento puede llegar varias veces y el resultado debe ser
+        el mismo — de ahí que la respuesta incluya `duplicado`.
+      security:
+        - FirmaPasarela: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventoPago"
+      responses:
+        "202":
+          description: |
+            Evento aceptado. Se responde `202` tanto la primera vez como en los
+            reintentos: un duplicado no es un error del emisor.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcuseDeEvento"
+        "401":
+          description: Firma ausente o inválida.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDeNegocio"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "422":
+          $ref: "#/components/responses/ErrorDeValidacion"
+
+components:
+  securitySchemes:
+    SesionDeMostrador:
+      type: http
+      scheme: bearer
+      description: |
+        Token de sesión obtenido en `POST /v1/sesiones`. Se entrega **una sola
+        vez**: el servidor guarda su hash, no el token, así que no hay forma de
+        volver a consultarlo.
+
+        Viaja en la cabecera `Authorization` y no en una cookie: el sitio es
+        estático y vive en otro origen, de modo que una cookie exigiría
+        `SameSite=None` y protección contra CSRF. Con un token explícito no hay
+        envío automático desde otro sitio, y el CSRF deja de existir como clase
+        de problema.
+
+    FirmaPasarela:
+      type: apiKey
+      in: header
+      name: X-Firma-Evento
+      description: |
+        Firma del cuerpo del evento calculada por la pasarela. Sin ella, el
+        endpoint del webhook sería un punto público capaz de marcar pedidos como
+        pagados.
+
+  parameters:
+    ItemId:
+      name: item_id
+      in: path
+      required: true
+      description: Identificador del ítem de menú.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      example: 1
+
+    EstablecimientoId:
+      name: establecimiento_id
+      in: path
+      required: true
+      description: Identificador del establecimiento.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      example: 1
+
+    PedidoId:
+      name: pedido_id
+      in: path
+      required: true
+      description: Identificador del pedido.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      example: 1
+
+  responses:
+    NoEncontrado:
+      description: El recurso referenciado no existe.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorDeNegocio"
+
+    Conflicto:
+      description: |
+        La petición es válida pero el estado actual del sistema no permite
+        atenderla (ítem no disponible, establecimiento cerrado, pedido ya
+        pagado).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorDeNegocio"
+
+    ErrorDeValidacion:
+      description: El cuerpo de la petición no cumple el esquema declarado.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorDeValidacion"
+
+  schemas:
+    EstadoDependencia:
+      type: object
+      description: |
+        Resultado de sondear una dependencia. `tipo` es obligatorio porque
+        «el almacenamiento respondió» no significa lo mismo si es memoria del
+        proceso que si es una base de datos gestionada.
+      required: [estado, tipo, latencia_ms]
+      properties:
+        estado:
+          type: string
+          enum: [ok, caido]
+        tipo:
+          type: string
+          description: Naturaleza real de la dependencia (`memoria`, `postgresql`, …).
+          examples: [memoria, postgresql]
+        latencia_ms:
+          type: number
+          description: Lo que tardó la sonda, no la dependencia en atender tráfico real.
+        detalle:
+          type: [string, "null"]
+          description: Motivo, cuando `estado` es `caido`.
+
+    EstadoServicio:
+      type: object
+      description: |
+        Respuesta del `200`. `status` sigue siendo un `enum` de un solo valor:
+        el estado degradado viaja en `ServicioNoDisponible` bajo el `503`, y no
+        como un valor más aquí. Añadirlo a este `enum` sería la regla **I-8**
+        de [`politica-versionado.md`](politica-versionado.md) —un cliente cuyo
+        `if (status === "ok")` funcionaba pasaría a la rama equivocada sin que
+        nadie tocara su código.
+      required: [status, dependencias]
+      properties:
+        status:
+          type: string
+          const: ok
+        dependencias:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/EstadoDependencia"
+      examples:
+        - status: ok
+          dependencias:
+            catalogo: { estado: ok, tipo: memoria, latencia_ms: 0.02, detalle: null }
+
+    ServicioNoDisponible:
+      type: object
+      description: |
+        Respuesta del `503`. Repite la forma de `dependencias` para que el
+        diagnóstico no cambie de estructura según el resultado, justo cuando
+        menos ganas hay de leer documentación.
+      required: [status, dependencias]
+      properties:
+        status:
+          type: string
+          const: no_disponible
+        dependencias:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/EstadoDependencia"
+      examples:
+        - status: no_disponible
+          dependencias:
+            base_de_datos: { estado: caido, tipo: postgresql, latencia_ms: 3000.0, detalle: ConnectTimeout }
+
+    ResumenOperacion:
+      type: object
+      required: [muestras, p50_ms, p95_ms, max_ms]
+      properties:
+        muestras:
+          type: integer
+          description: Peticiones dentro de la ventana. Un p95 sobre 3 muestras no significa nada.
+        p50_ms: { type: number }
+        p95_ms: { type: number }
+        max_ms: { type: number }
+
+    Metricas:
+      type: object
+      required: [ventana_maxima, operaciones]
+      properties:
+        ventana_maxima:
+          type: integer
+          description: Cuántas peticiones como máximo entran en el cálculo.
+        operaciones:
+          type: object
+          description: Clave `MÉTODO /ruta/con/{plantilla}`, no la ruta concreta.
+          additionalProperties:
+            $ref: "#/components/schemas/ResumenOperacion"
+      examples:
+        - ventana_maxima: 1000
+          operaciones:
+            "POST /v1/pedidos": { muestras: 120, p50_ms: 14.2, p95_ms: 38.9, max_ms: 91.4 }
+
+    ItemMenu:
+      type: object
+      description: |
+        Representación pública de un ítem del catálogo. No es el modelo interno
+        del módulo `menu`: es el lenguaje publicado hacia fuera del sistema
+        (arc42 §8.3), y por eso puede evolucionar a distinto ritmo.
+      required:
+        - item_id
+        - establecimiento_id
+        - nombre
+        - precio_centavos
+        - disponible
+        - imagen
+        - categoria
+        - descripcion
+        - precio_antes_centavos
+        - promocion_hasta
+      properties:
+        item_id:
+          type: integer
+          format: int64
+          minimum: 1
+        establecimiento_id:
+          type: integer
+          format: int64
+          minimum: 1
+          description: |
+            Referencia opaca. El dueño de los datos del establecimiento es el
+            contexto Cuentas (ADR-0002); el catálogo no publica aquí su nombre
+            ni su horario.
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 80
+        precio_centavos:
+          type: integer
+          minimum: 0
+          description: |
+            Precio unitario en centavos de COP, **al que se vende ahora**.
+
+            Si el producto tiene una promoción en curso, este es el precio
+            promocional. La API resuelve la franja horaria; el consumidor no
+            calcula nada y no necesita saber qué hora es. Es deliberado: el
+            reloj de un navegador se puede cambiar, y lo que se cobra no.
+        disponible:
+          type: boolean
+          description: |
+            Si el producto se puede pedir **ahora**. Combina las dos cosas que
+            lo impiden: que el mostrador lo haya marcado agotado, y que esté
+            fuera de su franja de promoción si solo se vende dentro de ella.
+        imagen:
+          type: [string, "null"]
+          description: |
+            Ruta relativa dentro del sitio, p. ej. `imagenes/arepa.webp`.
+
+            Es `null` cuando el producto todavía no tiene foto, y la carta
+            muestra un marcador en vez de una imagen rota. Se declara
+            **presente y anulable** en lugar de opcional, por el mismo motivo
+            que `codigo_canje`: el consumidor encuentra la clave siempre.
+        categoria:
+          type: [string, "null"]
+          description: |
+            Agrupación para los filtros de la carta. `null` = el producto solo
+            aparece en «Todas».
+        descripcion:
+          type: [string, "null"]
+        precio_antes_centavos:
+          type: [integer, "null"]
+          minimum: 1
+          description: |
+            Precio normal, presente **solo mientras la promoción está en
+            curso**, para que la carta pueda tacharlo.
+
+            Es `null` el resto del tiempo, y también en los productos que solo
+            se venden dentro de su franja: ahí no hay un «antes» que tachar,
+            11 900 es su único precio.
+        promocion_hasta:
+          type: [string, "null"]
+          pattern: '^[0-9]{2}:[0-9]{2}$'
+          description: |
+            Hora local a la que termina la promoción en curso, `HH:MM`. `null`
+            si no hay ninguna.
+
+            Es hora de Bogotá, que es lo que anuncia el cartel del mostrador, y
+            no UTC. Va como texto y no como hora porque su único uso es
+            escribirlo en la pantalla.
+      examples:
+        - item_id: 101
+          establecimiento_id: 5
+          nombre: Costillitas de cerdo ahumadas
+          precio_centavos: 2980000
+          disponible: true
+          imagen: fotos/costillitas-de-cerdo-ahumadas.webp
+          categoria: Asados
+          descripcion: null
+          precio_antes_centavos: null
+          promocion_hasta: null
+        # El mismo producto, consultado dentro y fuera de su franja.
+        - item_id: 120
+          establecimiento_id: 5
+          nombre: Combo hamburguesa pollo
+          precio_centavos: 1650000
+          disponible: true
+          imagen: null
+          categoria: Hamburguesas y perros
+          descripcion: null
+          precio_antes_centavos: 2420000
+          promocion_hasta: "15:30"
+        - item_id: 120
+          establecimiento_id: 5
+          nombre: Combo hamburguesa pollo
+          precio_centavos: 2420000
+          disponible: true
+          imagen: null
+          categoria: Hamburguesas y perros
+          descripcion: null
+          precio_antes_centavos: null
+          promocion_hasta: null
+
+    ListaItemsMenu:
+      type: object
+      required: [establecimiento_id, items]
+      properties:
+        establecimiento_id:
+          type: integer
+          format: int64
+          minimum: 1
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemMenu"
+
+    LineaPedidoRequest:
+      type: object
+      required: [item_id]
+      properties:
+        item_id:
+          type: integer
+          format: int64
+          minimum: 1
+        cantidad:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 1
+          description: |
+            El máximo existe para que un error de tecleo no genere un pedido
+            imposible de preparar (`docs/violaciones.md`, V-03). Bajarlo en el
+            futuro sería un cambio incompatible: dejaría de aceptarse una
+            petición que hoy es válida.
+
+    CrearPedidoRequest:
+      type: object
+      required: [lineas]
+      properties:
+        lineas:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            $ref: "#/components/schemas/LineaPedidoRequest"
+          description: |
+            Los productos del carrito. El mismo `item_id` no puede aparecer dos
+            veces: se aumenta su `cantidad`. Repetirlo responde `409`.
+
+            El tope de 30 es lo que cabe en una bandeja de mostrador. Un
+            carrito sin tope es una forma barata de pedirle al servidor que
+            valide mil productos de una vez.
+      examples:
+        - lineas:
+            - item_id: 1
+              cantidad: 2
+            - item_id: 2
+              cantidad: 1
+
+    EstadoPedido:
+      type: string
+      description: |
+        Estados por los que pasa un pedido. Es un conjunto cerrado y no texto
+        libre (`docs/violaciones.md`, V-08): mientras fuera texto libre, ningún
+        consumidor podía saber qué valores debía saber tratar.
+
+        **Quitar un valor de esta lista es un cambio incompatible.** Añadir uno
+        también lo es en la práctica, porque un consumidor escrito contra la
+        lista anterior no sabe qué hacer con el valor nuevo; por eso la política
+        de versionado lo trata como incompatible salvo que se demuestre que
+        ningún consumidor discrimina por estado.
+      enum:
+        - pendiente_pago
+        - pagado
+        - en_preparacion
+        - listo_para_recoger
+        - entregado
+        - cancelado
+
+    EstadoSolicitable:
+      type: string
+      description: |
+        Estados que **el mostrador** puede pedir. Es un subconjunto de
+        `EstadoPedido`, y está separado por dos motivos.
+
+        **De contrato:** `EstadoPedido` viaja en las respuestas. Usarlo también
+        en la petición lo dejaría en las dos direcciones, y quitarle un valor
+        pasaría a ser incompatible por la regla **I-7** además de por la I-8,
+        perdiendo la evolucionabilidad que la política le reconoce a un `enum`
+        de respuesta.
+
+        **De seguridad:** al no incluir `pendiente_pago` ni `pagado`, la regla
+        de que el mostrador **no puede marcar un pedido como pagado** queda
+        escrita aquí, legible sin ejecutar nada. Esa transición solo la dispara
+        el webhook firmado de la pasarela.
+      enum:
+        - en_preparacion
+        - listo_para_recoger
+        - entregado
+        - cancelado
+
+    IniciarSesionRequest:
+      type: object
+      description: |
+        Credenciales de ingreso.
+
+        La longitud **mínima** de contraseña no se declara a propósito: una
+        contraseña corta tiene que responder `401` como cualquier credencial
+        equivocada. Con un `422`, quien prueba sabría que acertó el formato y
+        falló el valor.
+      required: [correo, contrasena]
+      properties:
+        correo:
+          type: string
+          minLength: 3
+          maxLength: 254
+        contrasena:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: |
+            El máximo no es capricho: la derivación tarda en proporción a lo que
+            recibe, así que sin tope alguien podría enviar un megabyte y ocupar
+            un trabajador del servidor durante segundos.
+
+    UsuarioAutenticado:
+      type: object
+      description: |
+        Quién está haciendo la petición. **No lleva el token ni la derivación de
+        la contraseña**: lo que no se publica no se puede filtrar por descuido.
+      required: [usuario_id, correo, rol, establecimiento_id]
+      properties:
+        usuario_id:
+          type: integer
+          minimum: 1
+        correo:
+          type: string
+        rol:
+          type: string
+          enum: [personal_establecimiento, administrador]
+        establecimiento_id:
+          type: [integer, "null"]
+          description: Nulo para un administrador, que no pertenece a ninguno.
+
+    Sesion:
+      type: object
+      required: [token, usuario]
+      properties:
+        token:
+          type: string
+          description: |
+            Se entrega **una sola vez**. El servidor almacena su hash, así que
+            si se pierde hay que abrir otra sesión.
+        usuario:
+          $ref: "#/components/schemas/UsuarioAutenticado"
+
+    CambiarEstadoRequest:
+      type: object
+      description: |
+        Estado al que el mostrador quiere llevar el pedido.
+
+        Los dos modos de fallo quedan separados por código, y cada uno dice algo
+        distinto: **`422`** significa «ese estado no es algo que puedas pedir»
+        —es el caso de `pagado`—, y **`409`** significa «es pedible, pero no
+        desde donde está el pedido», con el estado actual en el mensaje.
+      required: [estado]
+      properties:
+        estado:
+          $ref: "#/components/schemas/EstadoSolicitable"
+        codigo_canje:
+          type: [string, "null"]
+          maxLength: 16
+          description: |
+            Obligatorio **solo** al pasar a `entregado`, y por eso opcional
+            aquí: que falte en una transición que no lo necesita no es un error
+            de forma. Que falte al entregar sí lo es, y lo rechaza la lógica de
+            negocio con `409`.
+
+            Es lo que cierra [ESC-04](../arc42/arc42.md#esc-04). El rechazo del
+            100 % de las reutilizaciones no necesita comprobación propia: sale
+            de que `entregado` sea un estado final, así que el segundo intento
+            no falla por el código sino porque ya no hay transición desde ahí.
+      examples:
+        - estado: en_preparacion
+        - estado: entregado
+          codigo_canje: H5THVC
+
+    ListaDePedidos:
+      type: object
+      description: |
+        Pedidos de un establecimiento, del más reciente al más antiguo.
+
+        Va envuelto en un objeto y no como array en la raíz, por el mismo motivo
+        que `ListaDeItems`: con un sobre, añadir paginación o un total más
+        adelante es un campo nuevo en una respuesta —cambio compatible—; con un
+        array en la raíz sería una rotura.
+      required: [establecimiento_id, pedidos]
+      properties:
+        establecimiento_id:
+          type: integer
+          minimum: 1
+        pedidos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Pedido"
+
+    LineaPedido:
+      type: object
+      required:
+        - item_id
+        - nombre_item
+        - precio_unitario_centavos
+        - cantidad
+        - total_linea_centavos
+      properties:
+        item_id:
+          type: integer
+          format: int64
+          minimum: 1
+        nombre_item:
+          type: string
+          description: |
+            Instantánea del nombre en el momento de la compra. Si el
+            establecimiento renombra el producto después, el pedido conserva lo
+            que se compró (`docs/violaciones.md`, V-06).
+        precio_unitario_centavos:
+          type: integer
+          minimum: 0
+          description: Instantánea del precio en el momento de la compra.
+        cantidad:
+          type: integer
+          minimum: 1
+          maximum: 50
+        total_linea_centavos:
+          type: integer
+          minimum: 0
+          description: "`precio_unitario_centavos × cantidad`."
+
+    Pedido:
+      type: object
+      required:
+        - pedido_id
+        - establecimiento_id
+        - lineas
+        - total_centavos
+        - estado
+        - codigo_canje
+      properties:
+        pedido_id:
+          type: integer
+          format: int64
+          minimum: 1
+        establecimiento_id:
+          type: integer
+          format: int64
+          minimum: 1
+        lineas:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/LineaPedido"
+          description: |
+            Los productos del pedido. Desde la versión 3.0.0 un pedido lleva
+            varias líneas, y los campos de producto que antes vivían en el
+            nivel de arriba se movieron aquí.
+
+            No se dejó una copia del primer producto arriba a propósito: para
+            un pedido de dos líneas esos campos tendrían que mentir, y un campo
+            que miente en el caso interesante es peor que uno que no está.
+        total_centavos:
+          type: integer
+          minimum: 0
+          description: |
+            La **suma** de `total_linea_centavos` de todas las líneas. Se
+            publica calculado en lugar de dejar que cada consumidor lo sume: es
+            el importe que se cobra, y debe haber una sola fuente de verdad.
+        estado:
+          $ref: "#/components/schemas/EstadoPedido"
+        codigo_canje:
+          type: [string, "null"]
+          pattern: "^[A-Z0-9]{6}$"
+          description: |
+            Código que el usuario presenta para recoger el pedido. Es `null`
+            mientras el pedido no esté pagado.
+
+            Se declara **siempre presente y anulable** en lugar de opcional: un
+            consumidor encuentra la clave siempre y solo tiene que mirar si vale
+            `null`. Un campo que a veces no viene obliga a distinguir «ausente»
+            de «vacío», que es una fuente clásica de errores en el cliente.
+      examples:
+        - pedido_id: 1
+          establecimiento_id: 1
+          item_id: 1
+          nombre_item: Arepa de huevo
+          precio_unitario_centavos: 400000
+          cantidad: 2
+          total_centavos: 800000
+          estado: pendiente_pago
+          codigo_canje: null
+
+    MetodoDePago:
+      type: string
+      enum: [tarjeta, nequi, pse]
+
+    IniciarPagoRequest:
+      type: object
+      required: [pedido_id, metodo]
+      properties:
+        pedido_id:
+          type: integer
+          format: int64
+          minimum: 1
+        metodo:
+          $ref: "#/components/schemas/MetodoDePago"
+
+    EstadoPago:
+      type: string
+      enum: [pendiente, aprobado, rechazado]
+
+    IntentoPago:
+      type: object
+      required:
+        - referencia_pago
+        - pedido_id
+        - monto_centavos
+        - estado_pago
+        - url_checkout
+      properties:
+        referencia_pago:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: |
+            Identificador del intento, generado por PideUTB y no por la
+            pasarela. Es la clave con la que se correlaciona el evento que
+            llegará después: si la generase la pasarela, no habría forma de
+            reconocer el evento antes de recibirlo.
+        pedido_id:
+          type: integer
+          format: int64
+          minimum: 1
+        monto_centavos:
+          type: integer
+          minimum: 0
+        estado_pago:
+          $ref: "#/components/schemas/EstadoPago"
+        url_checkout:
+          type: string
+          format: uri
+          description: Destino al que el frontend redirige al usuario.
+
+    EventoPago:
+      type: object
+      description: |
+        Cuerpo del webhook de la pasarela. La descripción completa del mensaje
+        —canal, garantías y duplicados— está en `asyncapi.yaml`.
+      required: [evento, referencia_pago, estado_pago]
+      properties:
+        evento:
+          type: string
+          enum: [transaccion.actualizada]
+        referencia_pago:
+          type: string
+          minLength: 1
+          maxLength: 64
+        estado_pago:
+          $ref: "#/components/schemas/EstadoPago"
+        ocurrido_en:
+          type: [string, "null"]
+          format: date-time
+          description: |
+            Momento en que la pasarela registró el cambio. Opcional porque el
+            sistema no depende de él para decidir: los eventos pueden llegar
+            desordenados y el orden se resuelve por estado, no por marca de
+            tiempo.
+
+    AcuseDeEvento:
+      type: object
+      required: [recibido, pedido_id, estado, duplicado]
+      properties:
+        recibido:
+          type: boolean
+          const: true
+        pedido_id:
+          type: integer
+          format: int64
+          minimum: 1
+        estado:
+          $ref: "#/components/schemas/EstadoPedido"
+        duplicado:
+          type: boolean
+          description: |
+            `true` si este evento ya se había procesado. No es un error: es la
+            señal de que la idempotencia funcionó.
+
+    ErrorDeNegocio:
+      type: object
+      description: |
+        Forma de error que emite el framework para los fallos de negocio. Se
+        documenta tal como es y no como convendría que fuera: migrar a
+        `application/problem+json` (RFC 9457) sería un cambio incompatible y
+        requiere `/v2`.
+      required: [detail]
+      properties:
+        detail:
+          type: string
+      examples:
+        - detail: El ítem 999 no existe
+
+    ErrorDeValidacion:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+            required: [loc, msg, type]
+            properties:
+              loc:
+                type: array
+                items:
+                  type: [string, integer]
+              msg:
+                type: string
+              type:
+                type: string

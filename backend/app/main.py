@@ -63,7 +63,7 @@ async def ciclo_de_vida(_: FastAPI):
 app = FastAPI(
     lifespan=ciclo_de_vida,
     title="PideUTB API",
-    version="2.0.0",
+    version="4.0.0",
     description=(
         "Pedidos de comida dentro del campus universitario. El contrato "
         "versionado que esta aplicación implementa está en "
@@ -95,7 +95,12 @@ app.add_middleware(
     # Esto no lo habría encontrado ninguna prueba con `TestClient`: el cliente
     # de pruebas no hace preflight, así que la suite entera pasaba en verde con
     # el panel roto en un navegador de verdad. Lo encontró abrir la página.
-    allow_headers=["Content-Type", "Authorization"],
+    #
+    # `X-Token-Pedido` entra en la 4.0.0: es la cabecera con la que el cliente
+    # consulta su propio pedido. Sin declararla aquí, el preflight la rechaza y
+    # el sondeo del pago deja de funcionar **solo en un navegador de verdad**,
+    # exactamente como pasó con `Authorization`.
+    allow_headers=["Content-Type", "Authorization", "X-Token-Pedido"],
     # Sigue en `False`, y ahora significa más que antes: el token va en una
     # cabecera que el panel pone a mano, no en una cookie. Ponerlo en `True`
     # haría que el navegador adjuntara cookies automáticamente desde cualquier

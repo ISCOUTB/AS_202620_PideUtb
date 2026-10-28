@@ -249,3 +249,136 @@ def test_no_se_presenta_una_plataforma_abandonada_como_causa_vigente(archivo):
                 "esa aclaración se lee como causa vigente, y si además sostiene "
                 "una constante, invita a cambiarla por el motivo equivocado."
             )
+
+
+# ---------------------------------------------------------------------------
+# Las cabeceras que nginx no hereda
+# ---------------------------------------------------------------------------
+#
+# En nginx, `add_header` **no se hereda**: si un bloque hijo define una sola
+# cabecera, las del padre dejan de aplicarse en esa ruta. El archivo ya
+# documenta el caso —`/panel.html` perdió `X-Frame-Options` justo así, y no se
+# notó, porque una cabecera ausente no rompe nada visible— pero documentarlo no
+# lo impide: cada página nueva con su propio bloque repite la trampa.
+#
+# Esta prueba es la que lo impide. No ejercita nginx: compara el archivo
+# consigo mismo, que es todo lo que hace falta para la clase de error que
+# importa aquí.
+
+NGINX = RAIZ / "sitio" / "nginx.conf"
+
+#: Las que protegen y por eso no pueden faltar. `X-Robots-Tag` no está: es una
+#: preferencia de indexación, no una defensa, y cada página decide la suya.
+CABECERAS_QUE_PROTEGEN = (
+    "X-Content-Type-Options",
+    "X-Frame-Options",
+    "Referrer-Policy",
+)
+
+
+def _bloques_de_location(texto: str) -> dict[str, str]:
+    """Devuelve `{ruta: cuerpo}` de cada `location = ...` del archivo.
+
+    Lectura deliberadamente tonta, como la de la semilla: cuenta llaves hasta
+    cerrar el bloque. No es un intérprete de nginx porque no tiene que serlo —
+    solo lee un archivo que escribimos nosotros.
+    """
+    bloques: dict[str, str] = {}
+
+    for apertura in re.finditer(r"location\s*=\s*(\S+)\s*\{", texto):
+        ruta = apertura.group(1)
+        profundidad = 1
+        i = apertura.end()
+        while i < len(texto) and profundidad:
+            if texto[i] == "{":
+                profundidad += 1
+            elif texto[i] == "}":
+                profundidad -= 1
+            i += 1
+        bloques[ruta] = texto[apertura.end():i - 1]
+
+    return bloques
+
+
+def test_cada_pagina_con_bloque_propio_repite_las_cabeceras_que_protegen():
+    """Un bloque que declara una cabecera tiene que declararlas todas.
+
+    El disparador es declarar **cualquier** `add_header`: es el gesto que
+    cancela la herencia. Un bloque sin ninguno sigue recibiendo las del
+    servidor y no necesita repetir nada.
+    """
+    texto = NGINX.read_text(encoding="utf-8")
+    bloques = _bloques_de_location(texto)
+
+    assert bloques, "no se encontró ningún bloque `location =` en nginx.conf"
+
+    for ruta, cuerpo in bloques.items():
+        if "add_header" not in cuerpo:
+            continue  # hereda las del servidor: nada que comprobar
+
+        faltan = [c for c in CABECERAS_QUE_PROTEGEN if c not in cuerpo]
+        assert not faltan, (
+            f"El bloque `location = {ruta}` de sitio/nginx.conf declara algún "
+            f"`add_header` y por eso **cancela** las del servidor, pero le "
+            f"faltan {faltan}. En nginx las cabeceras no se heredan en cuanto "
+            "el hijo define una: hay que repetirlas todas. Un ausente no rompe "
+            "nada visible, que es lo que lo hace fácil de dejar."
+        )
+
+
+def test_el_servidor_declara_las_cabeceras_que_protegen():
+    """La otra mitad: que existan en el nivel del que se heredan.
+
+    Sin esto, la prueba de arriba se cumpliría sola el día que alguien las
+    borrara del servidor, porque ya no habría nada que repetir.
+    """
+    texto = NGINX.read_text(encoding="utf-8")
+    fuera_de_bloques = re.sub(r"location\s*=\s*\S+\s*\{[^{}]*\}", "", texto)
+
+    faltan = [c for c in CABECERAS_QUE_PROTEGEN if c not in fuera_de_bloques]
+    assert not faltan, (
+        f"sitio/nginx.conf ya no declara {faltan} en el nivel del servidor. "
+        "Las páginas con bloque propio las repiten, pero el resto del sitio "
+        "las perdería sin que nada avisara."
+    )
+
+
+# ---------------------------------------------------------------------------
+# La portada apunta a datos que existen
+# ---------------------------------------------------------------------------
+
+MIGRACIONES = RAIZ / "backend" / "migraciones"
+
+
+def test_el_establecimiento_de_la_portada_tiene_carta():
+    """`CONFIG.ESTABLECIMIENTO_ID` tiene que señalar a algo con productos.
+
+    El fallo que impide es silencioso, que es lo que lo hace peligroso: con un
+    identificador que la base no tiene, la API responde `200` con lista vacía
+    —porque «existe y no tiene nada» es una respuesta legítima del contrato— y
+    la portada dice «este establecimiento todavía no cargó su carta». Nada
+    falla, nada se registra, y lo que se ve en una sustentación es una página
+    vacía.
+
+    No consulta la base: lee las migraciones, que es donde está escrito lo que
+    cualquier despliegue va a tener.
+    """
+    establecimiento = _constante("config.js", "ESTABLECIMIENTO_ID")
+
+    sql = "\n".join(
+        archivo.read_text(encoding="utf-8")
+        for archivo in sorted(MIGRACIONES.glob("*.sql"))
+    )
+
+    # Las filas de `menu_items` escriben el establecimiento en la segunda
+    # columna: `(id, establecimiento_id, ...`.
+    filas = re.findall(
+        rf"^\s*\(\s*\d+\s*,\s*{establecimiento}\s*,", sql, re.MULTILINE
+    )
+
+    assert filas, (
+        f"`CONFIG.ESTABLECIMIENTO_ID` vale {establecimiento} y ninguna "
+        "migración le inserta productos. La portada se vería vacía sin que "
+        "nada fallara: la API responde 200 con lista vacía, que es una "
+        "respuesta válida del contrato."
+    )

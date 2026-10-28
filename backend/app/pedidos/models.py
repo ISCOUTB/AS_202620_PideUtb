@@ -24,13 +24,45 @@ from pydantic import BaseModel, Field
 from app.pedidos.contracts import EstadoPedido
 
 
-class Pedido(BaseModel):
-    id: int
-    establecimiento_id: int
+class LineaPedido(BaseModel):
+    """Un producto dentro de un pedido, con su instantánea de catálogo.
+
+    La instantánea vive **en la línea** y no en el pedido desde que un pedido
+    puede llevar varios productos (migración 004). El motivo no cambió: si el
+    establecimiento sube el precio de la arepa, esta línea sigue valiendo lo
+    que valía cuando se compró.
+    """
+
     item_id: int
     nombre_item: str
     precio_unitario_centavos: int = Field(ge=0)
     cantidad: int = Field(ge=1, le=50)
+    total_linea_centavos: int = Field(ge=0)
+
+
+class Pedido(BaseModel):
+    id: int
+    establecimiento_id: int
+
+    #: Al menos una. Un pedido vacío no es un pedido, y dejarlo representable
+    #: obligaría a comprobarlo en cada sitio que recorre las líneas.
+    lineas: list[LineaPedido] = Field(min_length=1)
+
+    #: La **suma** de las líneas, no un producto. La base lo verifica con un
+    #: disparador diferido, porque una restricción de fila no puede mirar otra
+    #: tabla (migración 004).
     total_centavos: int = Field(ge=0)
+
     estado: EstadoPedido = EstadoPedido.PENDIENTE_PAGO
     codigo_canje: str | None = None
+
+    #: Identificador no adivinable para consultar el pedido sin tener cuenta.
+    #:
+    #: No hay cuentas de cliente, y es una decisión (arc42 §8.8): pedir comida
+    #: no debería exigir registrarse. Pero el identificador del pedido es
+    #: secuencial, así que sin esto **cualquiera podía recorrer `/v1/pedidos/1`,
+    #: `/2`, `/3`… y cosechar los códigos de canje** de los pedidos pagados.
+    #:
+    #: Lo entrega la API una sola vez, al crear el pedido. Va en el modelo y no
+    #: solo en la respuesta porque hay que compararlo contra el almacenado.
+    token_consulta: str = Field(min_length=16)

@@ -1534,6 +1534,13 @@ modelo de datos, no un endurecimiento. Queda como [R-08](#riesgos) con su coste.
 | I-5 | El secreto de la pasarela en el repositorio | Guardia automática en CI, además de la rotación de [V-11](../violaciones.md#v-11) | `test_el_secreto_no_aparece_en_el_codigo_fuente` · `test_el_guardia_de_secretos_detecta_lo_que_dice_detectar` |
 | I-6 | El token de sesión en `sessionStorage` lo lee un XSS | Aceptado y documentado en [V-12](../violaciones.md#v-12). Acotado: el panel no renderiza HTML de terceros, y la sesión muere al cerrar la pestaña | — |
 | I-7 | **`GET /metricas` es público** | **Ninguna.** Publica p50, p95, máximo y número de muestras por operación a quien lo pida | — |
+| I-8 | **Cosechar códigos de canje enumerando pedidos.** `GET /v1/pedidos/{id}` era público y los identificadores son secuenciales | El pedido exige el `token_consulta` que se entregó al crearlo (`X-Token-Pedido`, contrato 4.0.0). Sin él, con uno equivocado o con un pedido inexistente, el mismo `404` | `test_sin_token_no_se_puede_consultar_un_pedido` · `test_con_el_token_de_otro_pedido_tampoco` · [V-13](../violaciones.md#v-13) |
+
+I-8 no apareció preguntando por ella, sino **preparando otra cosa**: antes de
+añadir una lectura pública más —el estado del cobro, para cerrar R-11— tocaba
+saber qué expone la que ya había. Exponía el código de canje a quien supiera
+contar. Estuvo abierta desde la primera entrega, con I-1 al lado cerrando la
+puerta de al lado, y el detalle entero está en [V-13](../violaciones.md#v-13).
 
 I-7 es la segunda que apareció por preguntar. Lo que revela es modesto —el
 inventario de operaciones ya está en `openapi.yaml`, que es público a propósito—
@@ -2125,6 +2132,8 @@ solo se vigila leyendo esta tabla se hereda sin revisarse.
 | **R-08** | **No se puede saber qué persona avanzó un pedido.** `avanzar_estado` recibe el establecimiento, no el usuario | — | Medio: afecta a la auditoría del canje, que es lo que vale dinero | Ninguna: el dato no se guarda |
 | **R-09** | **`GET /metricas` es público** y publica el volumen de tráfico por operación | — | Bajo: el inventario de operaciones ya es público; el volumen no lo era | Ninguna automática |
 | **R-10** | **La contraseña inicial sigue en el panel, en claro, mucho después de usarse** | 1 uso real, vigente indefinidamente | Medio: es una credencial válida y visible. No se puede rotar por la deuda D-04 | Ninguna |
+| **R-11** | ~~Un pago rechazado es indistinguible de uno que aún no ha confirmado~~ · **Cerrado.** Se publica el estado del cobro (`GET /v1/pagos/intentos/{ref}`, contrato 3.2.0) y la pantalla de espera ofrece reintentar | — | — | `test_tras_un_rechazo_el_pedido_y_el_cobro_dicen_cosas_distintas` y su pareja `..._los_dos_dicen_pendiente`, que es la que impide que pase con un endpoint que diga «rechazado» siempre |
+| **R-12** | **Con `PIDEUTB_URL_PASARELA_SIMULADA` definida, cualquiera que alcance `/v1/pagos/simulador/{ref}` puede dar un pedido por pagado** | Sin la variable la ruta responde `404` · hoy está definida solo en el despliegue de demostración, desde el panel | **Alto donde esté encendida**: el código de canje es lo que vale dinero | `test_sin_configurar_el_simulador_no_existe` fija que apagada no existe. Que esté apagada en producción **no lo vigila nada**: es configuración |
 
 #### R-01 y R-02 en detalle, que son los dos que tienen número
 
@@ -2145,6 +2154,55 @@ discutible. Se bajó el sondeo a 5 000 ms —4,68 s para la persona, 46 s de CPU
 por turno y panel— y la medición quedó ejecutable en `medir_esc03.py`, que
 devuelve código de error si el umbral deja de cumplirse. El detalle está en
 [§10.7](#evaluacion).
+
+#### R-11 y R-12 en detalle
+
+**R-11, cerrado, y era un hueco del contrato y no un defecto de
+implementación.** `procesar_evento` guardaba el rechazo donde corresponde —el
+intento pasa a `rechazado`— y dejaba el pedido en `pendiente_pago`, que es lo
+correcto: un cobro rechazado no cancela un pedido, permite reintentarlo. Lo que
+faltaba era que el cliente pudiera enterarse. El contrato publicaba el pedido y
+no el intento, así que desde el sitio «rechazado» y «todavía no» eran la misma
+respuesta, y la pantalla de espera seguía girando.
+
+Se comprobó en el navegador antes de tocar nada: con el intento en `rechazado`,
+el sondeo no cambiaba de pantalla.
+
+**Dónde se publica, y por qué no dentro de `Pedido`.** La opción cómoda era
+añadir `estado_pago` a la respuesta del pedido: el cliente ya la sondea y no
+haría falta una petición más. Se descartó porque obligaría al router de Pedidos
+a importar `pagos.service`, que ya importa `pedidos.service` — un ciclo entre
+contextos justo en la frontera que [ADR-0001](../adr/0001-estilo-arquitectonico.md)
+mantiene separada, y por la comodidad de ahorrar una consulta en una pantalla
+que solo ve una persona. Se publica donde el dato vive: `GET
+/v1/pagos/intentos/{referencia_pago}`.
+
+**El orden del sondeo tampoco es casual.** El cliente consulta **primero** el
+pedido y solo pregunta por el cobro si sigue en `pendiente_pago`. Es por la
+ventana de `conciliar`: `procesar_evento` escribe el pedido antes que el intento
+a propósito —falla hacia el cliente— y en esa ventana el pedido ya está pagado
+mientras el cobro figura pendiente. Sondeando el cobro primero, quien ya tiene
+su código seguiría esperando, que es exactamente el fallo que ese orden de
+escritura existe para evitar.
+
+Lo que el cliente **no** afirma es por qué se rechazó. La pasarela no lo dice, y
+un motivo inventado —«fondos insuficientes»— sería peor que no darlo.
+
+**R-12 es el precio de poder demostrar el flujo.** La pasarela simulada existe
+porque no hay cuenta de comercio: sin ella no se puede recorrer pedido → cobro →
+código de canje, ni en una sustentación ni desarrollando sin red.
+
+La barrera es que **la operación no existe sin su variable**: `simular_evento`
+comprueba `PIDEUTB_URL_PASARELA_SIMULADA` antes de hacer nada y la ruta responde
+`404` —el mismo código que daría una ruta inexistente, y no `403`, que
+confirmaría que está ahí y solo falta configurarla—. La ruta además queda fuera
+de `openapi.yaml` (`include_in_schema=False`): no es parte del contrato, es un
+doble del sistema externo.
+
+Lo que **ninguna prueba puede vigilar** es que la variable esté vacía en un
+despliegue con cobros reales, porque eso es configuración y no código. Por eso
+está anotado aquí y por eso `deploy/compose.lab.yaml` no la fija: se enciende
+desde el panel y se apaga borrándola, sin desplegar.
 
 **R-02.** [ADR-0007](../adr/0007-autenticacion-del-panel.md) eligió los
 parámetros de scrypt (N=2¹⁴, r=8, p=1) midiendo **100 ms de mediana en el
