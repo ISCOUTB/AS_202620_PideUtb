@@ -13,3 +13,17 @@ htmlcov/
 
 # Valores reales del compose local. Los de producción viven en el panel.
 deploy/.env
+
+# Playwright: lo que genera al correr.
+e2e/test-results/
+e2e/playwright-report/
+e2e/blob-report/
+
+# Pero su lock **sí** entra, contra la regla de arriba.
+#
+# `package-lock.json` está ignorado porque Spectral se instala al vuelo en CI y
+# su lock no aporta nada. Este es distinto: fija la versión exacta de Playwright
+# y de sus dependencias con las que se verificó el recorrido, igual que
+# `requirements-prod.txt` fija las de Python con sus hashes. Sin él, `npm ci`
+# no tiene qué instalar y CI resolvería versiones que nadie probó.
+!e2e/package-lock.json
