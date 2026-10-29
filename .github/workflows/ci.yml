@@ -619,3 +619,39 @@ jobs:
       - name: Registro de la API si algo falló
         if: failure()
         run: cat /tmp/api.log
+
+  # --------------------------------------------------------------------------
+  # La imagen del sitio
+  #
+  # Una prueba comprueba que la lista de activos a sellar cubre lo que piden
+  # los HTML, pero no puede comprobar que el sellado *corra*: eso pasa dentro
+  # de un `RUN` de Docker, con el `sed` y el `sha256sum` de busybox, que no son
+  # los de la máquina donde se escribió. Y un `RUN` que falla no deja el sitio
+  # desactualizado: deja el despliegue entero sin imagen que subir.
+  # --------------------------------------------------------------------------
+  sitio:
+    name: Imagen del sitio
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Construir la imagen
+        run: docker build -t pideutb-sitio:ci sitio/
+
+      - name: Comprobar que cada activo salió sellado
+        run: |
+          raiz=/usr/share/nginx/html
+          for pagina in index.html panel.html pasarela.html; do
+            echo "--- $pagina"
+            docker run --rm pideutb-sitio:ci cat "$raiz/$pagina" \
+              | grep -oE '(href|src)="[A-Za-z0-9._-]+\.(css|js)(\?v=[0-9a-f]{8})?"' \
+              | sort -u | tee /tmp/refs.txt
+            if grep -qvE '\?v=[0-9a-f]{8}"$' /tmp/refs.txt; then
+              echo "::error::$pagina tiene referencias sin sellar"
+              exit 1
+            fi
+          done
