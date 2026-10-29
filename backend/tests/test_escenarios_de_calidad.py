@@ -437,3 +437,34 @@ def test_el_mostrador_y_la_portada_miran_el_mismo_establecimiento():
         f"(`deploy/compose.lab.yaml`). Un despliegue limpio dejaría el panel "
         "refrescando una cola vacía sin que nada fallara."
     )
+
+
+GUIONES_CONTRA_PRODUCCION = ("verificar_flujo.py", "medir_carga_demo.py")
+
+
+@pytest.mark.parametrize("nombre", GUIONES_CONTRA_PRODUCCION)
+def test_los_guiones_que_miden_produccion_dicen_quien_llama(nombre: str) -> None:
+    """Toda petición de estos dos guiones lleva `User-Agent`.
+
+    Cloudflare —que está delante de los dos dominios del proyecto— responde 403
+    a `Python-urllib/3.x` sin dejar que la petición llegue al servidor. Un
+    guion que verifica la cadena entera y muere en el primer paso con un 403
+    del borde no verifica nada, y uno que mide carga mediría sesenta errores
+    en cuarenta milisegundos y daría un p95 excelente.
+
+    Se comprueba contando, y no leyendo la constante, porque el fallo que
+    importa no es que falte `AGENTE`: es que alguien añada una petición nueva y
+    se olvide de ponérsela. Esa petición pasaría en local, donde no hay
+    Cloudflare, y fallaría el día de la charla.
+    """
+    fuente = (RAIZ / "backend" / "scripts" / nombre).read_text(encoding="utf-8")
+
+    peticiones = fuente.count("urllib.request.Request(")
+    presentaciones = fuente.count('"User-Agent"')
+
+    assert peticiones > 0, f"{nombre} ya no hace peticiones HTTP"
+    assert presentaciones == peticiones, (
+        f"{nombre} construye {peticiones} peticiones y solo "
+        f"{presentaciones} dicen quién llama. Las que falten se las come "
+        "Cloudflare con un 403 antes de llegar a la API."
+    )

@@ -1,7 +1,14 @@
 """El QR que el público escanea, en SVG y sin dependencias.
 
-    python scripts/generar_qr.py                             # la URL de producción
-    python scripts/generar_qr.py https://otra.cosa salida.svg
+    python scripts/generar_qr.py                   # la URL de producción
+    python scripts/generar_qr.py https://otra.cosa # cualquier otra URL
+
+El archivo sale siempre en `sitio/qr-demo.svg`. No se puede elegir destino: el
+guion tenía un segundo argumento para la ruta de salida y era flexibilidad que
+nadie pidió, con el precio de aceptar de la línea de órdenes dónde escribir.
+Dibujar un QR y sobrescribir un archivo cualquiera no son la misma herramienta,
+y la única forma de que no puedan confundirse es que el destino no se pueda
+decir.
 
 ### Por qué está escrito acá y no se usa una biblioteca
 
@@ -45,9 +52,8 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 URL_POR_DEFECTO = "https://pideutb.iscoutb.dev"
-#: El guion solo escribe dentro del repositorio. Nada de lo que dibuja tiene
-#: sentido fuera de él, y aceptar cualquier ruta por la línea de órdenes
-#: convierte una herramienta de dibujar en una de sobrescribir archivos.
+#: El único destino. Nada de lo que dibuja este guion tiene sentido fuera del
+#: repositorio, así que la ruta no se parametriza: se calcula.
 RAIZ = Path(__file__).resolve().parents[2]
 SALIDA_POR_DEFECTO = RAIZ / "sitio" / "qr-demo.svg"
 
@@ -447,10 +453,7 @@ def a_svg(matriz: list[list[int]], titulo: str, modulo: int = 10) -> str:
 
 def main() -> int:
     url = sys.argv[1] if len(sys.argv) > 1 else URL_POR_DEFECTO
-    salida = Path(sys.argv[2]).resolve() if len(sys.argv) > 2 else SALIDA_POR_DEFECTO
-    if not salida.is_relative_to(RAIZ):
-        print(f"   La salida tiene que quedar dentro de {RAIZ}", file=sys.stderr)
-        return 2
+    salida = SALIDA_POR_DEFECTO
 
     matriz = construir(url)
     salida.parent.mkdir(parents=True, exist_ok=True)

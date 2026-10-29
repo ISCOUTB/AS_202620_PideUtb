@@ -62,6 +62,12 @@ ESTABLECIMIENTO = int(os.getenv("PIDEUTB_ESTABLECIMIENTO_DEMO", "5"))
 # del cliente, que es el que la charla enseña, y se avisa de lo que quedó sin
 # comprobar. Pedirlas siempre volvería inútil el guion contra producción, que
 # es justo donde más falta hace.
+#: Cloudflare devuelve 403 a `Python-urllib/3.x` antes de que la petición
+#: llegue al servidor, así que sin esto el guion no puede verificar producción
+#: —que es justo para lo que se escribió—. Cualquier agente que no sea el de
+#: urllib pasa; este dice la verdad sobre quién llama.
+AGENTE = "pideutb-verificador/1.0"
+
 CORREO = os.getenv("PIDEUTB_MOSTRADOR_CORREO", "")
 CONTRASENA = os.getenv("PIDEUTB_MOSTRADOR_CONTRASENA", "")
 
@@ -90,7 +96,11 @@ def _pedir(
         f"{base}{ruta}",
         data=datos,
         method=metodo,
-        headers={"Content-Type": "application/json", **(cabeceras or {})},
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": AGENTE,
+            **(cabeceras or {}),
+        },
     )
     try:
         with urllib.request.urlopen(peticion, timeout=20) as respuesta:

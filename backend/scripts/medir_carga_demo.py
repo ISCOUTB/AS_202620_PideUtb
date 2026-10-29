@@ -51,6 +51,10 @@ BASE_POR_DEFECTO = "http://127.0.0.1:8000"
 PERSONAS_POR_DEFECTO = 40
 ESTABLECIMIENTO = int(os.getenv("PIDEUTB_ESTABLECIMIENTO_DEMO", "5"))
 
+#: Cloudflare devuelve 403 a `Python-urllib/3.x` sin llegar al servidor. Medir
+#: eso daría sesenta errores en cuarenta milisegundos y un p95 precioso.
+AGENTE = "pideutb-medidor/1.0"
+
 #: Por encima de esto, el minuto de la charla deja de tener holgura para que
 #: alguien lea la carta y elija.
 P95_ACEPTABLE_S = 3.0
@@ -64,7 +68,7 @@ def _pedir(base: str, metodo: str, ruta: str, cuerpo: dict | None = None):
     datos = json.dumps(cuerpo).encode() if cuerpo is not None else None
     peticion = urllib.request.Request(
         f"{base}{ruta}", data=datos, method=metodo,
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "User-Agent": AGENTE},
     )
     with urllib.request.urlopen(peticion, timeout=60) as respuesta:
         crudo = respuesta.read().decode()
@@ -106,7 +110,7 @@ def _una_persona(base: str, items: list[dict]) -> tuple[float, str | None]:
 
 def _pedir_con_token(base: str, ruta: str, token: str) -> dict:
     peticion = urllib.request.Request(
-        f"{base}{ruta}", headers={"X-Token-Pedido": token}
+        f"{base}{ruta}", headers={"X-Token-Pedido": token, "User-Agent": AGENTE}
     )
     with urllib.request.urlopen(peticion, timeout=60) as respuesta:
         return json.loads(respuesta.read().decode())
@@ -172,7 +176,11 @@ def medir(base: str, personas: int, limpiar: bool) -> int:
         else:
             peticion = urllib.request.Request(
                 f"{base}/v1/demo/reiniciar", data=b"", method="POST",
-                headers={"X-Token-Demo": token, "Content-Type": "application/json"},
+                headers={
+                    "X-Token-Demo": token,
+                    "Content-Type": "application/json",
+                    "User-Agent": AGENTE,
+                },
             )
             try:
                 with urllib.request.urlopen(peticion, timeout=30) as respuesta:
