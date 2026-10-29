@@ -57,7 +57,12 @@ router = APIRouter(prefix="/v1/demo", tags=["demo"])
 _LOG = logging.getLogger("pideutb")
 
 #: Sin esta variable, nada de este módulo responde.
-TOKEN = "PIDEUTB_TOKEN_REINICIO_DEMO"
+#:
+#: No se llama `TOKEN` aunque sea lo evidente: una constante con ese nombre y
+#: una cadena al lado la marca el análisis estático como secreto incrustado, y
+#: con razón, porque desde fuera las dos cosas se ven igual. Lo que hay aquí es
+#: el *nombre* de la variable de entorno; el valor nunca vive en el código.
+VARIABLE_DEL_TOKEN = "PIDEUTB_TOKEN_REINICIO_DEMO"
 
 #: El orden no es alfabético, es de dependencias. `pagos_intentos` referencia
 #: `pedidos` sin `ON DELETE CASCADE`, así que va primero o PostgreSQL rechaza
@@ -82,7 +87,7 @@ def _token_configurado() -> str:
     valor que hubiera cuando arrancó el proceso, y en el panel de despliegue las
     variables cambian sin que nadie reconstruya la imagen.
     """
-    return os.getenv(TOKEN, "").strip()
+    return os.getenv(VARIABLE_DEL_TOKEN, "").strip()
 
 
 @router.post(

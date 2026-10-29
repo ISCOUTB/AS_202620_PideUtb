@@ -590,12 +590,17 @@ jobs:
       - name: Instalar Playwright
         working-directory: e2e
         run: |
-          npm ci
-          npx playwright install --with-deps chromium
+          npm ci --ignore-scripts
+          ./node_modules/.bin/playwright install --with-deps chromium
 
+      # `--ignore-scripts` salta el `postinstall` de Playwright, que es el que
+      # baja los navegadores; por eso la orden siguiente los baja a mano, y es
+      # la que queríamos de todas formas porque elige solo Chromium. Y se llama
+      # al binario instalado en vez de a `npx`, que ante una ausencia resuelve
+      # descargando del registro una versión que nadie fijó.
       - name: Ejecutar el recorrido
         working-directory: e2e
-        run: npx playwright test
+        run: ./node_modules/.bin/playwright test
 
       # Las trazas solo se guardan de lo que falla (`retain-on-failure`), así
       # que este artefacto está vacío cuando todo va bien y contiene el

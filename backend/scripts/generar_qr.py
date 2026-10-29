@@ -45,7 +45,11 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 URL_POR_DEFECTO = "https://pideutb.iscoutb.dev"
-SALIDA_POR_DEFECTO = Path(__file__).resolve().parents[2] / "sitio" / "qr-demo.svg"
+#: El guion solo escribe dentro del repositorio. Nada de lo que dibuja tiene
+#: sentido fuera de él, y aceptar cualquier ruta por la línea de órdenes
+#: convierte una herramienta de dibujar en una de sobrescribir archivos.
+RAIZ = Path(__file__).resolve().parents[2]
+SALIDA_POR_DEFECTO = RAIZ / "sitio" / "qr-demo.svg"
 
 # ---------------------------------------------------------------------------
 # Las tablas del estándar
@@ -443,7 +447,10 @@ def a_svg(matriz: list[list[int]], titulo: str, modulo: int = 10) -> str:
 
 def main() -> int:
     url = sys.argv[1] if len(sys.argv) > 1 else URL_POR_DEFECTO
-    salida = Path(sys.argv[2]) if len(sys.argv) > 2 else SALIDA_POR_DEFECTO
+    salida = Path(sys.argv[2]).resolve() if len(sys.argv) > 2 else SALIDA_POR_DEFECTO
+    if not salida.is_relative_to(RAIZ):
+        print(f"   La salida tiene que quedar dentro de {RAIZ}", file=sys.stderr)
+        return 2
 
     matriz = construir(url)
     salida.parent.mkdir(parents=True, exist_ok=True)
