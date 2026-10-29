@@ -670,3 +670,18 @@ nivel más abajo, y ahora tiene sus dos casos negativos.
 pierde el pedido, igual que antes de este cambio. No hay «buscar mi pedido»
 porque no hay dónde buscarlo, y añadirlo volvería a abrir la pregunta de qué
 identifica a quien pregunta.
+
+**Y sigue abierto en un despliegue que se daba por apagado.** `pideutb-api.onrender.com`
+—el despliegue anterior a [ADR-0008](adr/0008-despliegue-en-el-servidor-del-laboratorio.md)—
+**está vivo**, anuncia la versión 2.0.0 del contrato y responde a
+`GET /v1/pedidos/{id}` con el `codigo_canje` dentro. `infra/README.md` lo daba
+por inexistente; se comprobó pidiéndoselo y respondió `200`.
+
+Que ahora mismo no filtre nada es casualidad: sus tres pedidos están en
+`pendiente_pago` y un pedido sin pagar no tiene código. Cualquiera que se pague
+ahí lo expone.
+
+**Corregir el código no cierra una vulnerabilidad si el código viejo sigue
+atendiendo.** Se cierra apagando ese servicio desde el panel de Render, y hasta
+entonces esta violación está corregida **en el despliegue vigente**, no en todos
+los que existen.

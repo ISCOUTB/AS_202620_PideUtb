@@ -11,8 +11,36 @@
 > | Archivo | Estado |
 > |---|---|
 > | [`github.tf`](github.tf) | **Vigente.** Protección de la rama `master`, que no depende de dónde corra el sistema |
-> | [`render.tf`](render.tf) | **Obsoleto.** Describe servicios que ya no existen |
-> | [`supabase.tf`](supabase.tf) | **Obsoleto.** Describe un proyecto que ya no se usa |
+> | [`render.tf`](render.tf) | **Obsoleto, pero el servicio sigue en pie.** Ver abajo |
+> | [`supabase.tf`](supabase.tf) | **Obsoleto, pero el proyecto sigue en pie.** Ver abajo |
+>
+> ### ⚠️ Lo obsoleto no está apagado
+>
+> Esta tabla decía que estos archivos describen «servicios que ya no existen».
+> **Era falso**, y se comprobó pidiéndoselo a la red:
+>
+> | Qué | Estado comprobado |
+> |---|---|
+> | `pideutb-sitio.onrender.com` | **Vivo.** `200`, y **sigue autodesplegando desde `master`**: `auto_deploy = true` en `render.tf` |
+> | `pideutb-api.onrender.com` | **Vivo.** `/health` responde `ok` contra una base PostgreSQL, y anuncia la versión **2.0.0** del contrato |
+> | El proyecto de Supabase detrás | **Vivo**, es la base a la que esa API se conecta |
+>
+> Dos consecuencias, y la segunda importa más:
+>
+> 1. **Hay dos sitios del mismo proyecto sirviendo lo mismo.** El del README es
+>    `pideutb.iscoutb.dev`; el de Render se publica solo con cada `push`, y nadie
+>    recuerda cuál es el bueno hasta que uno de los dos se queda atrás.
+> 2. **La API vieja tiene [V-13](../docs/violaciones.md#v-13) abierto.** Es
+>    anterior al token de consulta, así que `GET /v1/pedidos/{id}` devuelve el
+>    pedido con su `codigo_canje` a quien lo pida. Hoy no filtra nada porque sus
+>    tres pedidos están sin pagar; la puerta está abierta igual.
+>
+> **Apagarlos es trabajo de panel, no de Terraform.** `terraform destroy` aquí
+> tocaría también `github.tf`, que sí está vigente, y la API nunca estuvo en el
+> estado —se creó a mano, por la limitación del proveedor que explica
+> `render.tf`—. Se borran desde los paneles de Render y Supabase. El estado de
+> Terraform queda desactualizado a propósito: nadie aplica aquí, y la
+> advertencia de arriba ya lo cubre.
 >
 > **Un `terraform apply` aquí recrearía infraestructura muerta**, y además la
 > cobraría al que corresponda. Si hay que tocar algo, limitar el alcance con
