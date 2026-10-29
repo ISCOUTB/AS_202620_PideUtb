@@ -23,4 +23,15 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # contenedor cuyo contenido no cambia nunca en caliente.
 COPY *.html *.css *.js *.svg /usr/share/nginx/html/
 
+# Las dos tipografías, servidas desde este mismo origen.
+#
+# No es purismo: el 3 de noviembre el público abre el sitio a la vez desde la
+# red de un auditorio, y una petición menos a fonts.gstatic.com es un punto
+# menos donde la demo se queda sin tipografía delante de todo el mundo. Son
+# 115 KB entre las dos, variables y recortadas al subconjunto latino.
+#
+# En `COPY` aparte porque un directorio no se puede mezclar con comodines de
+# archivos en la misma instrucción sin que el contenido acabe aplanado.
+COPY fuentes/ /usr/share/nginx/html/fuentes/
+
 EXPOSE 8080

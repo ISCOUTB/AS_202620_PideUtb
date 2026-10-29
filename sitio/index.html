@@ -2,17 +2,78 @@
 <html lang="es-CO">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>PideUTB — pedidos en el campus</title>
   <meta name="description" content="Pedí tu comida en el campus sin hacer fila.">
-  <!-- Tiñe la barra del navegador en móvil con el azul de la UTB. Es una
+  <!-- Tiñe la barra del navegador en móvil con la brasa de la marca. Es una
        línea, y es la diferencia entre una página abierta en un teléfono y algo
        que se parece a una aplicación. Uno solo: el sitio ya no sigue al tema
        del sistema. -->
-  <meta name="theme-color" content="#093AD8">
+  <meta name="theme-color" content="#A3330A">
+  <!-- `viewport-fit=cover` arriba, para que el contenido llegue hasta los
+       bordes en los teléfonos con muesca. Lo que eso rompería —la barra
+       inferior tapada por la franja del gesto de inicio— lo compensa
+       `env(safe-area-inset-bottom)` en la hoja de estilos. -->
+  <link rel="preload" href="fuentes/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fuentes/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="estilos.css">
 </head>
 <body>
+
+<!-- Barra de navegación.
+     ==========================================================================
+     Tres destinos, y los tres hacen algo. Las referencias de las que sale este
+     rediseño llevan cinco pestañas —inicio, menú, ofertas, perfil, pedido—
+     porque son aplicaciones con cinco secciones. Esta tiene una carta, un
+     carrito y un código; poner dos pestañas más que no llevan a ninguna parte
+     sería prometer una aplicación que no existe.
+
+     Ya pasó en este mismo archivo: unos botones con `role="radio"` anunciaban
+     un grupo de radios cuyas flechas no funcionaban. Una interfaz que promete
+     de más miente igual aunque se vea bien.
+
+     `<nav>` con su etiqueta, y los dos destinos laterales son `<button>` y no
+     enlaces: no hay URL a la que ir, es la misma página cambiando de pantalla.
+     Un `<a href="#">` anunciaría un enlace y dejaría un `#` en la barra de
+     direcciones.
+
+     **Va antes del encabezado en el documento, y eso no es estético.** En
+     móvil da igual: `position: fixed` la clava abajo sin mirar el orden. En
+     escritorio pasa a `position: sticky`, y sticky **sí** respeta el orden del
+     documento — estando al final del `<body>` se quedaba debajo del pie de
+     página, que es donde estuvo hasta que una captura lo delató. Primero en el
+     marcado, se pega arriba, que es donde una barra de navegación va en una
+     pantalla grande.
+
+     De paso queda donde corresponde semánticamente: la navegación antes del
+     contenido. -->
+
+<nav class="nav-inferior" aria-label="Secciones">
+  <button id="nav-carta" class="nav-boton" type="button">
+    <svg class="nav-icono" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5z"/>
+      <path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/>
+      <path d="M7 8.5h1.5M7 11.5h1.5M15.5 8.5H17M15.5 11.5H17"/>
+    </svg>
+    Carta
+  </button>
+
+  <!-- Mantiene el id `ver-pedido` que `app.js` ya escuchaba: la barra cambió
+       de forma, no de función. -->
+  <button id="ver-pedido" class="nav-carrito" type="button" disabled>
+    <span id="carrito-cuenta" class="nav-carrito-etiqueta">Carrito</span>
+    <span id="carrito-total" class="nav-carrito-total"></span>
+    <span id="carrito-chapa" class="nav-chapa oculto" aria-hidden="true"></span>
+  </button>
+
+  <button id="nav-codigo" class="nav-boton" type="button" disabled>
+    <svg class="nav-icono" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4 8.5V6.5A1.5 1.5 0 0 1 5.5 5h13A1.5 1.5 0 0 1 20 6.5v2a2 2 0 0 0 0 7v2a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-2a2 2 0 0 0 0-7z"/>
+      <path d="M12 8.5v1.5M12 13.5V15"/>
+    </svg>
+    Mi código
+  </button>
+</nav>
 
 <header>
   <h1>PideUTB</h1>
@@ -128,17 +189,6 @@
 
 </main>
 
-<!-- Barra del carrito. Vive fuera de las pantallas a propósito: acompaña a
-     quien navega la carta, y desaparece cuando el carrito está vacío en vez
-     de ocupar sitio diciendo «0 productos». -->
-<div id="barra-carrito" class="barra-carrito oculto" role="status" aria-live="polite">
-  <div class="barra-carrito-datos">
-    <strong id="carrito-cuenta"></strong>
-    <span id="carrito-total" class="carrito-total"></span>
-  </div>
-  <button id="ver-pedido">Ver mi pedido</button>
-</div>
-
 <footer>
   <p>
     Proyecto académico ·
@@ -146,6 +196,7 @@
   </p>
   <p class="nota">Los pagos usan la pasarela en ambiente de pruebas. No se cobra dinero real.</p>
 </footer>
+
 
 <script src="config.js"></script>
 <script src="app.js"></script>
