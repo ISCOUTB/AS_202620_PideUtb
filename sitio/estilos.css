@@ -4,22 +4,27 @@
    obligaría a un build que no aporta nada a tres archivos.
 
    ===========================================================================
-   POR QUÉ ESTA PALETA Y NO LA DE LA UNIVERSIDAD
+   POR QUÉ CREMA CON AZUL, Y NO UNA DE LAS DOS PALETAS ENTERA
    ===========================================================================
 
-   Hasta la charla del 3 de noviembre esta hoja usaba los tres colores de la
-   Universidad Tecnológica de Bolívar, y lo decía con estas palabras: «no es
-   negociable». Se cambió a conciencia, y conviene dejar escrito qué se ganó y
-   qué se perdió.
+   Esta hoja ha tenido tres estados, y conviene que queden los tres escritos
+   porque el tercero no es «volver atrás».
 
-   **Lo que se perdió:** el azul institucional. Quien abra el sitio ya no ve a
-   la universidad en la pantalla, y en un proyecto académico eso es algo.
+   Era el azul institucional sobre blanco, y lo decía con estas palabras: «no
+   es negociable». Para la charla del 3 de noviembre se cambió entera a una
+   paleta cálida —crema de fondo, ladrillo de asadero de marca— con el
+   argumento de que una carta de comida que se abre con hambre no se vende
+   desde el color de la intranet.
 
-   **Por qué igual se cambió:** esto es una carta de comida que se abre con el
-   teléfono en la mano, a menudo con hambre. El azul corporativo sobre blanco
-   es el color de un trámite —de hecho el de la intranet— y la comida no se
-   vende desde un trámite. El fondo crema y la brasa son los de un asadero,
-   que es lo que El Asao es.
+   El argumento valía para el **fondo** y no para la **marca**. Lo que hacía
+   que esto dejara de parecer un trámite era el crema: que el papel no sea
+   blanco es lo que hace que una tarjeta blanca se lea como tarjeta, y eso se
+   queda. El ladrillo era otra cosa, y el proyecto es de la UTB.
+
+   Así que el fondo sigue siendo de asadero y la marca vuelve a ser azul
+   `#093AD8`. Y no se pierde nada por el cambio: el azul da **7,49:1** sobre
+   el crema y **8,05:1** con blanco encima, frente a los 6,43 y 6,92 del
+   ladrillo. Es más legible que lo que sustituye, en las dos direcciones.
 
    **Lo que NO cambió, porque era lo valioso:** la regla de medir. Cada color
    de abajo lleva su relación de contraste real contra la superficie donde se
@@ -89,18 +94,19 @@
   --carbon-medio: #57514c;   /*  7,27:1 — secundario, y aun así AAA. */
   --carbon-tenue: #6e6660;   /*  5,23:1 — metadatos, nunca lo esencial. */
 
-  /* --- Brasa, que es el color de la marca ahora ------------------------
-     --brasa lleva texto blanco encima (6,92:1) y además sirve de tinta sobre
-     crema (6,43:1). Es el único tono de la paleta que puede hacer las dos
-     cosas, y por eso es el primario.
+  /* --- El azul de la UTB, que es la marca ------------------------------
+     --azul lleva texto blanco encima (8,05:1) y además sirve de tinta sobre
+     crema (7,49:1). Es el único tono de la paleta que puede hacer las dos
+     cosas, y por eso es el primario: un color que solo vale para una de las
+     dos obliga a tener dos colores.
 
-     --brasa-viva es más saturada y mide 4,82:1 sobre crema: pasa AA justo,
-     así que se reserva para superficies y acentos decorativos. No se usa para
-     texto pequeño. */
-  --brasa: #a3330a;
-  --brasa-viva: #c2410c;
-  --brasa-hundida: #7f2708;  /* Pulsado: el mismo tono, más grave. */
-  --brasa-niebla: #fdeee6;   /* La brasa al 8 % — fondos de apoyo. */
+     Aquí había además un token de más. La paleta cálida traía un `--brasa-viva`
+     con su contraste medido y su regla de uso escrita, y ni una sola regla de
+     esta hoja lo usaba: un color inventado para una necesidad que no existía.
+     No se tradujo al azul, se quitó. */
+  --azul: #093ad8;
+  --azul-hundido: #0730ab;   /* Pulsado: el mismo tono, más grave. */
+  --azul-niebla: #e8edfd;    /* El azul al 8 % sobre blanco — fondos de apoyo. */
 
   /* --- Ámbar, para lo que avisa sin ser un error ----------------------- */
   --ambar: #92400a;          /* 7,09:1 con blanco encima. */
@@ -112,7 +118,6 @@
      anterior porque el fondo dejó de ser blanco: 5,68:1 sobre crema, y 6,10:1
      con blanco encima, que es como se usa en el billete del código. */
   --verde-canje: #356f1a;
-  --verde-niebla: #eaf5e2;
 
   /* --- Estados --------------------------------------------------------- */
   --error: #b3261e;          /* 5,72:1 sobre --error-fondo. */
@@ -199,11 +204,11 @@ h3 { font-size: 1.1rem; }
 
 p { margin: 0; }
 
-a { color: var(--brasa); }
-a:hover { color: var(--brasa-hundida); }
+a { color: var(--azul); }
+a:hover { color: var(--azul-hundido); }
 
 :focus-visible {
-  outline: 2px solid var(--brasa);
+  outline: 2px solid var(--azul);
   outline-offset: 2px;
   border-radius: var(--radio-chico);
 }
@@ -231,7 +236,7 @@ header {
 }
 
 header h1 {
-  color: var(--brasa);
+  color: var(--azul);
   /* El punto final es de la marca, no del texto: separa «PideUTB» de un
      título cualquiera sin necesitar un logotipo que no tenemos. */
 }
@@ -333,7 +338,7 @@ footer {
 }
 
 .nav-boton:hover:not(:disabled) { background: var(--crema-hundido); }
-.nav-boton[aria-current="page"] { color: var(--brasa); }
+.nav-boton[aria-current="page"] { color: var(--azul); }
 
 .nav-boton:disabled {
   opacity: 0.45;
@@ -367,7 +372,7 @@ footer {
   padding: var(--e2) var(--e4);
   border: 3px solid var(--crema);
   border-radius: var(--radio-pildora);
-  background: var(--brasa);
+  background: var(--azul);
   color: #fff;
   font-family: var(--fuente);
   font-weight: 600;
@@ -376,7 +381,7 @@ footer {
   transition: transform 0.12s ease, background 0.15s ease;
 }
 
-.nav-carrito:hover:not(:disabled) { background: var(--brasa-hundida); }
+.nav-carrito:hover:not(:disabled) { background: var(--azul-hundido); }
 .nav-carrito:active:not(:disabled) { transform: scale(0.96); }
 
 .nav-carrito:disabled {
@@ -449,12 +454,12 @@ button,
 
 button, .boton {
   width: 100%;
-  background: var(--brasa);
+  background: var(--azul);
   color: #fff;
   border-color: transparent;
 }
 
-button:hover:not(:disabled), .boton:hover { background: var(--brasa-hundida); color: #fff; }
+button:hover:not(:disabled), .boton:hover { background: var(--azul-hundido); color: #fff; }
 button:active:not(:disabled) { transform: scale(0.985); }
 
 button:disabled {
@@ -465,14 +470,14 @@ button:disabled {
 
 button.secundario {
   background: transparent;
-  color: var(--brasa);
+  color: var(--azul);
   border-color: var(--linea-fuerte);
 }
 
 button.secundario:hover:not(:disabled) {
-  background: var(--brasa-niebla);
-  color: var(--brasa-hundida);
-  border-color: var(--brasa);
+  background: var(--azul-niebla);
+  color: var(--azul-hundido);
+  border-color: var(--azul);
 }
 
 /* Los botones de pantalla van apilados con aire; los de dentro de una tarjeta
@@ -511,15 +516,15 @@ button.secundario:hover:not(:disabled) {
 }
 
 .categoria:hover:not(:disabled) {
-  background: var(--brasa-niebla);
-  color: var(--brasa);
-  border-color: var(--brasa);
+  background: var(--azul-niebla);
+  color: var(--azul);
+  border-color: var(--azul);
 }
 
 .categoria[aria-pressed="true"] {
-  background: var(--brasa);
+  background: var(--azul);
   color: #fff;
-  border-color: var(--brasa);
+  border-color: var(--azul);
 }
 
 /* ===========================================================================
@@ -565,7 +570,7 @@ button.secundario:hover:not(:disabled) {
   height: 72px;
   border-radius: var(--radio-chico);
   overflow: hidden;
-  background: var(--brasa-niebla);
+  background: var(--azul-niebla);
   display: grid;
   place-items: center;
 }
@@ -578,7 +583,7 @@ button.secundario:hover:not(:disabled) {
 }
 
 .item-foto.sin-foto {
-  color: var(--brasa);
+  color: var(--azul);
   font-family: var(--fuente-titulo);
   font-size: 1.75rem;
   font-weight: 600;
@@ -614,7 +619,7 @@ button.secundario:hover:not(:disabled) {
   font-size: 0.875rem;
 }
 
-.precio-promo { color: var(--brasa); }
+.precio-promo { color: var(--azul); }
 
 /* La franja de la promoción, que solo existe de 2:30 a 3:30. */
 .promo-hasta {
@@ -793,20 +798,20 @@ button.secundario:hover:not(:disabled) {
 }
 
 .metodos label.metodo:hover {
-  border-color: var(--brasa);
-  color: var(--brasa);
+  border-color: var(--azul);
+  color: var(--azul);
 }
 
 .metodos input[type="radio"]:checked + label.metodo {
-  background: var(--brasa-niebla);
-  color: var(--brasa);
-  border-color: var(--brasa);
+  background: var(--azul-niebla);
+  color: var(--azul);
+  border-color: var(--azul);
   font-weight: 600;
 }
 
 .metodos input[type="radio"]:focus-visible + label.metodo {
   box-shadow: var(--foco);
-  border-color: var(--brasa);
+  border-color: var(--azul);
 }
 
 /* ===========================================================================
@@ -825,7 +830,7 @@ button.secundario:hover:not(:disabled) {
   width: 36px;
   height: 36px;
   border: 3px solid var(--crema-hundido);
-  border-top-color: var(--brasa);
+  border-top-color: var(--azul);
   border-radius: 50%;
   animation: girar 0.9s linear infinite;
 }
@@ -961,7 +966,7 @@ button.secundario:hover:not(:disabled) {
 .barra input:focus,
 .campo input:focus {
   outline: none;
-  border-color: var(--brasa);
+  border-color: var(--azul);
   box-shadow: var(--foco);
 }
 

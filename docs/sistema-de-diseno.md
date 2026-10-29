@@ -24,20 +24,26 @@ Esta guía fija la apariencia y el comportamiento de las dos superficies de
 PideUTB: la del cliente y la del mostrador. Cada pantalla que se desarrolle debe
 ajustarse a ella.
 
-**Versión** 2.0 · 29/10/2026 · **Fundamentos** paleta cálida propia, con cada
-contraste medido y **verificado en cada construcción** por
+**Versión** 2.1 · 29/10/2026 · **Fundamentos** fondo cálido y marca azul de la
+UTB, con cada contraste medido y **verificado en cada construcción** por
 [`test_contraste.py`](../backend/tests/test_contraste.py) · tokens vigentes en
 [`sitio/estilos.css`](../sitio/estilos.css) · **Alcance** las seis pantallas que
 hoy existen
 
-> **Qué cambió en la 2.0, y qué se perdió.** La 1.0 usaba los tres colores de la
-> Universidad Tecnológica de Bolívar y declaraba esa paleta «no negociable». Se
-> cambió por una cálida —fondo crema, brasa de asadero— para la charla del 3 de
-> noviembre. **Lo que se perdió es real:** quien abra el sitio ya no ve a la
-> universidad en la pantalla. Lo que se ganó es que una carta de comida deje de
-> parecer una intranet.
+> **Qué cambió, en dos pasos.** La 1.0 usaba los tres colores de la Universidad
+> Tecnológica de Bolívar y declaraba esa paleta «no negociable». La 2.0 la
+> cambió entera por una cálida —fondo crema, ladrillo de asadero— para la
+> charla del 3 de noviembre, y perdía algo real: quien abriera el sitio ya no
+> veía a la universidad en la pantalla.
 >
-> Lo que **no** cambió es la regla de medir, y ahora además se comprueba sola.
+> La **2.1** separa las dos cosas que la 2.0 había juntado. El fondo crema era
+> lo que hacía que esto dejara de parecer una intranet, y se queda. La marca
+> vuelve a ser el azul `#093AD8` de la UTB, que además mide mejor: **7,49:1**
+> sobre el crema frente a los 6,43 del ladrillo, y **8,05:1** con blanco encima
+> frente a 6,92. Era un cambio de identidad disfrazado de cambio de fondo.
+>
+> Lo que **no** cambió en ninguno de los dos pasos es la regla de medir, y
+> ahora además se comprueba sola.
 
 > **Esta guía describe lo que hay, no lo que se querría tener.** Cada token que
 > nombra existe en `sitio/estilos.css` y cada ratio de contraste está medido. Si
@@ -54,9 +60,11 @@ protege a quien usa la aplicación con prisa.
 
 #### Parecer comida, no un trámite
 
-La carta se abre con hambre y con el teléfono en la mano. El fondo crema y la
-brasa son los de un asadero, que es lo que El Asao es; el azul corporativo sobre
-blanco es el color de un formulario.
+La carta se abre con hambre y con el teléfono en la mano. El fondo crema es el
+de un asadero, que es lo que El Asao es; el blanco de pantalla con rejilla es el
+color de un formulario. Lo que hace que una tarjeta blanca se lea como tarjeta
+es que el papel de debajo no sea blanco, y eso no depende de qué color tenga la
+marca encima.
 
 Este principio **sustituyó** a «Pertenecer a la UTB», que pedía exactamente lo
 contrario: usar los colores del sitio de la universidad para que quien llegara
@@ -150,7 +158,7 @@ basta: no hay archivo que mantener, ni versión invertida que aprobar, ni un pes
 más en la imagen.
 
 ```
-PideUTB            ← Fraunces 600, --brasa, sobre --crema
+PideUTB            ← Fraunces 600, --azul, sobre --crema
 Pedí sin hacer fila. Recogé con un código.
 ```
 
@@ -158,7 +166,7 @@ El filete de tres colores desapareció con la paleta de la 1.0. Era lo único
 decorativo de la hoja y su función —decir «esto es de la UTB»— dejó de aplicar.
 No se sustituyó por otro adorno: la tipografía ya hace ese trabajo.
 
-**Hacer.** Dejar el título en `--brasa` y el lema en `--carbon-medio`.
+**Hacer.** Dejar el título en `--azul` y el lema en `--carbon-medio`.
 
 **Evitar.** Poner el título sobre una foto; recolorearlo; añadirle una sombra.
 
@@ -169,7 +177,7 @@ izquierda del título sin ningún otro cambio.
 
 ## Colores
 
-Tres familias, tres funciones: la marca (brasa y ámbar), la estructura (cremas y
+Tres familias, tres funciones: la marca (azul y ámbar), la estructura (cremas y
 carbones) y los estados (verde de canje y rojo de error).
 
 ### La regla que gobierna la paleta, y por qué sobrevive a cualquier paleta
@@ -199,16 +207,20 @@ de la página, y con texto blanco encima cuando hace de botón.
 
 | Token | Valor | Sobre `--crema` | Con blanco encima | Uso |
 |---|---|---|---|---|
-| `--brasa` | `#A3330A` | **6,43:1** | **6,92:1** | Botones, enlaces, título, precio en promoción |
-| `--brasa-viva` | `#C2410C` | **4,82:1** | 5,18:1 | Acentos y superficies. **No para texto pequeño** |
-| `--brasa-hundida` | `#7F2708` | 8,89:1 | **9,56:1** | Hover y pulsado: el mismo tono, más grave |
-| `--brasa-niebla` | `#FDEEE6` | — | — | Fondo del hueco de foto y del secundario en hover |
+| `--azul` | `#093AD8` | **7,49:1** | **8,05:1** | Botones, enlaces, título, precio en promoción |
+| `--azul-hundido` | `#0730AB` | 9,67:1 | **10,40:1** | Hover y pulsado: el mismo tono, más grave |
+| `--azul-niebla` | `#E8EDFD` | — | — | Fondo del hueco de foto y del secundario en hover |
 | `--ambar` | `#92400A` | 6,60:1 | **7,09:1** | La etiqueta de la franja de promoción |
 | `--ambar-niebla` | `#FDF0DC` | — | — | Su fondo |
 
-`--brasa` es el único tono de la paleta que puede ser tinta **y** fondo de texto
+`--azul` es el único tono de la paleta que puede ser tinta **y** fondo de texto
 blanco. Por eso es el primario: un color que solo sirve para una de las dos cosas
 obliga a tener dos.
+
+La 2.0 tenía una fila más, `--brasa-viva`, documentada con su contraste y su
+regla de uso. Ninguna regla de la hoja la usaba. No se tradujo al azul: se
+quitó. Una guía que describe un color que nadie aplica no describe el sistema,
+lo adorna.
 
 ### Estructura
 

@@ -91,9 +91,8 @@ PARES = [
     ("carbon-medio", "papel", 4.5, "texto secundario sobre tarjeta"),
     ("carbon-tenue", "crema", 4.5, "metadatos y notas al pie"),
     ("carbon-tenue", "papel", 4.5, "metadatos sobre tarjeta"),
-    ("brasa", "crema", 4.5, "es tinta: enlaces, precios en promoción, el título"),
-    ("brasa", "papel", 4.5, "la misma tinta sobre tarjeta"),
-    ("brasa-viva", "crema", 4.5, "acento, y aun así cae sobre el fondo"),
+    ("azul", "crema", 4.5, "es tinta: enlaces, precios en promoción, el título"),
+    ("azul", "papel", 4.5, "la misma tinta sobre tarjeta"),
     ("verde-canje", "crema", 4.5, "el verde como tinta"),
     ("ambar", "ambar-niebla", 4.5, "la etiqueta de la franja de promoción"),
     ("error", "error-fondo", 4.5, "el texto del aviso de error"),
@@ -101,8 +100,8 @@ PARES = [
 
 #: (texto blanco encima de, mínimo, dónde)
 SOBRE_COLOR = [
-    ("brasa", 4.5, "los botones primarios y el botón central de la barra"),
-    ("brasa-hundida", 4.5, "esos mismos botones, pulsados"),
+    ("azul", 4.5, "los botones primarios y el botón central de la barra"),
+    ("azul-hundido", 4.5, "esos mismos botones, pulsados"),
     ("verde-canje", 4.5, "el billete del código de canje"),
     ("ambar", 4.5, "cualquier etiqueta con tinta blanca"),
     ("carbon", 4.5, "la chapa con la cantidad del carrito"),

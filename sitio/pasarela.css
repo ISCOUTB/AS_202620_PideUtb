@@ -5,12 +5,13 @@
    la decisión de esta hoja: **la pasarela se distingue, no se rediseña**.
 
    Por qué se distingue. Esta página representa a otro sistema. Vestida con el
-   crema y la brasa de la marca, una demostración enseñaría a PideUTB
+   crema y el azul de la marca, una demostración enseñaría a PideUTB
    cobrándose a sí mismo, que es justo lo que no ocurre: el cobro lo hace un
    tercero y la confirmación vuelve por un canal aparte (ADR-0003). El gris
-   frío hace visible esa frontera sin necesidad de explicarla — y después del
-   rediseño cálido la hace **más** visible que antes, porque ahora el contraste
-   no es solo de tono sino de temperatura.
+   frío hace visible esa frontera sin necesidad de explicarla, y lo que más se
+   nota de lejos no es el acento sino el fondo: el crema cálido se apaga a un
+   gris de oficina. Esa diferencia de temperatura se ve desde la última fila,
+   donde un cambio de tono no llegaría.
 
    En la charla eso vale doble: cuando la pantalla se pone gris, el público ve
    sin que nadie se lo diga que salió de la aplicación y entró en el banco.
@@ -20,12 +21,11 @@
    donde arreglar un contraste. */
 
 :root {
-  /* El acento deja de ser la brasa. #2B2F38 da 11,2:1 sobre blanco y 10,5:1
-     sobre el gris de abajo: de sobra para texto y para un botón. */
-  --brasa: #2b2f38;
-  --brasa-viva: #2b2f38;
-  --brasa-hundida: #1b1e25;
-  --brasa-niebla: #eef0f3;
+  /* El acento deja de ser el azul de la marca. #2B2F38 da 11,2:1 sobre blanco
+     y 10,5:1 sobre el gris de abajo: de sobra para texto y para un botón. */
+  --azul: #2b2f38;
+  --azul-hundido: #1b1e25;
+  --azul-niebla: #eef0f3;
 
   /* Y el fondo deja de ser cálido, que es lo que más se nota de lejos. */
   --crema: #f4f5f7;
