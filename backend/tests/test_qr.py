@@ -232,6 +232,30 @@ def test_el_svg_lleva_su_zona_tranquila():
     assert 'fill="#ffffff"' in svg
 
 
+def test_el_svg_abre_aunque_la_url_lleve_ampersand():
+    """Un SVG es XML, y una URL con consulta lleva `&`.
+
+    `https://pideutb.iscoutb.dev/?mesa=3&turno=2` no tiene nada de raro, y
+    hasta ahora producía un archivo que ningún visor abre: `&` suelto no es
+    XML válido. El fallo no se habría visto nunca en la pantalla de nadie
+    —el QR por defecto no tiene consulta— y habría aparecido el día que
+    alguien quisiera un QR por mesa.
+
+    Se comprueba parseando de verdad, no buscando `&amp;` en el texto: lo que
+    importa no es que la cadena esté escapada, es que el documento abra.
+    """
+    import xml.etree.ElementTree as ET
+
+    url = "https://pideutb.iscoutb.dev/?mesa=3&turno=2"
+    svg = a_svg(construir(url), url)
+
+    raiz = ET.fromstring(svg)
+
+    titulo = raiz.find("{http://www.w3.org/2000/svg}title")
+    assert titulo is not None and titulo.text == f"Código QR de {url}"
+    assert raiz.get("aria-label") == f"Código QR de {url}"
+
+
 # ---------------------------------------------------------------------------
 # La corrección de errores, que el round-trip no mira
 # ---------------------------------------------------------------------------

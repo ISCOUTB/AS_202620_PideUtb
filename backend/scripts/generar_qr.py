@@ -1,14 +1,17 @@
 """El QR que el público escanea, en SVG y sin dependencias.
 
-    python scripts/generar_qr.py                   # la URL de producción
-    python scripts/generar_qr.py https://otra.cosa # cualquier otra URL
+    python scripts/generar_qr.py
 
-El archivo sale siempre en `sitio/qr-demo.svg`. No se puede elegir destino: el
-guion tenía un segundo argumento para la ruta de salida y era flexibilidad que
-nadie pidió, con el precio de aceptar de la línea de órdenes dónde escribir.
-Dibujar un QR y sobrescribir un archivo cualquiera no son la misma herramienta,
-y la única forma de que no puedan confundirse es que el destino no se pueda
-decir.
+No recibe argumentos. Ni la URL ni el destino: la primera está en
+`URL_POR_DEFECTO` y el segundo sale de la raíz del repositorio.
+
+Los tenía, y quitarlos no fue una concesión al analizador estático. El SVG que
+produce **se guarda en el repositorio**, y un argumento de línea de órdenes
+genera un archivo versionado cuyo origen no queda escrito en ninguna parte:
+dentro de seis meses, para saber a dónde apunta el QR que está proyectado en
+la diapositiva, habría que preguntarle a quien lo generó. Con la URL en una
+constante, el repositorio responde solo, y regenerar sigue siendo una orden
+sin argumentos después de editar una línea.
 
 ### Por qué está escrito acá y no se usa una biblioteca
 
@@ -47,6 +50,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from xml.sax.saxutils import escape
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -423,11 +427,17 @@ def a_svg(matriz: list[list[int]], titulo: str, modulo: int = 10) -> str:
     margen = 4
     total = (lado + margen * 2) * modulo
 
+    # El título entra en el SVG dos veces, y un SVG es XML: una URL con `&` en
+    # la consulta —`?mesa=3&turno=2`, lo más normal del mundo— produce un
+    # documento que no abre. No es un riesgo de seguridad en un guion que se
+    # llama a mano; es un QR que no se dibuja el día que haga falta.
+    seguro = escape(titulo, {'"': "&quot;"})
+
     partes = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{total}" '
         f'height="{total}" viewBox="0 0 {total} {total}" role="img" '
-        f'aria-label="Código QR de {titulo}">',
-        f'<title>Código QR de {titulo}</title>',
+        f'aria-label="Código QR de {seguro}">',
+        f'<title>Código QR de {seguro}</title>',
         f'<rect width="{total}" height="{total}" fill="#ffffff"/>',
         '<g fill="#000000" shape-rendering="crispEdges">',
     ]
@@ -452,7 +462,7 @@ def a_svg(matriz: list[list[int]], titulo: str, modulo: int = 10) -> str:
 
 
 def main() -> int:
-    url = sys.argv[1] if len(sys.argv) > 1 else URL_POR_DEFECTO
+    url = URL_POR_DEFECTO
     salida = SALIDA_POR_DEFECTO
 
     matriz = construir(url)
