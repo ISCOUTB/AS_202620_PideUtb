@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app import base_de_datos, salud
+from app.demo import router as demo_router
 from app.esquemas_comunes import EstadoServicio, Metricas, ServicioNoDisponible
 from app.menu.router import router as menu_router
 from app.observabilidad import LATENCIAS, TAMANO_VENTANA, RegistroDePeticiones, configurar_logs
@@ -120,6 +121,12 @@ app.include_router(menu_router)
 app.include_router(pedidos_router)
 app.include_router(pagos_router)
 app.include_router(sesiones_router)
+
+# Se monta siempre y no responde casi nunca: sin `PIDEUTB_TOKEN_REINICIO_DEMO`
+# todas sus rutas dan 404. Montarlo condicionalmente dejaría la decisión en el
+# arranque, y entonces poner la variable en el panel de despliegue no serviría
+# hasta reconstruir la imagen. Ver `app/demo.py`.
+app.include_router(demo_router)
 
 
 @app.get(

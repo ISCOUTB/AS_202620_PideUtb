@@ -21,6 +21,6 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # la propiedad cambiada al usuario que sirve, un fallo en el servidor podría
 # reescribir las páginas que entrega — que es justo lo que no se quiere de un
 # contenedor cuyo contenido no cambia nunca en caliente.
-COPY *.html *.css *.js /usr/share/nginx/html/
+COPY *.html *.css *.js *.svg /usr/share/nginx/html/
 
 EXPOSE 8080

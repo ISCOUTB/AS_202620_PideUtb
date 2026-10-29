@@ -63,6 +63,18 @@ services:
       # cobros de verdad, se borra del panel y la ruta vuelve a no existir, sin
       # tocar este archivo ni desplegar nada.
       PIDEUTB_URL_PASARELA_SIMULADA: ${PIDEUTB_URL_PASARELA_SIMULADA:-}
+      #
+      # Enciende `POST /v1/demo/reiniciar`, que borra todos los pedidos. Sin
+      # ella esa ruta responde 404 y no hay forma de llegar a ella.
+      #
+      # Es para los ensayos de la charla: entre uno y otro hay que dejar la cola
+      # vacía, y en este servidor la base no publica puertos ni el panel da
+      # terminal, así que no hay otro camino.
+      #
+      # **Quien tenga este valor puede borrar todos los pedidos.** En un sistema
+      # con pedidos de verdad esta variable se deja sin poner y la ruta
+      # desaparece. Ver `backend/app/demo.py`.
+      PIDEUTB_TOKEN_REINICIO_DEMO: ${PIDEUTB_TOKEN_REINICIO_DEMO:-}
 
       # El sitio vive en otro host, así que **toda** llamada del panel es una
       # petición entre orígenes y esta lista es la que decide si pasa. No es
