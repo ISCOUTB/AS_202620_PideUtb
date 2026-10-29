@@ -22,16 +22,6 @@
   --azul-niebla: #eef0f3;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Sobre fondo oscuro el gris oscuro desaparece: se sube hasta que el texto
-       blanco encima siga leyéndose. */
-    --azul: #aeb6c4;
-    --azul-hundido: #c6cdd8;
-    --azul-niebla: #22262e;
-  }
-}
-
 /* La cabecera pierde el filete de tres colores, que es la firma de la marca. */
 .pasarela header::after { display: none; }
 
