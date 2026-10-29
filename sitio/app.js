@@ -23,10 +23,10 @@ function mostrar(nombre) {
     $(`pantalla-${p}`).classList.toggle("activa", p === nombre);
   }
 
-  // La barra del carrito acompaña mientras se recorre la carta y desaparece en
-  // el resto. En la pantalla del pedido repetiría la cuenta y el total que ya
-  // están ahí arriba, y se comería 104 px de los 812 de un teléfono.
-  dibujarBarraCarrito();
+  // La barra de navegación no se esconde nunca: es el caparazón, no contenido.
+  // Lo que cambia es qué destino está marcado y cuáles se pueden pulsar, y eso
+  // depende de la pantalla activa, así que se recalcula acá.
+  dibujarNavegacion();
 }
 
 /** Centavos de COP a texto legible. 400000 → "$4.000". */
@@ -222,8 +222,52 @@ async function comprobarSalud() {
 // `items[].{item_id, nombre, precio_centavos, disponible}`.
 // --------------------------------------------------------------------------
 
+/**
+ * Tres tarjetas de mentira mientras la carta viaja.
+ *
+ * No es decoración: ocupan el mismo sitio que van a ocupar los productos, así
+ * que cuando llegan los datos la página no da el salto que da cuando algo
+ * aparece de la nada. Y se enseña la pantalla de la carta **antes** de pedirla,
+ * con lo cual el encabezado y el filtro ya están en su sitio desde el primer
+ * fotograma.
+ *
+ * Tres y no diez. Con el teléfono en la mano se ven tres tarjetas; fingir diez
+ * para rellenar la pantalla le dice a quien espera que falta más de lo que
+ * falta.
+ */
+function pintarEsqueletos() {
+  const lista = $("lista-items");
+  lista.replaceChildren();
+
+  for (let i = 0; i < 3; i++) {
+    const fila = document.createElement("li");
+    fila.className = "esqueleto";
+    fila.setAttribute("aria-hidden", "true");
+
+    const foto = document.createElement("div");
+    foto.className = "esqueleto-foto";
+
+    const datos = document.createElement("div");
+    datos.className = "esqueleto-datos";
+    for (const ancho of ["media", "corta"]) {
+      const linea = document.createElement("div");
+      linea.className = `esqueleto-linea ${ancho}`;
+      datos.append(linea);
+    }
+
+    fila.append(foto, datos);
+    lista.append(fila);
+  }
+}
+
 async function cargarCarta() {
   limpiarError();
+
+  // El orden importa: primero la pantalla con los esqueletos, después la
+  // petición. Al revés, la pantalla de arranque se queda girando hasta que
+  // responde la API y el cambio llega de golpe.
+  pintarEsqueletos();
+  mostrar("carta");
 
   try {
     const carta = await api(
@@ -479,7 +523,7 @@ function cambiarCantidad(item, delta) {
   }
 
   dibujarCarta();
-  dibujarBarraCarrito();
+  dibujarNavegacion();
 }
 
 function totalDelCarrito() {
@@ -496,17 +540,92 @@ function unidadesDelCarrito() {
   return n;
 }
 
-function dibujarBarraCarrito() {
-  const barra = $("barra-carrito");
+//: Cuántas unidades se pintaron la última vez. Solo sirve para no relanzar el
+//: salto de la chapa en cada repintado: `dibujarNavegacion` se llama también
+//: al cambiar de pantalla, y una chapa que brinca sin que nadie haya añadido
+//: nada convierte una confirmación en un tic nervioso.
+let unidadesPintadas = 0;
+
+/**
+ * Pone al día la barra de navegación: el carrito y los dos destinos.
+ *
+ * Antes esto era `dibujarBarraCarrito` y escondía una barra flotante cuando el
+ * carrito estaba vacío. Ahora la barra es el caparazón de la aplicación y
+ * siempre está; lo que cambia es si sus botones se pueden pulsar.
+ *
+ * **Deshabilitar en vez de esconder** es deliberado. Un control que aparece y
+ * desaparece mueve el contenido de sitio y obliga a reaprender dónde estaba;
+ * uno apagado dice «esto existe y todavía no» sin moverse. Con el pulgar sobre
+ * una lista que se desplaza, lo segundo se agradece.
+ */
+function dibujarNavegacion() {
   const unidades = unidadesDelCarrito();
-  const enLaCarta = $("pantalla-carta").classList.contains("activa");
+  const enPantalla = (p) => $(`pantalla-${p}`).classList.contains("activa");
 
-  barra.classList.toggle("oculto", unidades === 0 || !enLaCarta);
-  if (unidades === 0 || !enLaCarta) return;
+  // --- El botón central: el carrito -----------------------------------
+  const carrito = $("ver-pedido");
+  carrito.disabled = unidades === 0;
 
-  $("carrito-cuenta").textContent =
-    unidades === 1 ? "1 producto" : unidades + " productos";
-  $("carrito-total").textContent = pesos(totalDelCarrito());
+  const cuenta =
+    unidades === 0 ? "Carrito"
+      : unidades === 1 ? "1 producto"
+        : `${unidades} productos`;
+  const total = unidades === 0 ? "" : pesos(totalDelCarrito());
+
+  $("carrito-cuenta").textContent = cuenta;
+  $("carrito-total").textContent = total;
+
+  // El nombre accesible se declara en vez de dejarlo salir del contenido.
+  // Saldría bien —el botón contiene su texto— pero depende de tres `<span>`
+  // anidados, uno de ellos `aria-hidden`, y de que nadie reordene el marcado.
+  // Declarado, dice lo mismo pase lo que pase.
+  //
+  // Contiene literalmente el texto visible, que es lo que exige el criterio
+  // 2.5.3 de WCAG: quien dicta «dos productos» a un control por voz tiene que
+  // poder activar este botón.
+  carrito.setAttribute(
+    "aria-label",
+    unidades === 0 ? "Carrito vacío" : `Ver mi pedido: ${cuenta}, ${total}`
+  );
+
+  const chapa = $("carrito-chapa");
+  chapa.textContent = String(unidades);
+  chapa.classList.toggle("oculto", unidades === 0);
+
+  if (unidades !== unidadesPintadas) {
+    // Quitar la clase y volver a ponerla no basta: el navegador agrupa los dos
+    // cambios en el mismo fotograma y la animación no se reinicia. Leer
+    // `offsetWidth` lo obliga a recalcular el diseño en medio, que es la forma
+    // estándar de forzar ese corte.
+    chapa.classList.remove("salta");
+    void chapa.offsetWidth;
+    if (unidades > 0) chapa.classList.add("salta");
+    unidadesPintadas = unidades;
+  }
+
+  // --- Los dos destinos -------------------------------------------------
+  // La carta no se puede visitar antes de que exista: con `cartaCompleta`
+  // vacía, pulsar «Carta» llevaría a una pantalla en blanco que parece rota.
+  marcar($("nav-carta"), enPantalla("carta"), cartaCompleta.length === 0);
+
+  // «Mi código» solo lleva a algún sitio cuando hay un pedido que mirar.
+  marcar($("nav-codigo"), enPantalla("resultado"), pedidoActual === null);
+}
+
+/**
+ * Marca un destino como el actual, y lo apaga si no lleva a ninguna parte.
+ *
+ * `aria-current` se **quita** cuando no aplica en vez de ponerse a "false":
+ * los dos son válidos, pero algunos lectores de pantalla anuncian el atributo
+ * por estar presente y leerían «página actual» en los dos botones.
+ */
+function marcar(boton, esElActual, apagado) {
+  if (esElActual) {
+    boton.setAttribute("aria-current", "page");
+  } else {
+    boton.removeAttribute("aria-current");
+  }
+  boton.disabled = apagado;
 }
 
 // --------------------------------------------------------------------------
@@ -627,7 +746,7 @@ function dibujarMetodos() {
 function volverALaCarta() {
   limpiarError();
   dibujarCarta();
-  dibujarBarraCarrito();
+  dibujarNavegacion();
   mostrar("carta");
 }
 
@@ -959,6 +1078,20 @@ const RESPUESTA_POR_ESTADO = {
 function mostrarResultado(pedido) {
   const respuesta = RESPUESTA_POR_ESTADO[pedido.estado];
 
+  // Cuando el pedido deja de estar pendiente, el carrito ya no representa
+  // nada: su contenido se convirtió en este pedido.
+  //
+  // Esto lo destapó el rediseño. Antes la barra del carrito se escondía fuera
+  // de la carta, así que nadie veía que seguía llena después de pagar; ahora la
+  // barra es permanente y quedaba anunciando «1 producto · $ 29.800» al lado
+  // del código de un pedido ya cobrado.
+  //
+  // **Se vacía acá y no al crear el pedido**, que era el sitio obvio: la
+  // pantalla de reintento tras un cobro rechazado se repinta desde el carrito
+  // (`dibujarLineasDelCarrito`), y vaciarlo antes la dejaría en blanco con el
+  // pedido todavía por pagar.
+  if (pedido.estado !== "pendiente_pago") carrito.clear();
+
   // Un estado que el consumidor no conoce no debe romper la página: se informa
   // con honestidad en vez de mostrar una pantalla en blanco.
   if (!respuesta) {
@@ -1030,6 +1163,30 @@ $("ver-pedido").addEventListener("click", verPedido);
 
 $("volver-a-carta").addEventListener("click", volverALaCarta);
 
+// Los dos destinos de la barra. No hacen nada que no se pudiera hacer ya con
+// los botones de cada pantalla: son el mismo viaje con el pulgar donde el
+// pulgar está.
+//
+// `volverALaCarta` y no `mostrar("carta")`: esa además repinta la carta, que
+// hace falta para que las cantidades de cada producto reflejen el carrito.
+//
+// **No detiene las consultas de estado, y es a propósito.** Quien está
+// esperando la confirmación y se pone a mirar la carta sigue teniendo su cobro
+// en marcha; cuando confirme, `consultarEstado` lo lleva a la pantalla del
+// código. Interrumpe lo que esté haciendo, sí — y es justo lo que quiere, que
+// es para lo que pagó.
+$("nav-carta").addEventListener("click", volverALaCarta);
+
+$("nav-codigo").addEventListener("click", () => {
+  // El botón está apagado cuando no hay pedido, así que esto no debería poder
+  // pasar; se comprueba igual porque `disabled` se puede quitar desde las
+  // herramientas del navegador y una pantalla de resultado sin pedido tira un
+  // error de lectura de `null`.
+  if (pedidoActual === null) return;
+  detenerConsultas();
+  mostrarResultado(pedidoActual);
+});
+
 // Al volver a esta pestaña se consulta ya, sin esperar al siguiente sondeo.
 //
 // No sustituye al sondeo ni lo acelera: el intervalo sigue siendo el que es, y
@@ -1055,7 +1212,7 @@ $("nuevo-pedido").addEventListener("click", () => {
   // persona acaba de pagar y recoger.
   carrito.clear();
   metodoElegido = null;
-  dibujarBarraCarrito();
+  dibujarNavegacion();
   limpiarError();
   lanzar(cargarCarta());
 });

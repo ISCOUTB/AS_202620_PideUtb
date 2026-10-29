@@ -4,854 +4,1159 @@
    obligaría a un build que no aporta nada a tres archivos.
 
    ===========================================================================
-   LA REGLA QUE GOBIERNA LA PALETA, Y POR QUÉ NO ES NEGOCIABLE
+   POR QUÉ ESTA PALETA Y NO LA DE LA UNIVERSIDAD
    ===========================================================================
 
-   Los tres colores son los de la Universidad Tecnológica de Bolívar, tomados
-   de su sitio. Pero **dos de los tres no pueden llevar texto**, y eso no es
-   una opinión de diseño: es su contraste medido contra blanco (WCAG 2.1).
+   Hasta la charla del 3 de noviembre esta hoja usaba los tres colores de la
+   Universidad Tecnológica de Bolívar, y lo decía con estas palabras: «no es
+   negociable». Se cambió a conciencia, y conviene dejar escrito qué se ganó y
+   qué se perdió.
 
-     azul   #093AD8   8,05:1   AAA  → texto, botones, enlaces
-     cian   #0FC5EF   2,05:1   ✗    insuficiente incluso para texto grande
-     verde  #71EC37   1,53:1   ✗    insuficiente
-     tinta  #0B1020  18,93:1   AAA  → el texto del cuerpo
+   **Lo que se perdió:** el azul institucional. Quien abra el sitio ya no ve a
+   la universidad en la pantalla, y en un proyecto académico eso es algo.
 
-   Sobre tinta oscura la relación se invierte y los dos pasan con holgura:
-   cian 9,24:1 y verde 12,40:1, los dos AAA. De ahí la regla:
+   **Por qué igual se cambió:** esto es una carta de comida que se abre con el
+   teléfono en la mano, a menudo con hambre. El azul corporativo sobre blanco
+   es el color de un trámite —de hecho el de la intranet— y la comida no se
+   vende desde un trámite. El fondo crema y la brasa son los de un asadero,
+   que es lo que El Asao es.
 
-     **El cian y el verde son colores de SUPERFICIE, nunca de TINTA.**
+   **Lo que NO cambió, porque era lo valioso:** la regla de medir. Cada color
+   de abajo lleva su relación de contraste real contra la superficie donde se
+   usa, y `backend/tests/test_contraste.py` las vuelve a calcular en cada
+   construcción. Antes eran comentarios que nadie verificaba, y uno ya estaba a
+   punto de mentir: `--verde-tinta` medía 4,81:1 contra blanco —el comentario
+   decía la verdad— pero contra este fondo crema cae a **4,48:1**, por debajo
+   del mínimo. Cambiar un fondo invalida en silencio los contrastes de todo lo
+   que va encima, y sin esa prueba nos lo habríamos llevado puesto.
 
-   Se usan como fondo de algo que lleva texto oscuro encima —una etiqueta de
-   estado, el recuadro del código de canje, una barra de acento— y jamás como
-   color de letra sobre blanco. Para los casos en que hace falta *letra* de
-   esos tonos existen las variantes oscurecidas (`--cian-tinta`, 6,03:1, y
-   `--verde-tinta`, 4,81:1), que es la única forma de usarlos legiblemente.
+   ===========================================================================
+   LA REGLA QUE SOBREVIVE A CUALQUIER PALETA
+   ===========================================================================
 
-   Aplicar la marca sin medir habría producido una página bonita en la captura
-   e ilegible en el mostrador, que es donde se usa con prisa y a contraluz. */
+   **Ningún color se usa como tinta sin haber medido su contraste contra la
+   superficie concreta donde cae.** No contra blanco «porque sí»: contra la que
+   tiene debajo. Un color puede pasar sobre papel y fallar sobre crema, y la
+   diferencia son cuatro centésimas que nadie ve hasta que alguien no puede
+   leer el precio al sol. */
+
+/* ===========================================================================
+   FUENTES
+   ===========================================================================
+
+   Servidas desde este mismo origen y no desde Google. No es purismo: el 3 de
+   noviembre doscientas personas van a abrir esto a la vez desde la red de un
+   auditorio, y una petición menos a un tercero es un punto menos donde la
+   demo se puede quedar sin tipografía delante del público.
+
+   Las dos son variables —un archivo cubre todos los pesos— y están recortadas
+   al subconjunto latino, que cubre el español entero. 115 KB las dos juntas.
+
+   `font-display: swap` para que el texto aparezca de inmediato con la fuente
+   del sistema y cambie cuando la nuestra llegue. En una demo en vivo, texto
+   feo al instante gana a texto bonito dentro de dos segundos.
+
+   Licencia: las dos son SIL Open Font License 1.1. Ver `fuentes/LEEME.md`. */
+
+@font-face {
+  font-family: "Fraunces";
+  src: url("fuentes/fraunces-latin.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("fuentes/inter-latin.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
-  /* --- Marca --------------------------------------------------------- */
-  --azul: #093ad8;
-  --azul-hundido: #0730ab;   /* Pulsado y hover: el mismo tono, más grave. */
-  --azul-niebla: #e8edfd;    /* Fondo de apoyo: el azul al 8 % sobre blanco. */
-  --cian: #0fc5ef;
-  --verde: #71ec37;
-  --cian-tinta: #086c83;     /* 6,03:1 sobre blanco — cuando hace falta letra. */
-  --verde-tinta: #3e811e;    /* 4,81:1 sobre blanco. */
-
-  /* --- Neutros -------------------------------------------------------- */
-  --tinta: #0b1020;
-  --tinta-media: #4a5365;    /* 7,73:1 sobre blanco — secundario y aun asi AAA. */
-  --tinta-tenue: #6b7486;    /* 4,70:1 — metadatos, nunca información esencial. */
+  /* --- Superficies ----------------------------------------------------
+     El crema es el fondo de la página; el papel, el de las tarjetas que se
+     levantan sobre él. Que el fondo NO sea blanco es lo que hace que una
+     tarjeta blanca se lea como tarjeta sin necesidad de un borde. */
+  --crema: #fbf6ef;
+  --crema-hundido: #f3ebe0;  /* Separadores y fondos de apoyo. */
   --papel: #ffffff;
-  --fondo: #f5f5f5;
-  --linea: #e3e6ec;
-  --linea-fuerte: #cfd4de;
 
-  /* --- Estados -------------------------------------------------------- */
-  --aviso: #9a5b00;          /* 4,98:1 sobre --aviso-fondo, que es donde se usa. */
-  --aviso-fondo: #fff4e0;
-  --error: #b3261e;          /* 5,72:1 sobre --error-fondo, que es donde se usa. */
+  /* --- Tinta ----------------------------------------------------------
+     Las tres relaciones son contra --crema, que es donde caen. */
+  --carbon: #1c1917;         /* 16,26:1 — el texto del cuerpo. */
+  --carbon-medio: #57514c;   /*  7,27:1 — secundario, y aun así AAA. */
+  --carbon-tenue: #6e6660;   /*  5,23:1 — metadatos, nunca lo esencial. */
+
+  /* --- Brasa, que es el color de la marca ahora ------------------------
+     --brasa lleva texto blanco encima (6,92:1) y además sirve de tinta sobre
+     crema (6,43:1). Es el único tono de la paleta que puede hacer las dos
+     cosas, y por eso es el primario.
+
+     --brasa-viva es más saturada y mide 4,82:1 sobre crema: pasa AA justo,
+     así que se reserva para superficies y acentos decorativos. No se usa para
+     texto pequeño. */
+  --brasa: #a3330a;
+  --brasa-viva: #c2410c;
+  --brasa-hundida: #7f2708;  /* Pulsado: el mismo tono, más grave. */
+  --brasa-niebla: #fdeee6;   /* La brasa al 8 % — fondos de apoyo. */
+
+  /* --- Ámbar, para lo que avisa sin ser un error ----------------------- */
+  --ambar: #92400a;          /* 7,09:1 con blanco encima. */
+  --ambar-niebla: #fdf0dc;
+
+  /* --- Verde, que es la seña de «ya podés recoger» ---------------------
+     Sobrevive al cambio de paleta porque es semántica, no decoración: es el
+     color del momento en que la comida está lista. Oscurecido respecto al
+     anterior porque el fondo dejó de ser blanco: 5,68:1 sobre crema, y 6,10:1
+     con blanco encima, que es como se usa en el billete del código. */
+  --verde-canje: #356f1a;
+  --verde-niebla: #eaf5e2;
+
+  /* --- Estados --------------------------------------------------------- */
+  --error: #b3261e;          /* 5,72:1 sobre --error-fondo. */
   --error-fondo: #fdecea;
 
-  /* --- Ritmo ----------------------------------------------------------
+  /* --- Líneas ---------------------------------------------------------- */
+  --linea: #e9ded0;
+  --linea-fuerte: #d6c6b2;
+
+  /* --- Tipografía ------------------------------------------------------
+     Fraunces es un serif de contraste suave, con la calidez que pide una
+     carta; Inter es la que se lee sin pensar. La regla es simple: **Fraunces
+     titula, Inter informa**. Un precio en serif se lee más despacio, y un
+     precio hay que leerlo rápido. */
+  --fuente-titulo: "Fraunces", Georgia, "Times New Roman", serif;
+  --fuente: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* --- Ritmo -----------------------------------------------------------
      Escala de 4 px. Que los espacios salgan de una escala y no de números
      sueltos es la diferencia entre una interfaz que respira y una que parece
      un formulario de pruebas. */
   --e1: 4px;  --e2: 8px;  --e3: 12px; --e4: 16px;
   --e5: 24px; --e6: 32px; --e7: 48px; --e8: 64px;
 
-  --radio: 12px;
-  --radio-chico: 8px;
+  /* Más redondeado que antes: es lo que separa una tarjeta de un recuadro. */
+  --radio: 18px;
+  --radio-chico: 12px;
   --radio-pildora: 999px;
 
-  /* --- Elevación ------------------------------------------------------
-     Dos niveles y nada más. Una sombra por componente convierte la jerarquía
-     en ruido. */
-  --sombra: 0 1px 2px rgb(11 16 32 / 6%), 0 2px 8px rgb(11 16 32 / 4%);
-  --sombra-alta: 0 4px 12px rgb(11 16 32 / 8%), 0 12px 32px rgb(11 16 32 / 8%);
+  /* --- Elevación -------------------------------------------------------
+     Teñida de marrón y no de negro. Una sombra gris sobre un fondo cálido se
+     ve sucia; la misma sombra con el tono del fondo se ve como sombra. */
+  --sombra: 0 1px 2px rgb(74 48 30 / 6%), 0 2px 10px rgb(74 48 30 / 5%);
+  --sombra-alta: 0 4px 14px rgb(74 48 30 / 10%), 0 14px 36px rgb(74 48 30 / 9%);
+  --sombra-nav: 0 -2px 16px rgb(74 48 30 / 10%);
 
-  --foco: 0 0 0 3px rgb(9 58 216 / 35%);
+  --foco: 0 0 0 3px rgb(163 51 10 / 38%);
+
+  /* Alto de la barra inferior, en una variable porque `main` tiene que
+     reservar exactamente ese espacio: si no coinciden, el último producto de
+     la carta queda debajo de la barra y nadie puede tocarlo. */
+  --alto-nav: 68px;
 }
 
-/* --- Un solo tema, y es el claro -------------------------------------------
-   Hubo un tema oscuro que seguía al del sistema. Se quitó.
-
-   La marca de la universidad es luminosa y la carta se mira casi siempre con
-   el teléfono en la mano, a menudo al sol: el claro es el que se lee. El
-   oscuro se heredaba del sistema sin que nadie lo eligiera, así que la misma
-   página se veía de dos maneras según el aparato — y una de las dos no se
-   había mirado nunca con cuidado.
-
-   Lo que esto cuesta: quien tiene el sistema en oscuro ve una página clara.
-   Es consciente. El historial de git conserva la paleta completa, con sus
-   contrastes medidos, por si alguna vez se decide volver. */
+/* ===========================================================================
+   BASE
+   =========================================================================== */
 
 *, *::before, *::after { box-sizing: border-box; }
 
+html {
+  /* El rebote del scroll en iOS deja ver el fondo del `html`, no el del
+     `body`. Sin esto, tirar hacia abajo en la carta enseña una franja blanca
+     por encima del crema. */
+  background: var(--crema);
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
-  padding: 0 var(--e4) var(--e8);
-  background: var(--fondo);
-  color: var(--tinta);
-  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  background: var(--crema);
+  color: var(--carbon);
+  font-family: var(--fuente);
+  font-size: 16px;
+  line-height: 1.55;
+  /* Dos ajustes que Inter trae y hay que pedir: las cifras de ancho fijo
+     evitan que un total «salte» al cambiar de 9 a 10, y el alisado fino
+     compensa que el texto oscuro sobre crema se ve más grueso de lo que es. */
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
 }
 
-header, main, footer { max-width: 720px; margin: 0 auto; }
+h1, h2, h3 {
+  font-family: var(--fuente-titulo);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  margin: 0;
+}
 
-/* --- Cabecera de marca ----------------------------------------------------
-   El filete de tres colores es lo único decorativo de la hoja, y se gana el
-   sitio: es lo que hace que la página se lea como «de la UTB» antes de leer
-   una sola palabra. Los tres tonos aparecen ahí, donde no tienen que sostener
-   texto, que es justo donde la paleta puede usarse entera. */
+h1 { font-size: clamp(1.75rem, 6vw, 2.25rem); }
+h2 { font-size: clamp(1.35rem, 4.5vw, 1.6rem); }
+h3 { font-size: 1.1rem; }
+
+p { margin: 0; }
+
+a { color: var(--brasa); }
+a:hover { color: var(--brasa-hundida); }
+
+:focus-visible {
+  outline: 2px solid var(--brasa);
+  outline-offset: 2px;
+  border-radius: var(--radio-chico);
+}
+
+.oculto { display: none !important; }
+
+.nota {
+  color: var(--carbon-tenue);
+  font-size: 0.875rem;
+}
+
+/* ===========================================================================
+   CAPARAZÓN
+   ===========================================================================
+
+   Encabezado arriba, contenido en medio, barra de navegación abajo y fija.
+   En móvil la barra inferior es la navegación; en escritorio desaparece y sus
+   acciones suben al encabezado, porque una barra pegada al borde inferior de
+   un monitor de 27" está lejos de todo. */
 
 header {
-  padding: var(--e6) 0 var(--e5);
-  position: relative;
+  padding: var(--e5) var(--e4) var(--e3);
+  max-width: 1100px;
+  margin: 0 auto;
 }
 
-header::after {
-  content: "";
-  position: absolute;
-  left: 0; right: 0; bottom: var(--e4);
-  height: 4px;
-  border-radius: var(--radio-pildora);
-  background: linear-gradient(90deg,
-    var(--azul) 0 42%, var(--cian) 42% 74%, var(--verde) 74% 100%);
-}
-
-h1 {
-  margin: 0;
-  font-size: clamp(1.9rem, 1.4rem + 2.2vw, 2.6rem);
-  font-weight: 800;
-  letter-spacing: -0.035em;
-  line-height: 1.05;
-  color: var(--azul);
+header h1 {
+  color: var(--brasa);
+  /* El punto final es de la marca, no del texto: separa «PideUTB» de un
+     título cualquiera sin necesitar un logotipo que no tenemos. */
 }
 
 .lema {
-  margin: var(--e2) 0 var(--e5);
-  color: var(--tinta-media);
-  font-size: 1.02rem;
+  color: var(--carbon-medio);
+  margin-top: var(--e1);
 }
 
-h2 {
-  font-size: 1.5rem; font-weight: 750;
-  letter-spacing: -0.02em;
-  margin: var(--e6) 0 var(--e4);
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 var(--e4);
+  /* El espacio de la barra inferior más el área segura del teléfono (la franja
+     del gesto de inicio en los iPhone sin botón). Sin `env()`, el último
+     producto queda bajo la barra del sistema. */
+  padding-bottom: calc(var(--alto-nav) + var(--e6) + env(safe-area-inset-bottom, 0px));
 }
 
-h3 {
-  font-size: 1.08rem; font-weight: 700;
-  letter-spacing: -0.01em;
-  margin: var(--e5) 0 var(--e3);
+footer {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--e6) var(--e4);
+  padding-bottom: calc(var(--alto-nav) + var(--e6) + env(safe-area-inset-bottom, 0px));
+  color: var(--carbon-tenue);
+  font-size: 0.875rem;
+  display: grid;
+  gap: var(--e2);
 }
 
-/* Solo una pantalla visible a la vez. */
+/* --- Pantallas ------------------------------------------------------------
+   Una sola está activa. `display: none` y no `visibility` para que lo oculto
+   no reciba el foco del tabulador: una pantalla invisible pero tabulable es
+   una trampa para quien navega con teclado. */
 .pantalla { display: none; }
-.pantalla.activa { display: block; animation: entrar 0.22s ease-out; }
-.oculto { display: none !important; }
+.pantalla.activa { display: block; animation: entrar 0.25s ease-out; }
 
 @keyframes entrar {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: none; }
 }
 
-/* --- Carta ---------------------------------------------------------------
-   Cada ítem es una tarjeta con elevación en vez de un borde: la sombra separa
-   del fondo sin dibujar una caja, y la lista deja de parecer una tabla. */
+/* ===========================================================================
+   BARRA INFERIOR
+   ===========================================================================
 
-.items { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--e3); }
+   Tres destinos, y los tres hacen algo. Las referencias que inspiran este
+   rediseño llevan cinco —inicio, menú, ofertas, perfil, pedido— porque son
+   aplicaciones con cinco secciones. Esta tiene una carta, un carrito y un
+   código, y poner dos pestañas más que no llevan a ninguna parte sería
+   prometer una aplicación que no existe. Ya pasó en este proyecto con unos
+   `role="radio"` que anunciaban un grupo de radios sin que las flechas
+   funcionaran; la lección fue la misma.
 
-.item {
-  display: flex; align-items: center; gap: var(--e4);
-  padding: var(--e4) var(--e4) var(--e4) var(--e5);
+   El botón central va elevado porque es la acción, no un destino. */
+
+.nav-inferior {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--e2);
+  padding: var(--e2) var(--e4);
+  padding-bottom: calc(var(--e2) + env(safe-area-inset-bottom, 0px));
   background: var(--papel);
-  border-radius: var(--radio);
-  box-shadow: var(--sombra);
-  position: relative; overflow: hidden;
-  transition: box-shadow 0.18s ease, transform 0.18s ease;
+  border-top: 1px solid var(--linea);
+  box-shadow: var(--sombra-nav);
 }
 
-/* Filete de acento a la izquierda. Es el gesto que hace que una lista de
-   tarjetas se lea como producto y no como salida de un endpoint. */
-.item::before {
-  content: "";
-  position: absolute; left: 0; top: 0; bottom: 0;
-  width: 4px; background: var(--cian);
+.nav-boton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  /* 44 px es el mínimo táctil de las guías de accesibilidad, y acá no es un
+     número de cumplimiento: esta barra se toca con el pulgar, de pie y con la
+     otra mano ocupada. */
+  min-height: 44px;
+  padding: var(--e1) var(--e2);
+  /* `width: auto` contra la regla base de `button`, que pone el 100 %: en la
+     rejilla del móvil daba igual porque la celda manda, pero en la fila del
+     escritorio los tres botones se estiraban a 344 px cada uno. */
+  width: auto;
+  border: 0;
+  border-radius: var(--radio-chico);
+  background: transparent;
+  color: var(--carbon-tenue);
+  font-family: var(--fuente);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
 }
 
-.item:hover { box-shadow: var(--sombra-alta); transform: translateY(-1px); }
+.nav-boton:hover:not(:disabled) { background: var(--crema-hundido); }
+.nav-boton[aria-current="page"] { color: var(--brasa); }
 
-.item-datos { flex: 1; min-width: 0; }
-
-.item-nombre {
-  font-weight: 650; font-size: 1.05rem;
-  letter-spacing: -0.01em;
+.nav-boton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
-.item-precio {
-  color: var(--tinta-media);
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
-  margin-top: 2px;
+.nav-icono {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-/* El agotado sigue siendo una tarjeta: pierde la elevacion y el color del
-   filete, no la forma. Sin fondo propio se leia como un hueco en la lista en
-   vez de como un plato que hoy no hay. */
-.item.agotado {
-  box-shadow: none;
-  background: var(--papel);
-  border: 1px solid var(--linea);
-}
-.item.agotado::before { background: var(--linea-fuerte); }
-.item.agotado .item-nombre { color: var(--tinta-tenue); }
-.item.agotado:hover { box-shadow: none; transform: none; }
-
-.etiqueta-agotado {
-  font-size: 0.78rem; font-weight: 650;
-  letter-spacing: 0.02em; text-transform: uppercase;
-  color: var(--aviso); background: var(--aviso-fondo);
+/* --- El botón central -----------------------------------------------------
+   Lleva el total encima: en una carta, el número que importa mientras se
+   elige es cuánto llevás gastado. */
+.nav-carrito {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: auto;
+  min-width: 112px;
+  min-height: 56px;
+  margin-top: -18px;
+  padding: var(--e2) var(--e4);
+  border: 3px solid var(--crema);
   border-radius: var(--radio-pildora);
-  padding: var(--e1) var(--e3);
-  white-space: nowrap;
+  background: var(--brasa);
+  color: #fff;
+  font-family: var(--fuente);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--sombra-alta);
+  transition: transform 0.12s ease, background 0.15s ease;
 }
 
-/* --- Filtro por categoría -------------------------------------------------
-   Pastillas en una fila que se desplaza. En móvil son más anchas que la
-   pantalla a propósito: el corte en el borde derecho es lo que le dice a
-   alguien que hay más a la derecha. Ocultarlo con `wrap` convertiría dos
-   categorías en dos filas y perdería esa señal. */
+.nav-carrito:hover:not(:disabled) { background: var(--brasa-hundida); }
+.nav-carrito:active:not(:disabled) { transform: scale(0.96); }
+
+.nav-carrito:disabled {
+  background: var(--crema-hundido);
+  color: var(--carbon-tenue);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.nav-carrito-etiqueta { font-size: 0.95rem; line-height: 1.2; }
+.nav-carrito-total { font-size: 0.75rem; font-weight: 500; opacity: 0.9; }
+
+/* La chapa con la cantidad. `aria-hidden` en el marcado: el número ya se
+   anuncia en el texto del botón, y leerlo dos veces estorba. */
+.nav-chapa {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--radio-pildora);
+  background: var(--carbon);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+}
+
+/* Un salto cuando el número cambia: confirma que el toque hizo algo sin
+   necesidad de un mensaje. */
+.nav-chapa.salta { animation: saltar 0.3s ease-out; }
+
+@keyframes saltar {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+/* ===========================================================================
+   BOTONES
+   ===========================================================================
+
+   La forma y el color van en reglas separadas, y eso es la cicatriz de un
+   fallo: cuando el `border` iba en la regua compartida, las pastillas de
+   método de pago heredaban su color de borde y se pintaban azules enteras. El
+   atajo `border` pisa `border-color`, así que acá se declaran `border-width` y
+   `border-style` por un lado y el color por otro. */
+
+button,
+.boton,
+.metodos label.metodo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--e2);
+  min-height: 48px;
+  padding: var(--e3) var(--e5);
+  border-width: 1.5px;
+  border-style: solid;
+  border-radius: var(--radio-pildora);
+  font-family: var(--fuente);
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.12s ease, border-color 0.15s ease;
+}
+
+button, .boton {
+  width: 100%;
+  background: var(--brasa);
+  color: #fff;
+  border-color: transparent;
+}
+
+button:hover:not(:disabled), .boton:hover { background: var(--brasa-hundida); color: #fff; }
+button:active:not(:disabled) { transform: scale(0.985); }
+
+button:disabled {
+  background: var(--crema-hundido);
+  color: var(--carbon-tenue);
+  cursor: not-allowed;
+}
+
+button.secundario {
+  background: transparent;
+  color: var(--brasa);
+  border-color: var(--linea-fuerte);
+}
+
+button.secundario:hover:not(:disabled) {
+  background: var(--brasa-niebla);
+  color: var(--brasa-hundida);
+  border-color: var(--brasa);
+}
+
+/* Los botones de pantalla van apilados con aire; los de dentro de una tarjeta
+   no, porque ahí mandan sus propias reglas. */
+.pantalla > button, .pantalla > .boton { margin-top: var(--e3); }
+
+/* ===========================================================================
+   CATEGORÍAS
+   =========================================================================== */
 
 .categorias {
   display: flex;
   gap: var(--e2);
+  margin: var(--e4) 0;
+  padding-bottom: var(--e2);
   overflow-x: auto;
-  padding: var(--e1) 0 var(--e3);
-  margin-bottom: var(--e2);
+  /* Que la fila se pueda arrastrar y se detenga en cada pastilla, como en una
+     aplicación. */
+  scroll-snap-type: x proximity;
   scrollbar-width: none;
 }
+
 .categorias::-webkit-scrollbar { display: none; }
 
 .categoria {
-  flex: none;
-  min-height: 40px;
+  width: auto;
+  flex: 0 0 auto;
+  min-height: 44px;
   padding: var(--e2) var(--e4);
-  border-radius: var(--radio-pildora);
-  border: 1.5px solid var(--linea-fuerte);
   background: var(--papel);
-  color: var(--tinta-media);
-  font-weight: 600;
-  white-space: nowrap;
+  color: var(--carbon-medio);
+  border-color: var(--linea);
+  font-size: 0.9rem;
+  font-weight: 500;
+  scroll-snap-align: start;
+}
+
+.categoria:hover:not(:disabled) {
+  background: var(--brasa-niebla);
+  color: var(--brasa);
+  border-color: var(--brasa);
 }
 
 .categoria[aria-pressed="true"] {
-  background: var(--azul);
-  border-color: var(--azul);
+  background: var(--brasa);
   color: #fff;
+  border-color: var(--brasa);
 }
 
-/* --- Tarjeta de producto, con foto ----------------------------------------
-   La foto va a la izquierda y no arriba: en una lista vertical de productos,
-   una imagen a todo lo ancho empuja el precio fuera de la pantalla y obliga a
-   desplazarse para comparar dos cosas. */
+/* ===========================================================================
+   LA CARTA
+   =========================================================================== */
 
-.item.producto { padding: var(--e3) var(--e4) var(--e3) var(--e4); }
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--e3);
+}
 
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  padding: var(--e3);
+  background: var(--papel);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.catalogo .item.producto:hover { box-shadow: var(--sombra-alta); transform: translateY(-2px); }
+
+.item.agotado { opacity: 0.6; box-shadow: none; }
+.item.agotado:hover { transform: none; }
+
+/* --- La foto, y qué pasa mientras no hay fotos ----------------------------
+   El hueco es cuadrado y se reserva siempre, con foto o sin ella: si
+   apareciera solo cuando hay imagen, el día que lleguen las fotos la carta
+   entera cambiaría de forma.
+
+   Sin foto se pinta la inicial sobre un fondo cálido. No es un marcador de
+   posición gris esperando que alguien haga su trabajo: es una carta que se
+   sostiene sola y que mejora cuando lleguen las imágenes. */
 .item-foto {
-  flex: none;
-  width: 64px; height: 64px;
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
   border-radius: var(--radio-chico);
   overflow: hidden;
-  background: var(--fondo);
+  background: var(--brasa-niebla);
+  display: grid;
+  place-items: center;
 }
 
 .item-foto img {
-  width: 100%; height: 100%;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   display: block;
 }
 
-/* Marcador mientras el producto no tiene foto. Es deliberado que se vea como
-   una pieza del sistema y no como una imagen rota: la inicial sobre el azul
-   de apoyo dice «todavía no hay foto», no «esto falló». */
 .item-foto.sin-foto {
-  display: grid;
-  place-items: center;
-  background: var(--azul-niebla);
-  color: var(--azul);
-  font-size: 1.6rem;
-  font-weight: 800;
+  color: var(--brasa);
+  font-family: var(--fuente-titulo);
+  font-size: 1.75rem;
+  font-weight: 600;
 }
 
-/* --- Precio en promoción ---------------------------------------------------
-   El tachado NO es la señal: es el refuerzo. Lo que dice que hay promoción es
-   que aparezca una segunda cifra y una línea de texto con la hora, porque un
-   tachado fino se pierde en una pantalla al sol — que es donde se usa esto. */
+.item-datos { flex: 1 1 auto; min-width: 0; }
 
-.precio-antes {
-  color: var(--tinta-tenue);
-  font-weight: 500;
-  text-decoration-thickness: 1.5px;
-}
-
-.precio-promo { color: var(--verde-tinta); }
-
-/* En bloque y no al lado: en 375 px, junto al precio empujaba el nombre otra
-   línea hacia abajo. */
-.promo-hasta {
-  display: block;
-  margin-top: 2px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  color: var(--verde-tinta);
+.item-nombre {
+  font-weight: 600;
+  line-height: 1.3;
+  /* Sin recorte: un nombre de producto cortado con puntos suspensivos obliga
+     a tocarlo para saber qué es, y acá no hay nada que tocar. */
 }
 
 .item-descripcion {
-  color: var(--tinta-tenue);
-  font-size: 0.9rem;
+  color: var(--carbon-tenue);
+  font-size: 0.875rem;
   margin-top: 2px;
 }
 
-/* --- Control de cantidad --------------------------------------------------
-   Los tres controles ocupan el mismo sitio que ocupaba «Agregar», para que la
-   acción siguiente esté siempre donde estaba la anterior. */
+.item-precio {
+  margin-top: var(--e1);
+  font-weight: 600;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--e2);
+}
+
+.precio-antes {
+  color: var(--carbon-tenue);
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.precio-promo { color: var(--brasa); }
+
+/* La franja de la promoción, que solo existe de 2:30 a 3:30. */
+.promo-hasta {
+  padding: 2px var(--e2);
+  border-radius: var(--radio-pildora);
+  background: var(--ambar-niebla);
+  color: var(--ambar);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.etiqueta-agotado {
+  display: inline-block;
+  margin-top: var(--e1);
+  padding: 2px var(--e2);
+  border-radius: var(--radio-pildora);
+  background: var(--crema-hundido);
+  color: var(--carbon-medio);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* --- Añadir, y la cantidad cuando ya hay algo ---------------------------- */
+
+.agregar {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  flex: 0 0 auto;
+  font-size: 1.4rem;
+  font-weight: 500;
+  line-height: 1;
+}
 
 .cantidad {
   display: flex;
   align-items: center;
   gap: var(--e1);
-  flex: none;
+  flex: 0 0 auto;
 }
 
-/* Los tres controles mantienen los 44 px de alto que pide un objetivo táctil,
-   y ahorran ancho en la holgura horizontal, no en el alto. */
-.cantidad button,
-.agregar {
-  flex: none;
-  min-height: 44px;
-  min-width: 44px;
+.cantidad button {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
   padding: 0;
-  font-size: 1.25rem;
-  line-height: 1;
+  font-size: 1.1rem;
 }
 
 .cantidad-valor {
-  min-width: 1.4rem;
+  min-width: 28px;
   text-align: center;
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
 }
 
-/* Solo en pantalla estrecha, el control de cantidad baja a su propia fila.
-   Está medido, no elegido: en una pantalla de 375 px la fila deja 343 px, y el
-   grupo −/n/+ ocupa 118. Al nombre le quedan 97, y solo tres de los diez
-   productos de la carta caben en eso: el resto parte en dos líneas justo
-   después de tocarlos. El «+» solo ocupa 44 px y deja 171, que los acepta
-   todos, así que inline se queda mientras no haya cantidad.
+/* ===========================================================================
+   ESQUELETOS
+   ===========================================================================
 
-   La tarjeta crece al agregar. Es un movimiento en la tarjeta que se acaba de
-   tocar —donde ya está la mirada— y no una recolocación de la lista entera.
+   Lo que se ve mientras la carta viaja. Un esqueleto no es decoración: evita
+   el salto de la página cuando llegan los datos, porque ocupa el mismo sitio
+   que van a ocupar. Son tres y no diez — con el teléfono en la mano se ven
+   tres tarjetas, y fingir diez solo para rellenar es mentirle a quien espera
+   sobre cuánto falta. */
 
-   El corte es el mismo 520 px que ya usa el resto de la hoja. Las cuentas dan
-   443 px, pero un segundo punto de ruptura a 77 px del primero cuesta más de
-   mantener de lo que ahorra. Por encima, el control cabe al lado y bajarlo
-   solo dejaría un hueco. */
-@media (max-width: 520px) {
-  .item.producto:has(.cantidad) { flex-wrap: wrap; }
-
-  .item.producto .cantidad {
-    flex-basis: 100%;
-    justify-content: flex-end;
-  }
-}
-
-/* --- Barra del carrito ----------------------------------------------------
-   Fija abajo porque es el único sitio donde el pulgar llega sin recolocar la
-   mano, y porque acompaña mientras se recorre la carta. Desaparece con el
-   carrito vacío en vez de quedarse diciendo «0 productos». */
-
-.barra-carrito {
-  position: fixed;
-  left: 0; right: 0; bottom: 0;
-  z-index: 10;
+.esqueleto {
   display: flex;
   align-items: center;
-  gap: var(--e4);
-  /* El fondo llega de borde a borde —una barra fija recortada se ve como un
-     error— pero lo que lleva dentro se alinea con la columna de 720 px del
-     resto de la página. Sin esto, en un monitor la cuenta queda en un extremo
-     y el botón en el otro, a 1.200 px de distancia. */
-  padding: var(--e3) max(var(--e4), calc((100% - 720px) / 2));
-  padding-bottom: calc(var(--e3) + env(safe-area-inset-bottom, 0px));
+  gap: var(--e3);
+  padding: var(--e3);
   background: var(--papel);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+}
+
+.esqueleto-foto,
+.esqueleto-linea {
+  background: linear-gradient(
+    90deg,
+    var(--crema-hundido) 25%,
+    var(--crema) 50%,
+    var(--crema-hundido) 75%
+  );
+  background-size: 200% 100%;
+  animation: brillo 1.4s ease-in-out infinite;
+  border-radius: var(--radio-chico);
+}
+
+.esqueleto-foto { flex: 0 0 auto; width: 72px; height: 72px; }
+.esqueleto-datos { flex: 1 1 auto; display: grid; gap: var(--e2); }
+.esqueleto-linea { height: 12px; border-radius: var(--radio-pildora); }
+.esqueleto-linea.corta { width: 40%; }
+.esqueleto-linea.media { width: 70%; }
+
+@keyframes brillo {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+/* ===========================================================================
+   TU PEDIDO
+   =========================================================================== */
+
+.lineas .item { box-shadow: none; }
+
+.resumen {
+  margin: var(--e4) 0;
+  padding: var(--e4);
+  background: var(--papel);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--e2) var(--e4);
+}
+
+.resumen dt { color: var(--carbon-medio); }
+.resumen dd { margin: 0; text-align: right; font-weight: 500; }
+
+.resumen dt.total,
+.resumen dd.total {
+  padding-top: var(--e3);
   border-top: 1px solid var(--linea);
-  box-shadow: 0 -4px 16px rgb(11 16 32 / 8%);
-  animation: subir 0.18s ease-out;
-}
-
-@keyframes subir {
-  from { transform: translateY(100%); }
-  to   { transform: none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .barra-carrito { animation: none; }
-}
-
-.barra-carrito-datos {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.carrito-total {
+  font-family: var(--fuente-titulo);
   font-size: 1.15rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--carbon);
 }
 
-/* El contenido deja sitio para la barra: sin esto, el último producto de la
-   carta queda debajo de ella y no se puede pulsar. */
-body:has(.barra-carrito:not(.oculto)) { padding-bottom: 104px; }
+/* --- Métodos de pago ------------------------------------------------------
+   Los radios de verdad se esconden sin quitarlos del árbol de accesibilidad:
+   `display: none` los sacaría del tabulador y de los lectores de pantalla, y
+   entonces las flechas dejarían de mover la selección, que es justo lo que
+   estos inputs vinieron a arreglar. */
 
-/* --- Método de pago ------------------------------------------------------
-   Los métodos pasaron de botones que cobraban a opciones que se marcan, y el
-   aspecto tenía que seguir al cambio.
-
-   El elegido se distingue por relleno **y** por borde **y** por una marca, no
-   solo por color: el propio `<input type="radio">` lo dice a quien usa lector
-   de pantalla, el borde a quien no distingue tonos, y el ✓ a quien mira de
-   lejos. */
-
-/* En azul macizo los tres parecían tres formas de pagar ya, y pesaban más que
-   «Pagar», que es la acción de verdad. Sin relleno son lo que son —tres
-   casillas— y el único botón macizo de la pantalla es el que cobra. */
-.metodo {
-  background: var(--papel);
-  color: var(--tinta);
-  border-color: var(--linea-fuerte);
-}
-
-/* Sin `:not(:disabled)`: una etiqueta nunca está deshabilitada, así que ahí
-   la condición era siempre cierta y hacía creer que había un estado que no
-   existe. */
-.metodo:hover {
-  background: var(--azul-niebla);
-  border-color: var(--azul);
-}
-
-/* Cobrar ocupa el ancho entero: es la acción de la pantalla, y con ancho
-   automático quedaba más estrecha que las tres opciones que tiene encima.
-   Reintentar tras un rechazo es la misma acción y lleva el mismo peso. */
-#pagar,
-#reintentar-pago { width: 100%; margin-top: var(--e4); }
-
-/* Lo marca `:checked`, no una clase que ponga JavaScript. Es el estado real
-   del control: no se puede quedar desincronizado con lo que el navegador
-   cree. */
-.metodos input[type="radio"]:checked + label.metodo {
-  background: var(--azul-niebla);
-  border-color: var(--azul);
-  color: var(--azul);
-}
-
-.metodos input[type="radio"]:checked + label.metodo::before {
-  content: "\2713\00a0";
-  font-weight: 800;
-}
-
-/* --- Botones -------------------------------------------------------------
-   48 px de alto mínimo: el cliente pide de pie y el mostrador con una mano.
-   Es la medida táctil cómoda, no la mínima de 44. */
-
-/* La **forma** de un botón. `label.metodo` entra aquí y no copia las reglas:
-   es un botón a la vista aunque no lo sea en el marcado. Lo que lo hace
-   accesible es el `<input>` que tiene al lado, no su aspecto. */
-button,
-.metodos label.metodo {
-  font: inherit; font-weight: 650; cursor: pointer;
-  letter-spacing: -0.01em;
-  min-height: 48px;
-  padding: var(--e3) var(--e5);
-  border-radius: var(--radio-chico);
-  /* `border-width` y `border-style`, no el atajo `border`: el atajo fija
-     también el color, y entonces el borde de `.metodo` —que está más arriba en
-     la hoja y con menos especificidad— no llegaba a aplicarse nunca. */
-  border-width: 1.5px;
-  border-style: solid;
-  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.08s ease;
-}
-
-/* El **color**, solo para los botones de verdad. Separado de la forma a
-   propósito: los métodos de pago son casillas y no acciones, así que se llevan
-   la forma y no el azul macizo. Con todo junto arriba, el relleno le ganaba por
-   especificidad a `.metodo` y las tres salían azules. */
-button {
-  background: var(--azul); color: #fff;
-  border-color: transparent;
-}
-
-button:hover:not(:disabled) { background: var(--azul-hundido); }
-button:active:not(:disabled) { transform: translateY(1px); }
-.metodos label.metodo:active { transform: translateY(1px); }
-button:disabled { opacity: 0.45; cursor: not-allowed; }
-
-button:focus-visible {
-  outline: none;
-  box-shadow: var(--foco);
-}
-
-/* Un enlace que actúa como botón.
-   Sigue siendo `<a>` y no `<button>` porque **navega**: con un botón se
-   perdería abrir en otra pestaña, el menú contextual y el teclado medio del
-   navegador. Lo que se copia es el aspecto, no la semántica. */
-.boton {
-  display: block;
-  width: 100%;
-  margin-top: var(--e5);
-  padding: var(--e3) var(--e5);
-  min-height: 48px;
-  box-sizing: border-box;
-  text-align: center;
-  text-decoration: none;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  line-height: 24px;
-  border-radius: var(--radio-chico);
-  border: 1.5px solid transparent;
-  background: var(--azul); color: #fff;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
-}
-
-.boton:hover { background: var(--azul-hundido); }
-
-.boton:focus-visible {
-  outline: none;
-  box-shadow: var(--foco);
-}
-
-.secundario {
-  background: transparent; color: var(--azul);
-  border-color: var(--linea-fuerte);
-  margin-top: var(--e5);
-}
-.secundario:hover:not(:disabled) {
-  background: var(--azul-niebla);
-  border-color: var(--azul);
-}
-
-/* Base de 12rem y no de 10: con 10 los dos botones entraban a la fuerza en
-   375 px y «Pagar con Nequi» partia en dos lineas junto a uno de una sola.
-   Con 12 no caben, se apilan a ancho completo, y cada uno se lee de un
-   vistazo — que es lo que hace falta en la pantalla de pagar. */
-/* El `<fieldset>` pierde su borde y su relleno: aquí agrupa, no encuadra. */
 .metodos {
-  border: 0;
-  padding: 0;
   margin: var(--e5) 0 0;
-  min-inline-size: 0;   /* sin esto, un fieldset no encoge por debajo de su contenido */
+  padding: 0;
+  border: 0;
 }
 
-/* El legend hace de encabezado: es el mismo texto que llevaba el `<h3>`. */
 .metodos legend {
-  padding: 0;
-  font-size: 1.05rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--tinta);
+  padding: 0 0 var(--e3);
+  font-family: var(--fuente-titulo);
+  font-size: 1.1rem;
+  font-weight: 600;
 }
 
 .metodos-opciones {
-  display: flex;
-  gap: var(--e3);
-  flex-wrap: wrap;
-  margin-top: var(--e4);
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--e2);
 }
 
-.metodos label.metodo {
-  flex: 1 1 12rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-}
-
-/* El input real sigue en la página: es lo que da las flechas, el anuncio
-   «1 de 3» y el agrupamiento. Se esconde a la vista y **no** al teclado ni al
-   lector de pantalla — `display: none` lo sacaría de los dos, que es la forma
-   habitual de romper esto sin notarlo. */
 .metodos input[type="radio"] {
   position: absolute;
-  width: 1px; height: 1px;
-  margin: -1px; padding: 0;
-  border: 0;
-  overflow: hidden;
+  width: 1px;
+  height: 1px;
   clip-path: inset(50%);
+  overflow: hidden;
   white-space: nowrap;
 }
 
-/* El foco se ve en la pastilla, porque el input no se ve. Sin esto, recorrer
-   los métodos con el teclado no muestra dónde estás. */
+.metodos label.metodo {
+  width: 100%;
+  padding: var(--e3) var(--e2);
+  background: var(--papel);
+  color: var(--carbon-medio);
+  border-color: var(--linea);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.metodos label.metodo:hover {
+  border-color: var(--brasa);
+  color: var(--brasa);
+}
+
+.metodos input[type="radio"]:checked + label.metodo {
+  background: var(--brasa-niebla);
+  color: var(--brasa);
+  border-color: var(--brasa);
+  font-weight: 600;
+}
+
 .metodos input[type="radio"]:focus-visible + label.metodo {
   box-shadow: var(--foco);
+  border-color: var(--brasa);
 }
 
-/* --- Resumen del pedido --------------------------------------------------- */
+/* ===========================================================================
+   ESPERA Y RESULTADO
+   =========================================================================== */
 
-.resumen {
-  margin: 0; padding: var(--e5);
-  background: var(--papel);
-  border-radius: var(--radio);
-  box-shadow: var(--sombra);
-  display: grid; grid-template-columns: auto 1fr; gap: var(--e2) 0;
+.cargando {
+  display: grid;
+  justify-items: center;
+  gap: var(--e3);
+  padding: var(--e7) var(--e4);
+  text-align: center;
 }
-/* La separación entre las dos columnas es relleno de la etiqueta y no `gap` a
-   propósito: con `gap`, la línea que separa el total se dibujaba en dos
-   trozos, uno por celda, con el hueco a la vista en medio. */
-.resumen dt { color: var(--tinta-media); padding-right: var(--e5); }
-.resumen dd {
-  margin: 0; text-align: right;
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
-}
-
-/* El total se separa con una línea y crece: es la cifra que se mira antes de
-   pagar, y debe encontrarse sin leer las demás. */
-.resumen .total {
-  font-weight: 800; font-size: 1.25rem;
-  letter-spacing: -0.02em;
-  padding-top: var(--e3);
-  border-top: 1px solid var(--linea);
-}
-.resumen dt.total { color: var(--tinta); }
-
-/* Cuando el total es la única fila —el carrito, donde los productos ya están
-   listados arriba en su propia lista— no hay nada de lo que separarlo. */
-.resumen dt.total:first-child,
-.resumen dt.total:first-child + dd.total {
-  padding-top: 0;
-  border-top: none;
-}
-
-/* --- Espera --------------------------------------------------------------- */
-
-.cargando { text-align: center; padding: var(--e8) 0 var(--e2); }
 
 .girando {
-  width: 38px; height: 38px; margin: 0 auto var(--e5);
-  border: 3px solid var(--linea);
-  border-top-color: var(--azul);
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--crema-hundido);
+  border-top-color: var(--brasa);
   border-radius: 50%;
   animation: girar 0.9s linear infinite;
 }
+
 @keyframes girar { to { transform: rotate(360deg); } }
 
-/* Respeta a quien pidió menos movimiento en su sistema. */
-@media (prefers-reduced-motion: reduce) {
-  .girando { animation-duration: 3s; }
-  .pantalla.activa { animation: none; }
-  .item:hover { transform: none; }
-  button:active:not(:disabled) { transform: none; }
-}
-
-.nota { color: var(--tinta-tenue); font-size: 0.9rem; }
-
-/* --- Código de canje -----------------------------------------------------
-   Es el momento alto de la aplicación: lo que el cliente enseña para recoger
-   su comida. Se trata como un billete —superficie verde, tinta oscura, borde
-   troquelado— y es el sitio donde el verde de la marca puede usarse entero,
-   porque ahí es fondo y no letra. */
-
-.codigo-canje {
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: clamp(2rem, 1.2rem + 3.6vw, 2.9rem);
-  font-weight: 700;
-  letter-spacing: 0.22em; text-indent: 0.22em;
-  text-align: center;
-  padding: var(--e6) var(--e4);
-  color: var(--tinta);
-  background: var(--verde);
-  border-radius: var(--radio);
-  margin: var(--e5) 0;
-  box-shadow: var(--sombra);
-  position: relative;
-}
-
-/* Las dos muescas laterales del billete. Decorativas y baratas: dos radiales
-   del color del fondo. */
-.codigo-canje::before,
-.codigo-canje::after {
-  content: "";
-  position: absolute; top: 50%; transform: translateY(-50%);
-  width: 20px; height: 20px; border-radius: 50%;
-  background: var(--fondo);
-}
-.codigo-canje::before { left: -10px; }
-.codigo-canje::after  { right: -10px; }
-
-
-/* --- Estados -------------------------------------------------------------- */
-
 .estado-linea {
-  display: flex; align-items: center; gap: var(--e3);
-  margin: var(--e3) 0;
+  display: flex;
+  /* Arriba y no centrado: con un texto de dos o tres líneas, un punto centrado
+     verticalmente queda junto a la línea de en medio y parece una viñeta
+     perdida. Pegado a la primera línea se lee como lo que es, el indicador del
+     estado. */
+  align-items: flex-start;
+  gap: var(--e2);
   padding: var(--e3) var(--e4);
   background: var(--papel);
-  border-radius: var(--radio-chico);
-  box-shadow: var(--sombra);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  margin-bottom: var(--e3);
 }
 
 .punto {
-  width: 10px; height: 10px; border-radius: 50%; flex: none;
-  box-shadow: 0 0 0 4px rgb(11 16 32 / 5%);
-}
-.punto.ok     { background: var(--verde-tinta); }
-.punto.espera { background: var(--cian); }
-.punto.mal    { background: var(--error); }
-
-/* El punto de espera late, para distinguir «esperando» de «terminado» sin
-   depender del color — que es lo que no ve quien no distingue tonos. */
-.punto.espera { animation: latir 1.6s ease-in-out infinite; }
-@keyframes latir {
-  50% { box-shadow: 0 0 0 7px rgb(15 197 239 / 22%); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .punto.espera { animation: none; }
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  /* Lo centra en la altura de la primera línea de texto: (1,55 × 16 − 10) / 2.
+     Sin esto queda pegado al borde superior del párrafo. */
+  margin-top: 7px;
+  border-radius: 50%;
+  background: var(--carbon-tenue);
 }
 
-/* --- Error ---------------------------------------------------------------- */
+.punto.bien { background: var(--verde-canje); }
+.punto.espera { background: var(--ambar); }
+.punto.mal { background: var(--error); }
+
+/* --- El billete del código ------------------------------------------------
+   Es el final del recorrido y lo que alguien enseña en el mostrador, así que
+   es lo más grande de la pantalla. Las cifras van separadas porque se dictan
+   en voz alta por encima del ruido de una freidora.
+
+   En la charla, además, esto es lo que se proyecta: tiene que leerse desde la
+   última fila. */
+.codigo-canje {
+  margin: var(--e4) 0;
+  padding: var(--e5) var(--e4);
+  background: var(--verde-canje);
+  color: #fff;
+  border-radius: var(--radio);
+  text-align: center;
+  font-family: var(--fuente-titulo);
+  font-size: clamp(2.25rem, 13vw, 3.5rem);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  /* La letra va centrada pese al espaciado: sin esto, el `letter-spacing`
+     añade un hueco detrás del último carácter y el conjunto se ve corrido
+     hacia la izquierda. */
+  text-indent: 0.14em;
+  box-shadow: var(--sombra-alta);
+}
+
+/* ===========================================================================
+   ERRORES
+   =========================================================================== */
 
 .error {
-  margin: var(--e5) 0; padding: var(--e4) var(--e5);
-  border-radius: var(--radio-chico);
-  border-left: 4px solid var(--error);
+  margin: var(--e4) 0;
+  padding: var(--e4);
   background: var(--error-fondo);
+  border: 1px solid var(--error);
+  border-radius: var(--radio);
   color: var(--error);
   font-weight: 500;
 }
 
-/* --- Pie ------------------------------------------------------------------ */
+/* ===========================================================================
+   FORMULARIOS Y PANEL DEL MOSTRADOR
+   ===========================================================================
 
-footer {
-  margin-top: var(--e8); padding-top: var(--e5);
-  border-top: 1px solid var(--linea);
-  color: var(--tinta-tenue); font-size: 0.9rem;
-}
-footer a { color: var(--azul); text-underline-offset: 3px; }
+   El mostrador comparte hoja con la vista del cliente a propósito: son la
+   misma aplicación desplegada, y dos hojas separadas harían que los colores se
+   separaran al primer cambio.
 
-/* --- Panel del mostrador -------------------------------------------------
-   Comparte hoja con la vista del cliente a propósito: son la misma aplicación
-   desplegada, y dos hojas separadas harían que los colores se separaran al
-   primer cambio. */
+   Lo que NO comparte es la barra inferior. El panel no navega entre pantallas
+   —o estás dentro o estás fuera— así que ponerle pestañas sería inventarle
+   destinos. Por eso `main` recupera acá su espacio de abajo. */
+
+.panel main,
+.panel footer { padding-bottom: var(--e7); }
 
 .barra {
-  display: flex; align-items: center; gap: var(--e3); flex-wrap: wrap;
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  flex-wrap: wrap;
   margin: var(--e5) 0 var(--e4);
 }
-.barra label { color: var(--tinta-media); font-size: 0.92rem; font-weight: 500; }
-
-.barra input, .campo input {
-  font: inherit; padding: var(--e3) var(--e4);
-  min-height: 48px;
-  color: var(--tinta); background: var(--papel);
-  border: 1.5px solid var(--linea-fuerte);
-  border-radius: var(--radio-chico);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-.barra input:focus, .campo input:focus {
-  outline: none;
-  border-color: var(--azul);
-  box-shadow: var(--foco);
-}
-
-.barra .secundario { margin-top: 0; }
 
 /* La hora de última carga queda a la derecha: es información de contexto, no
    algo que haya que leer en cada vistazo. */
 .barra .nota { margin-left: auto; }
 
-/* Cada pedido de la cola es una tarjeta, igual que en la carta: el mostrador
-   y el cliente miran el mismo objeto y conviene que se parezca. */
+.barra .secundario { margin-top: 0; }
+
+/* Los botones de la barra no ocupan el ancho: son controles de una fila, no
+   acciones de pantalla. */
+.barra button { width: auto; }
+
+/* --- Campos ------------------------------------------------------------ */
+
+.campo { display: flex; flex-direction: column; gap: var(--e1); }
+
+.barra label,
+.campo label {
+  color: var(--carbon-medio);
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+.barra input,
+.campo input {
+  font: inherit;
+  min-height: 48px;
+  min-width: 14rem;
+  padding: var(--e3) var(--e4);
+  color: var(--carbon);
+  background: var(--papel);
+  border: 1.5px solid var(--linea-fuerte);
+  border-radius: var(--radio-chico);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.barra input:focus,
+.campo input:focus {
+  outline: none;
+  border-color: var(--brasa);
+  box-shadow: var(--foco);
+}
+
+/* --- La cola ------------------------------------------------------------
+   Cada pedido es una tarjeta, igual que en la carta: el mostrador y el cliente
+   miran el mismo objeto y conviene que se parezca. Lo que cambia es que acá
+   las líneas se envuelven, porque un pedido trae productos y botones. */
+
 .pedido { flex-wrap: wrap; gap: var(--e3) var(--e4); }
-.pedido::before { background: var(--azul); }
+
+/* El código con el que se entregó un pedido. Monoespaciado y espaciado como el
+   billete del cliente, pero pequeño y gris: es un registro, no una llave. */
+.codigo-entregado {
+  margin-top: var(--e2);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  color: var(--carbon-tenue);
+}
 
 .acciones { display: flex; gap: var(--e2); flex-wrap: wrap; }
 .acciones .secundario { margin-top: 0; }
-.acciones button { min-height: 44px; padding: var(--e2) var(--e4); }
 
-/* En pantallas estrechas los botones pasan debajo y ocupan el ancho: el
-   mostrador se usa con una mano y con prisa. */
-@media (max-width: 520px) {
-  .acciones { width: 100%; }
-  .acciones button { flex: 1; }
+.acciones button {
+  width: auto;
+  min-height: 44px;
+  padding: var(--e2) var(--e4);
 }
 
-/* --- Ingreso al panel ----------------------------------------------------
-   El formulario reutiliza `.barra` porque es la misma fila de controles que
-   ya había; lo único propio es que cada campo lleva su etiqueta encima, para
-   que en móvil no se amontonen en una sola línea. */
-
-.campo { display: flex; flex-direction: column; gap: var(--e1); }
-.campo label { color: var(--tinta-media); font-size: 0.92rem; font-weight: 500; }
-.campo input { min-width: 14rem; }
+/* --- Ingreso ------------------------------------------------------------
+   Reutiliza `.barra` porque es la misma fila de controles; lo propio es que
+   cada campo lleva su etiqueta encima, para que en móvil no se amontonen. */
 
 .barra-ingreso { align-items: flex-end; }
 .barra-ingreso button { margin-top: 0; }
 
 /* El formulario de ingreso no lleva la hora de última carga, así que la regla
-   que empuja `.nota` a la derecha estorbaría: aquí el texto va debajo. */
+   que empuja `.nota` a la derecha estorbaría: acá el texto va debajo. */
 .barra-ingreso .nota { margin-left: 0; }
 
 /* --- Diálogo del código de recogida -------------------------------------- */
 
 dialog {
-  color: var(--tinta); background: var(--papel);
-  border: none; border-radius: var(--radio);
+  color: var(--carbon);
+  background: var(--papel);
+  border: none;
+  border-radius: var(--radio);
   box-shadow: var(--sombra-alta);
-  padding: var(--e6); max-width: 26rem; width: calc(100% - var(--e6));
+  padding: var(--e6);
+  max-width: 26rem;
+  width: calc(100% - var(--e6));
 }
 
-/* Sin esto el fondo queda blanco en el tema oscuro: `::backdrop` no hereda
-   del documento. */
-dialog::backdrop { background: rgb(11 16 32 / 55%); }
+/* `::backdrop` no hereda del documento, así que el velo hay que declararlo
+   aunque haya un solo tema. */
+dialog::backdrop { background: rgb(28 25 23 / 55%); }
 
 dialog h2 { margin: 0 0 var(--e2); font-size: 1.25rem; }
 dialog .campo { margin: var(--e5) 0; }
 dialog .acciones { margin-top: var(--e5); }
+dialog .acciones button { flex: 1; }
 
 /* El código se escribe en mayúsculas y espaciado: se dicta en voz alta, y a
-   esa letra se la confunde menos. La conversión es visual — el servidor
-   compara sin distinguir la caja — así que no cambia lo que se envía. */
+   esa letra se la confunde menos. La conversión es visual —el servidor compara
+   sin distinguir la caja— así que no cambia lo que se envía.
+
+   Hereda la clase `.codigo-canje` del billete que ve el cliente, y por eso hay
+   que deshacer casi todo lo de allí: acá es un campo de texto de 1,6 rem, no
+   un cartel verde de 3,5 rem. Comparten nombre porque son el mismo dato, y es
+   deliberado que al cambiar uno se recuerde el otro. */
 input.codigo-canje {
+  margin: 0;
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 1.6rem; letter-spacing: 0.18em; text-indent: 0.18em;
+  font-size: 1.6rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-indent: 0.18em;
   text-transform: uppercase;
-  text-align: center; padding: var(--e4);
-  background: var(--papel); color: var(--tinta);
+  text-align: center;
+  padding: var(--e4);
+  background: var(--papel);
+  color: var(--carbon);
   box-shadow: none;
 }
-input.codigo-canje::before,
-input.codigo-canje::after { content: none; }
 
-/* El ingreso se apila en pantallas estrechas: cada campo ocupa el ancho y
-   «Entrar» queda debajo, en vez de encogido junto a la contraseña. Es la
-   primera pantalla de un turno y se escribe con una mano.
+/* ===========================================================================
+   ESCRITORIO
+   ===========================================================================
+
+   A partir de 768 px la barra inferior desaparece y sus acciones suben al
+   encabezado: pegada al borde de abajo de un monitor, una barra de navegación
+   queda a medio metro del contenido que acompaña.
+
+   La carta pasa a varias columnas, que es lo que el ancho permite, y «Tu
+   pedido» se queda a un lado en vez de ocupar la pantalla entera. */
+
+@media (min-width: 768px) {
+  :root { --alto-nav: 0px; }
+
+  /* De rejilla a fila. La rejilla de tres columnas del móvil —izquierda,
+     centro elevado, derecha— acá partía la barra en dos renglones: el botón
+     central lleva `grid-column: 3` y el tercer destino se iba a una segunda
+     fila. En una fila con `order` se colocan los tres donde toca, y además el
+     orden visual deja de depender del orden del marcado. */
+  .nav-inferior {
+    position: sticky;
+    top: 0;
+    bottom: auto;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    max-width: 1100px;
+    margin: 0 auto;
+    gap: var(--e3);
+    padding: var(--e3) var(--e4);
+    border-top: 0;
+    border-bottom: 1px solid var(--linea);
+    border-radius: 0 0 var(--radio) var(--radio);
+    box-shadow: var(--sombra);
+    background: rgb(255 255 255 / 92%);
+    backdrop-filter: blur(8px);
+  }
+
+  .nav-boton { flex-direction: row; gap: var(--e2); font-size: 0.9rem; }
+
+  /* «Mi código» se adelanta para quedar junto a «Carta»: los dos son destinos,
+     y el carrito es la acción. Se agrupan los iguales y se aparta el distinto. */
+  #nav-codigo { order: 1; }
+
+  .nav-carrito {
+    order: 2;
+    /* Lo empuja al extremo derecho, donde está la acción en cualquier barra. */
+    margin-left: auto;
+    flex-direction: row;
+    gap: var(--e2);
+    margin-top: 0;
+    border-width: 0;
+    min-height: 48px;
+  }
+
+  .nav-carrito-total::before { content: "·"; margin-right: var(--e2); }
+
+  main, footer { padding-bottom: var(--e7); }
+
+  .catalogo { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+
+  .metodos-opciones { max-width: 480px; }
+
+  .pantalla > button,
+  .pantalla > .boton { width: auto; min-width: 240px; }
+}
+
+@media (min-width: 1040px) {
+  .catalogo { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ===========================================================================
+   MOVIMIENTO
+   ===========================================================================
+
+   Quien pide menos movimiento recibe menos movimiento. El giro de carga se
+   deja, porque sin él no hay forma de saber que algo sigue en marcha, pero
+   más lento y sin el resto de animaciones. */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .girando {
+    animation: girar 2s linear infinite !important;
+    animation-duration: 2s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+
+/* ===========================================================================
+   PANTALLAS ESTRECHAS
+   ===========================================================================
 
    Va al final del archivo a propósito. Estas reglas tienen la misma
    especificidad que las de `.barra-ingreso` de arriba, así que estando antes
    perdían por orden de cascada **aunque la consulta de medios coincidiera**:
    el formulario seguía en fila a 375 px de ancho. Una media query no sube la
    especificidad; solo decide si la regla participa. */
+
 @media (max-width: 520px) {
   .barra-ingreso { flex-direction: column; align-items: stretch; }
   .campo input { min-width: 0; width: 100%; }
   .barra-ingreso button { width: 100%; }
+
+  /* En el mostrador los botones pasan debajo y ocupan el ancho: se usa con una
+     mano y con prisa. */
+  .acciones { width: 100%; }
+  .acciones button { flex: 1; }
 }

@@ -325,13 +325,30 @@ function pintar(pedidos) {
     estado.appendChild(texto);
     datos.appendChild(estado);
 
-    // El código **no** se muestra en el panel desde la 2.0.0.
+    // El código **no** se muestra mientras el pedido esté por entregar, desde
+    // la 2.0.0 del contrato.
     //
     // Antes se pintaba junto al estado, para que quien atiende lo viera. Eso
     // vacía ESC-04 de contenido: si el código está en la pantalla del
     // mostrador, pedirlo al cliente es un trámite que se puede saltar leyendo
     // la propia lista. Ahora hay que pedírselo, y el servidor lo compara.
     texto.textContent = `${ETIQUETA_ESTADO[pedido.estado] || pedido.estado} · ${pesos(pedido.total_centavos)}`;
+
+    // Una vez entregado sí se enseña, y eso no reabre nada: la comparación ya
+    // ocurrió. A partir de ese momento el código deja de ser la llave y pasa a
+    // ser el registro de con qué se abrió — útil para resolver un reclamo sin
+    // consultar la base.
+    //
+    // Es además lo que cierra la cadena a la vista: el cliente tiene CL219G en
+    // su pantalla y el mostrador acaba de escribirlo, así que las dos dicen lo
+    // mismo. Enseñarlo antes lo haría innecesario; enseñarlo después lo hace
+    // comprobable.
+    if (pedido.estado === "entregado" && pedido.codigo_canje) {
+      const canjeado = document.createElement("div");
+      canjeado.className = "codigo-entregado";
+      canjeado.textContent = `Canjeado con ${pedido.codigo_canje}`;
+      datos.appendChild(canjeado);
+    }
 
     fila.appendChild(datos);
 

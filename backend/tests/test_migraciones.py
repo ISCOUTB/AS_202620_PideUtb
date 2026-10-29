@@ -63,6 +63,7 @@ HUELLAS = {
     "005_carta_el_asao.sql": "a58e211732075053",
     "006_promociones_por_franja.sql": "40e97d9f73bf733c",
     "007_token_de_consulta.sql": "c672ee413d2d93ec",
+    "008_el_mostrador_al_establecimiento_de_la_carta.sql": "fc16245ee84c5073",
 }
 
 

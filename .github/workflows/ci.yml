@@ -422,3 +422,200 @@ jobs:
 
           print(f"{len(instalados)} distribuciones instaladas, ninguna de las 8 retiradas")
           FIN
+
+  # --------------------------------------------------------------------------
+  # Recorrido de punta a punta, con un navegador de verdad.
+  #
+  # Lo que añade a los 515 tests del job `pruebas`: un navegador. Aquellos
+  # montan la aplicación en memoria y comprueban contratos; ninguno toca un
+  # botón, así que ninguno puede ver si el botón está donde se alcanza con el
+  # pulgar, si el carrito se vacía al pagar o si el código aparece solo cuando
+  # la pasarela confirma.
+  #
+  # No es hipotético: el rediseño de la semana 15 destapó tres defectos de esa
+  # clase —el carrito seguía lleno después de pagar, la barra pegajosa se
+  # quedaba debajo del pie en escritorio, y el botón del carrito dependía de
+  # tres `<span>` anidados para tener nombre accesible— y la suite entera
+  # seguía en verde con los tres dentro.
+  #
+  # Levanta el sistema completo: PostgreSQL, la API, el sitio estático y la
+  # pasarela simulada. Es el job más lento del workflow (~3 min) y es el único
+  # que prueba que las piezas encajan.
+  # --------------------------------------------------------------------------
+  recorrido:
+    name: Recorrido con navegador
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:16.4
+        env:
+          POSTGRES_USER: pideutb
+          POSTGRES_DB: pideutb
+          # Mismo motivo que en el job `pruebas`: el contenedor vive dentro del
+          # job y se destruye al terminar, así que una contraseña aquí sería una
+          # credencial de repositorio que no protege nada.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pideutb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PIDEUTB_DATABASE_URL: postgresql://pideutb@localhost:5432/pideutb
+      PIDEUTB_SECRETO_PASARELA: secreto-solo-de-este-job
+      PIDEUTB_ORIGENES_PERMITIDOS: http://127.0.0.1:8080
+      # Sin esto, `/v1/pagos/simulador/{ref}` responde 404 y el recorrido no
+      # puede aprobar ningún cobro. El propio spec lo dice en su mensaje de
+      # error, para que el fallo se lea como «falta una variable» y no como
+      # «la pasarela está rota».
+      PIDEUTB_URL_PASARELA_SIMULADA: http://127.0.0.1:8080/pasarela.html
+      PIDEUTB_TOKEN_REINICIO_DEMO: token-solo-de-este-job
+      PIDEUTB_SITIO: http://127.0.0.1:8080
+      PIDEUTB_API: http://127.0.0.1:8000
+      PIDEUTB_MOSTRADOR_CORREO: mostrador@utb.edu.co
+      # Credencial de un usuario que solo existe dentro de este job, contra una
+      # base que se destruye al terminar. Cumple el mínimo de longitud que
+      # exige `crear_usuario`, que es el único motivo de que sea tan larga.
+      PIDEUTB_MOSTRADOR_CONTRASENA: contrasena-solo-de-este-job
+      PIDEUTB_NIVEL_LOG: WARNING
+
+    steps:
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-ci.txt
+
+      - name: Instalar dependencias de la API
+        working-directory: backend
+        # Escalar de bloque y no en línea: `--only-binary=:all: -r` lleva dos
+        # puntos seguidos de espacio, que YAML interpreta como separador de
+        # clave y hace ilegible el archivo entero.
+        run: |
+          pip install --require-hashes --only-binary=:all: -r requirements-ci.txt
+
+      # El mismo orden que `entrypoint.sh`: primero el esquema, después la
+      # cuenta. Al revés, la migración 008 no tendría nada que mover y la cuenta
+      # se crearía donde dijera el entorno.
+      - name: Aplicar migraciones
+        working-directory: backend
+        run: python scripts/migrar.py
+
+      # El establecimiento es el mismo que `sitio/config.js`, y hay una prueba
+      # que compara esos dos números (`test_escenarios_de_calidad.py`). Aquí se
+      # lee del propio archivo para que este job no pueda quedarse atrás si
+      # cambian: si se escribiera a mano, el recorrido seguiría pasando contra
+      # el establecimiento viejo.
+      - name: Sembrar la cuenta del mostrador
+        working-directory: backend
+        run: |
+          # `grep -o` y `tr`, sin expresiones de Perl ni retrorreferencias.
+          #
+          # El primer intento usaba `grep -oP ... \K\d+`, que no está en todos
+          # los `grep` —en esta máquina de desarrollo falla con «-P supports
+          # only unibyte and UTF-8 locales»—, y el segundo un `sed` con una
+          # retrorreferencia que, al escribirla desde un guion, acabó metiendo
+          # un carácter de control 0x01 en el YAML y dejó el workflow entero
+          # ilegible.
+          #
+          # Esto no lleva ni una barra invertida, así que no hay nada que
+          # escapar mal, y se puede comprobar en cualquier parte.
+          ESTABLECIMIENTO=$(grep -o 'ESTABLECIMIENTO_ID: [0-9]*' ../sitio/config.js | tr -dc '0-9')
+          if [ -z "$ESTABLECIMIENTO" ]; then
+            echo "::error::No se pudo leer ESTABLECIMIENTO_ID de sitio/config.js"
+            exit 1
+          fi
+          echo "Establecimiento del sitio: $ESTABLECIMIENTO"
+          PIDEUTB_USUARIO_INICIAL_CORREO="$PIDEUTB_MOSTRADOR_CORREO" \
+          PIDEUTB_USUARIO_INICIAL_CONTRASENA="$PIDEUTB_MOSTRADOR_CONTRASENA" \
+          PIDEUTB_USUARIO_INICIAL_ESTABLECIMIENTO="$ESTABLECIMIENTO" \
+            python scripts/sembrar_usuario_inicial.py
+
+      - name: Levantar la API
+        working-directory: backend
+        run: |
+          nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 \
+            > /tmp/api.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health > /dev/null; then
+              echo "API arriba"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::La API no respondió en 30 s"
+          cat /tmp/api.log
+          exit 1
+
+      # `http.server` y no nginx: lo que se prueba es el sitio, no su
+      # contenedor. Las cabeceras de nginx ya las comprueba
+      # `test_escenarios_de_calidad.py` leyendo el `nginx.conf`, y levantar
+      # Docker aquí añadiría dos minutos para verificar lo mismo.
+      - name: Servir el sitio
+        working-directory: sitio
+        run: |
+          nohup python -m http.server 8080 --bind 127.0.0.1 > /tmp/sitio.log 2>&1 &
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8080/index.html > /dev/null; then
+              echo "Sitio arriba"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::El sitio no respondió en 20 s"
+          exit 1
+
+      # Comprueba la cadena por HTTP antes de gastar tres minutos de navegador.
+      # Si algo está mal conectado, este paso lo dice en un eslabón concreto y
+      # el informe de Playwright no hace falta leerlo.
+      - name: Verificar la cadena antes del navegador
+        working-directory: backend
+        run: python scripts/verificar_flujo.py
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Instalar Playwright
+        working-directory: e2e
+        run: |
+          npm ci --ignore-scripts
+          ./node_modules/.bin/playwright install --with-deps chromium
+
+      # `--ignore-scripts` salta el `postinstall` de Playwright, que es el que
+      # baja los navegadores; por eso la orden siguiente los baja a mano, y es
+      # la que queríamos de todas formas porque elige solo Chromium. Y se llama
+      # al binario instalado en vez de a `npx`, que ante una ausencia resuelve
+      # descargando del registro una versión que nadie fijó.
+      - name: Ejecutar el recorrido
+        working-directory: e2e
+        run: ./node_modules/.bin/playwright test
+
+      # Las trazas solo se guardan de lo que falla (`retain-on-failure`), así
+      # que este artefacto está vacío cuando todo va bien y contiene el
+      # navegador paso a paso cuando no.
+      - name: Publicar el informe
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recorrido-navegador
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Registro de la API si algo falló
+        if: failure()
+        run: cat /tmp/api.log

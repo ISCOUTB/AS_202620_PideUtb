@@ -63,6 +63,18 @@ services:
       # cobros de verdad, se borra del panel y la ruta vuelve a no existir, sin
       # tocar este archivo ni desplegar nada.
       PIDEUTB_URL_PASARELA_SIMULADA: ${PIDEUTB_URL_PASARELA_SIMULADA:-}
+      #
+      # Enciende `POST /v1/demo/reiniciar`, que borra todos los pedidos. Sin
+      # ella esa ruta responde 404 y no hay forma de llegar a ella.
+      #
+      # Es para los ensayos de la charla: entre uno y otro hay que dejar la cola
+      # vacía, y en este servidor la base no publica puertos ni el panel da
+      # terminal, así que no hay otro camino.
+      #
+      # **Quien tenga este valor puede borrar todos los pedidos.** En un sistema
+      # con pedidos de verdad esta variable se deja sin poner y la ruta
+      # desaparece. Ver `backend/app/demo.py`.
+      PIDEUTB_TOKEN_REINICIO_DEMO: ${PIDEUTB_TOKEN_REINICIO_DEMO:-}
 
       # El sitio vive en otro host, así que **toda** llamada del panel es una
       # petición entre orígenes y esta lista es la que decide si pasa. No es
@@ -86,7 +98,27 @@ services:
       # inicial con contraseña conocida sería peor que no tener cuenta.
       PIDEUTB_USUARIO_INICIAL_CORREO: ${PIDEUTB_USUARIO_INICIAL_CORREO:-}
       PIDEUTB_USUARIO_INICIAL_CONTRASENA: ${PIDEUTB_USUARIO_INICIAL_CONTRASENA:-}
-      PIDEUTB_USUARIO_INICIAL_ESTABLECIMIENTO: ${PIDEUTB_USUARIO_INICIAL_ESTABLECIMIENTO:-1}
+      #
+      # **Este número tiene que ser el mismo que `ESTABLECIMIENTO_ID` de
+      # `sitio/config.js`, y una prueba lo comprueba.**
+      #
+      # Estuvo en 1 y costó una tarde. El sitio creaba pedidos en el
+      # establecimiento 5 —El Asao, el de la carta real— y la cuenta del
+      # mostrador nacía en el 1, así que el panel refrescaba cada cinco segundos
+      # una cola que no podía cambiar nunca. Ninguna de las dos mitades estaba
+      # mal; nadie las había presentado.
+      #
+      # Lo que lo volvía difícil de ver es que **el valor por defecto fallaba
+      # hacia un sistema que parece sano**: un panel que entra, refresca y
+      # muestra pedidos viejos no se parece a una configuración equivocada, se
+      # parece a un día tranquilo.
+      #
+      # `008_el_mostrador_al_establecimiento_de_la_carta.sql` corrige la cuenta
+      # que ya existe. Esta línea corrige el despliegue limpio, que no es
+      # hipotético: con los volúmenes sin respaldo es el procedimiento de
+      # recuperación, y las migraciones corren **antes** del sembrado, así que
+      # sobre una base vacía la migración no tiene nada que mover.
+      PIDEUTB_USUARIO_INICIAL_ESTABLECIMIENTO: ${PIDEUTB_USUARIO_INICIAL_ESTABLECIMIENTO:-5}
     expose:
       - "8000"
     depends_on:

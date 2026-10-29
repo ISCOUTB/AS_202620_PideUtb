@@ -1,0 +1,14 @@
+{
+  "name": "pideutb-e2e",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Recorrido de punta a punta del sitio, con un navegador de verdad.",
+  "scripts": {
+    "test": "playwright test",
+    "test:movil": "playwright test --project=movil",
+    "informe": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}
