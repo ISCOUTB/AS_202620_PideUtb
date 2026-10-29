@@ -24,10 +24,20 @@ Esta guía fija la apariencia y el comportamiento de las dos superficies de
 PideUTB: la del cliente y la del mostrador. Cada pantalla que se desarrolle debe
 ajustarse a ella.
 
-**Versión** 1.0 · 22/10/2026 · **Fundamentos** colores extraídos del sitio de la
-UTB decodificando una captura, con su contraste WCAG medido · tokens vigentes en
+**Versión** 2.0 · 29/10/2026 · **Fundamentos** paleta cálida propia, con cada
+contraste medido y **verificado en cada construcción** por
+[`test_contraste.py`](../backend/tests/test_contraste.py) · tokens vigentes en
 [`sitio/estilos.css`](../sitio/estilos.css) · **Alcance** las seis pantallas que
 hoy existen
+
+> **Qué cambió en la 2.0, y qué se perdió.** La 1.0 usaba los tres colores de la
+> Universidad Tecnológica de Bolívar y declaraba esa paleta «no negociable». Se
+> cambió por una cálida —fondo crema, brasa de asadero— para la charla del 3 de
+> noviembre. **Lo que se perdió es real:** quien abra el sitio ya no ve a la
+> universidad en la pantalla. Lo que se ganó es que una carta de comida deje de
+> parecer una intranet.
+>
+> Lo que **no** cambió es la regla de medir, y ahora además se comprueba sola.
 
 > **Esta guía describe lo que hay, no lo que se querría tener.** Cada token que
 > nombra existe en `sitio/estilos.css` y cada ratio de contraste está medido. Si
@@ -42,11 +52,17 @@ hoy existen
 Seis reglas resuelven los casos que esta guía no prevé. Ante la duda, gana la que
 protege a quien usa la aplicación con prisa.
 
-#### Pertenecer a la UTB
+#### Parecer comida, no un trámite
 
-Los colores son los del sitio de la universidad. Alguien que llega desde
-`utb.edu.co` no debe sentir que salió de la institución. El filete de tres
-colores de la cabecera es la seña, y es lo único decorativo de la hoja.
+La carta se abre con hambre y con el teléfono en la mano. El fondo crema y la
+brasa son los de un asadero, que es lo que El Asao es; el azul corporativo sobre
+blanco es el color de un formulario.
+
+Este principio **sustituyó** a «Pertenecer a la UTB», que pedía exactamente lo
+contrario: usar los colores del sitio de la universidad para que quien llegara
+desde `utb.edu.co` no sintiera que salió de la institución. Era un principio
+razonable y se descartó a conciencia, no por descuido. Queda escrito acá para
+que el día que alguien quiera volver sepa que hubo una decisión y no un olvido.
 
 #### Una mano, de pie, con prisa
 
@@ -57,7 +73,7 @@ gestos de precisión. **Ninguna acción importante exige puntería.**
 
 #### El color nunca informa solo
 
-Dos de los tres colores de la marca no pueden llevar texto, y hay quien no
+Un color puede pasar sobre una superficie y fallar sobre otra, y hay quien no
 distingue tonos. Todo estado lleva **rótulo**; el color refuerza y no sustituye.
 El punto de «esperando» además late, para que el movimiento diga lo que el tono
 no puede.
@@ -129,21 +145,22 @@ cambio.
 
 ## Identidad visual
 
-No hay logotipo. La marca es **el nombre en azul más el filete de tres colores**,
-y con eso basta: no hay archivo que mantener, ni versión invertida que aprobar,
-ni un peso más en la imagen.
+No hay logotipo. La marca es **el nombre en Fraunces sobre crema**, y con eso
+basta: no hay archivo que mantener, ni versión invertida que aprobar, ni un peso
+más en la imagen.
 
 ```
-PideUTB
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  azul 42 %      cian 32 %       verde 26 %
+PideUTB            ← Fraunces 600, --brasa, sobre --crema
+Pedí sin hacer fila. Recogé con un código.
 ```
 
-**Hacer.** Usar el filete solo bajo la cabecera, a todo el ancho de la columna.
-Dejar el título en `--azul` y el lema en `--tinta-media`.
+El filete de tres colores desapareció con la paleta de la 1.0. Era lo único
+decorativo de la hoja y su función —decir «esto es de la UTB»— dejó de aplicar.
+No se sustituyó por otro adorno: la tipografía ya hace ese trabajo.
 
-**Evitar.** Repetir el filete dentro del contenido; usar los tres colores juntos
-en cualquier otro sitio; poner el título sobre una foto; recolorearlo.
+**Hacer.** Dejar el título en `--brasa` y el lema en `--carbon-medio`.
+
+**Evitar.** Poner el título sobre una foto; recolorearlo; añadirle una sombra.
 
 El día que la universidad entregue un logotipo, entra en la cabecera a la
 izquierda del título sin ningún otro cambio.
@@ -152,74 +169,67 @@ izquierda del título sin ningún otro cambio.
 
 ## Colores
 
-Tres familias, tres funciones: la marca (azul, cian, verde), la estructura
-(tintas y papeles) y los estados (ámbar y rojo).
+Tres familias, tres funciones: la marca (brasa y ámbar), la estructura (cremas y
+carbones) y los estados (verde de canje y rojo de error).
 
-### La regla que gobierna la paleta, y por qué no es negociable
+### La regla que gobierna la paleta, y por qué sobrevive a cualquier paleta
 
-Los tres colores salen del sitio de la UTB. Pero **dos de los tres no pueden
-llevar texto**, y eso no es una opinión de diseño: es su contraste medido contra
-blanco, según WCAG 2.1.
+> **Ningún color se usa como tinta sin haber medido su contraste contra la
+> superficie concreta donde cae.**
 
-| Color | Token | Sobre blanco | Veredicto |
-|---|---|---|---|
-| Azul | `--azul` `#093AD8` | **8,05:1** | AAA · texto, botones, enlaces |
-| Cian | `--cian` `#0FC5EF` | **2,05:1** | ✗ insuficiente incluso para texto grande |
-| Verde | `--verde` `#71EC37` | **1,53:1** | ✗ insuficiente |
+No contra blanco «porque sí»: contra la que tiene debajo. Y desde la 2.0 eso no
+es una promesa, es una prueba:
+[`backend/tests/test_contraste.py`](../backend/tests/test_contraste.py) vuelve a
+calcular cada par en cada construcción, **y además comprueba que los números
+escritos en los comentarios de la hoja sean esos números**.
 
-Sobre tinta oscura la relación se invierte y los dos pasan con holgura:
+Esa prueba nació de un susto concreto. Al pasar el fondo de blanco a crema,
+`--verde-tinta` —documentado en 4,81:1 sobre blanco, y era cierto— quedaba en
+**4,48:1** sobre el fondo nuevo, por debajo del mínimo AA. El comentario seguía
+diciendo la verdad sobre una superficie que ya no existía.
 
-| | Sobre `--tinta` `#0B1020` |
-|---|---|
-| Cian | **9,24:1** · AAA |
-| Verde | **12,40:1** · AAA |
-
-De ahí la regla:
-
-> **El cian y el verde son colores de SUPERFICIE, nunca de TINTA.**
-
-Se usan como fondo de algo que lleva texto oscuro encima —el filete de marca, el
-recuadro del código de canje, el punto de un estado— y **jamás** como color de
-letra sobre blanco.
-
-Para los casos en que hace falta *letra* de esos tonos existen las variantes
-oscurecidas, que son la única forma de usarlos legiblemente:
-
-| Token | Valor | Sobre blanco |
-|---|---|---|
-| `--cian-tinta` | `#086C83` | **6,03:1** · AA |
-| `--verde-tinta` | `#3E811E` | **4,81:1** · AA |
-
-Aplicar la marca sin medir habría producido una página correcta en la captura e
-**ilegible en el mostrador**, que es donde se usa con prisa y a contraluz.
+**Cambiar un fondo invalida en silencio los contrastes de todo lo que va
+encima.** Nadie lo nota mirando la pantalla, porque la diferencia entre 4,48 y
+4,50 no se ve. Se ve el día que alguien no puede leer un precio al sol.
 
 ### Marca
 
-| Token | Valor | Uso |
-|---|---|---|
-| `--azul` | `#093AD8` | Botones sólidos, enlaces, título, filete de fila activa |
-| `--azul-hundido` | `#0730AB` | Hover y pulsado: el mismo tono, más grave |
-| `--azul-niebla` | `#E8EDFD` | Fondo de apoyo del botón secundario en hover |
-| `--cian` | `#0FC5EF` | Filete de acento de las tarjetas, punto de «esperando» |
-| `--verde` | `#71EC37` | **Solo** el fondo del código de canje |
-| `--cian-tinta` | `#086C83` | Letra cian, cuando hace falta |
-| `--verde-tinta` | `#3E811E` | Letra verde · punto de «confirmado» |
+Las dos relaciones de cada fila son las que importan: como tinta sobre el fondo
+de la página, y con texto blanco encima cuando hace de botón.
+
+| Token | Valor | Sobre `--crema` | Con blanco encima | Uso |
+|---|---|---|---|---|
+| `--brasa` | `#A3330A` | **6,43:1** | **6,92:1** | Botones, enlaces, título, precio en promoción |
+| `--brasa-viva` | `#C2410C` | **4,82:1** | 5,18:1 | Acentos y superficies. **No para texto pequeño** |
+| `--brasa-hundida` | `#7F2708` | 8,89:1 | **9,56:1** | Hover y pulsado: el mismo tono, más grave |
+| `--brasa-niebla` | `#FDEEE6` | — | — | Fondo del hueco de foto y del secundario en hover |
+| `--ambar` | `#92400A` | 6,60:1 | **7,09:1** | La etiqueta de la franja de promoción |
+| `--ambar-niebla` | `#FDF0DC` | — | — | Su fondo |
+
+`--brasa` es el único tono de la paleta que puede ser tinta **y** fondo de texto
+blanco. Por eso es el primario: un color que solo sirve para una de las dos cosas
+obliga a tener dos.
 
 ### Estructura
 
-| Token | Valor | Contraste sobre blanco | Uso |
+| Token | Valor | Sobre `--crema` | Uso |
 |---|---|---|---|
-| `--tinta` | `#0B1020` | **18,93:1** | Cuerpo de texto |
-| `--tinta-media` | `#4A5365` | **7,73:1** | Texto secundario: precios, rótulos, lema |
-| `--tinta-tenue` | `#6B7486` | **4,70:1** | **Solo metadatos.** Nunca información esencial |
+| `--carbon` | `#1C1917` | **16,26:1** | Cuerpo de texto |
+| `--carbon-medio` | `#57514C` | **7,27:1** | Texto secundario: precios, rótulos, lema |
+| `--carbon-tenue` | `#6E6660` | **5,23:1** | **Solo metadatos.** Nunca información esencial |
 | `--papel` | `#FFFFFF` | — | Tarjetas, campos, diálogos |
-| `--fondo` | `#F5F5F5` | — | Fondo de página. Es el gris del sitio de la UTB |
-| `--linea` | `#E3E6EC` | — | Separadores |
-| `--linea-fuerte` | `#CFD4DE` | — | Borde de campos y de botones secundarios |
+| `--crema` | `#FBF6EF` | — | Fondo de página |
+| `--crema-hundido` | `#F3EBE0` | — | Separadores y fondos de apoyo |
+| `--linea` | `#E9DED0` | — | Separadores |
+| `--linea-fuerte` | `#D6C6B2` | — | Borde de campos y de botones secundarios |
 
-`--tinta-tenue` pasa AA con 4,70:1 pero no AAA. De ahí la restricción: sirve para
-la hora de última carga o una nota de ayuda, **nunca** para un precio, un estado
-o un mensaje de error.
+**Que el fondo no sea blanco es lo que hace que una tarjeta blanca se lea como
+tarjeta** sin necesitar un borde. Es la razón de que haya dos superficies y no
+una.
+
+`--carbon-tenue` pasa AA con 5,23:1 pero no AAA. De ahí la restricción: sirve
+para la hora de última carga o una nota de ayuda, **nunca** para un precio, un
+estado o un mensaje de error.
 
 ### Estados
 
@@ -228,12 +238,17 @@ acción**: solo señala que algo salió mal.
 
 | Token | Valor | Fondo | Contraste sobre su fondo | Uso |
 |---|---|---|---|---|
-| `--aviso` | `#9A5B00` | `--aviso-fondo` `#FFF4E0` | **4,98:1** | Agotado, esperando, en el límite |
+| `--ambar` | `#92400A` | `--ambar-niebla` `#FDF0DC` | **6,31:1** | Franja de promoción, esperando |
+| `--verde-canje` | `#356F1A` | `--crema` | **5,68:1** | «Listo para recoger» · el billete del código |
 | `--error` | `#B3261E` | `--error-fondo` `#FDECEA` | **5,72:1** | Pago rechazado, fallo de red |
 
 El ámbar de marca habitual (`#FFB020`) no aparece: con 1,9:1 sobre blanco no
-puede llevar texto. `--aviso` es ese ámbar oscurecido hasta ser legible, que es
-el mismo criterio que se aplicó al cian y al verde.
+puede llevar texto. `--ambar` es ese ámbar oscurecido hasta ser legible.
+
+**El verde sobrevivió al cambio de paleta porque es semántica, no decoración**:
+es el color del momento en que la comida está lista. Lo que cambió es su valor —
+de `#3E811E` a `#356F1A`— por el motivo de arriba: sobre crema, el anterior se
+quedaba en 4,48:1.
 
 ### Un solo tema, y es el claro
 
@@ -258,16 +273,30 @@ pantalla, no solo reactivarla.
 
 ## Tipografía y cuadrícula
 
-**Fuente del sistema, y ninguna cargada desde un CDN.**
+**Dos familias, autohospedadas, ninguna cargada desde un CDN.**
 
 ```css
-system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif
+--fuente-titulo: "Fraunces", Georgia, "Times New Roman", serif;
+--fuente:        "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 ```
 
-Es una decisión y no una carencia. Una fuente externa añade una petición a un
-tercero, latencia en una red de campus y un dato que sale del navegador de quien
-pide. Si alguna vez se quiere una tipografía propia, se **autohospeda** en el
-contenedor; no se enlaza.
+> **Fraunces titula, Inter informa.** Un precio en serif se lee más despacio, y un
+> precio hay que leerlo rápido.
+
+La 1.0 usaba solo la fuente del sistema y escribió la condición para cambiarlo:
+«si alguna vez se quiere una tipografía propia, se **autohospeda** en el
+contenedor; no se enlaza». Eso es exactamente lo que se hizo, y no por purismo:
+el 3 de noviembre el público abre el sitio a la vez desde la red de un
+auditorio, y una petición menos a `fonts.gstatic.com` es un punto menos donde la
+demostración se queda sin tipografía delante de todos.
+
+Las dos son variables —un archivo cubre todos los pesos— y están recortadas al
+subconjunto latino, que cubre el español entero: **115 KB entre las dos**, con
+`font-display: swap` para que el texto aparezca de inmediato con la fuente del
+sistema y cambie cuando la nuestra llegue. En una demostración en vivo, texto feo
+al instante gana a texto bonito dentro de dos segundos.
+
+Licencia y procedencia en [`sitio/fuentes/LEEME.md`](../sitio/fuentes/LEEME.md).
 
 | Función | Tamaño / interlineado | Grosor | Uso |
 |---|---|---|---|
@@ -458,26 +487,71 @@ punto de ruptura a 77 px del primero cuesta más de mantener de lo que ahorra.
 El `+` se apaga en 50, que es el tope que el contrato declara por línea: el botón
 se apaga antes en vez de dejar pedir algo que la API va a rechazar con `422`.
 
-### Barra del carrito
+### Barra de navegación
 
 ```
-┌──────────────────────────────────────────────┐
-│ 3 productos                 [ Ver mi pedido ]│
-│ $ 60.000                                     │
-└──────────────────────────────────────────────┘
-       fija abajo, solo en la carta
+móvil                               escritorio
+┌─────────────────────────────┐    ┌──────────────────────────────────┐
+│  ╭───────────╮              │    │ Carta  Mi código    [3 productos]│
+│  │3 productos│③            │    └──────────────────────────────────┘
+│  ╰───────────╯              │       pegajosa arriba
+│ Carta             Mi código │
+└─────────────────────────────┘
+      fija abajo, siempre
 ```
 
-Fija abajo porque es donde el pulgar llega sin recolocar la mano, y porque
-acompaña mientras se recorre la carta.
+Sustituye a la barra del carrito de la 1.0, que flotaba sobre la carta y
+desaparecía fuera de ella.
 
-**Desaparece con el carrito vacío** en vez de quedarse diciendo «0 productos», y
-**desaparece fuera de la carta**: en la pantalla del pedido repetiría la cuenta y
-el total que ya están ahí arriba, y se comería 104 px de los 812 de un teléfono.
+**Tres destinos, y los tres llevan a algún sitio.** Las referencias de las que
+sale este rediseño llevan cinco pestañas —inicio, menú, ofertas, perfil, pedido—
+porque son aplicaciones con cinco secciones. Esta tiene una carta, un carrito y
+un código. Poner dos pestañas más sería prometer una aplicación que no existe, y
+en este proyecto ya pasó: unos botones con `role="radio"` anunciaban un grupo de
+radios cuyas flechas no funcionaban.
+
+**Se deshabilita, no se esconde.** Un control que aparece y desaparece mueve el
+contenido de sitio y obliga a reaprender dónde estaba; uno apagado dice «esto
+existe y todavía no». Con el pulgar sobre una lista que se desplaza, lo segundo
+se agradece.
+
+| Destino | Cuándo se puede pulsar |
+|---|---|
+| **Carta** | Cuando la carta ya llegó. Antes llevaría a una pantalla en blanco |
+| **Carrito** (central, elevado) | Con algo dentro. Lleva la cuenta y el total encima |
+| **Mi código** | Cuando hay un pedido que mirar |
+
+El botón central va elevado porque **es la acción, no un destino**, y lleva una
+chapa con la cantidad que da un salto al cambiar: confirma que el toque hizo algo
+sin necesidad de un mensaje.
+
+En escritorio la barra deja de estar abajo y se pega arriba: pegada al borde
+inferior de un monitor de 27", una barra de navegación queda a medio metro del
+contenido que acompaña. Eso obliga a que el `<nav>` vaya **antes** del encabezado
+en el documento —`position: sticky` respeta el orden del documento, y al final
+del `<body>` la barra se quedaba debajo del pie—.
 
 El fondo llega de borde a borde —una barra fija recortada se lee como un error—
-pero su contenido se alinea con la columna de 720 px del resto de la página. Sin
-eso, en un monitor la cuenta queda a 1 200 px del botón.
+pero su contenido se alinea con la columna del resto de la página.
+
+### Esqueletos
+
+```
+┌──────────────────────────────┐
+│ ▓▓▓▓  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓         │   × 3
+│ ▓▓▓▓  ▓▓▓▓▓▓▓▓               │
+└──────────────────────────────┘
+```
+
+Lo que se ve mientras la carta viaja. **No es decoración: ocupan el mismo sitio
+que van a ocupar los productos**, así que cuando llegan los datos la página no da
+el salto que da cuando algo aparece de la nada.
+
+Y la pantalla de la carta se enseña **antes** de pedirla, con lo cual el
+encabezado y el filtro ya están en su sitio desde el primer fotograma.
+
+Tres y no diez. Con el teléfono en la mano se ven tres tarjetas; fingir diez para
+rellenar la pantalla le dice a quien espera que falta más de lo que falta.
 
 ### Código de canje
 

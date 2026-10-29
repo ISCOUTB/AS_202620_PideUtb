@@ -222,3 +222,117 @@ def test_el_comentario_dice_la_relacion_que_es(nombre, hexa, escrito, resto):
         f"{contra}, y la cuenta da {medido:.2f}:1. Si el color cambió, el "
         "número tiene que cambiar con él."
     )
+
+
+# ---------------------------------------------------------------------------
+# Y que la guía tampoco mienta
+# ---------------------------------------------------------------------------
+#
+# `docs/sistema-de-diseno.md` repite las relaciones de contraste en tablas, y es
+# el documento que alguien lee antes de tocar un color. Si la hoja y la guía se
+# separan, quien lea la guía diseñará contra una paleta que no existe.
+#
+# Esto no es hipotético ni ajeno: al escribir la versión 2.0 de esa guía, **tres
+# de catorce números estaban mal** —puestos de memoria, de valores que se habían
+# descartado horas antes— y pasaron la revisión a ojo sin problema. Un número de
+# cuatro cifras mal copiado es invisible.
+#
+# Las tablas se leen por su cabecera, que dice contra qué se mide cada columna:
+#
+#   | Token | Valor | Sobre `--crema` | Con blanco encima | Uso |
+#
+# Así que la guía se puede reordenar o ampliar sin tocar esta prueba, mientras
+# las cabeceras sigan diciendo la verdad.
+
+GUIA = RAIZ / "docs" / "sistema-de-diseno.md"
+
+#: Cómo se interpreta cada cabecera de columna.
+_COMPARACIONES = {
+    "con blanco encima": lambda paleta, color: contraste(BLANCO, color),
+    "sobre `--crema`": lambda paleta, color: contraste(color, paleta["crema"]),
+    "sobre `--papel`": lambda paleta, color: contraste(color, paleta["papel"]),
+    "contraste sobre blanco": lambda paleta, color: contraste(color, BLANCO),
+}
+
+
+def _afirmaciones_de_la_guia() -> list[tuple[str, str, str, float]]:
+    """(token, hex, contra qué, relación escrita) de cada celda con un ratio."""
+    lineas = GUIA.read_text(encoding="utf-8").split("\n")
+    afirmaciones: list[tuple[str, str, str, float]] = []
+    cabecera: list[str] = []
+
+    for linea in lineas:
+        if not linea.startswith("|"):
+            cabecera = []
+            continue
+
+        celdas = [c.strip() for c in linea.strip("|").split("|")]
+
+        # La fila de guiones separa la cabecera del cuerpo; la anterior era la
+        # cabecera.
+        if set("".join(celdas)) <= set("-: "):
+            continue
+        if not cabecera:
+            cabecera = [c.lower() for c in celdas]
+            continue
+
+        if len(celdas) != len(cabecera):
+            continue
+
+        token = re.match(r"`--([a-z-]+)`", celdas[0])
+        if not token:
+            continue
+
+        hexa = re.search(r"`(#[0-9a-fA-F]{3,6})`", celdas[1]) if len(celdas) > 1 else None
+        if not hexa:
+            continue
+
+        for titulo, celda in zip(cabecera, celdas):
+            ratio = re.fullmatch(r"\**(\d+,\d+):1\**", celda)
+            if not ratio:
+                continue
+            if titulo not in _COMPARACIONES:
+                continue
+            afirmaciones.append((
+                token.group(1),
+                hexa.group(1).lower(),
+                titulo,
+                float(ratio.group(1).replace(",", ".")),
+            ))
+
+    return afirmaciones
+
+
+def test_la_guia_afirma_relaciones_que_se_pueden_comprobar():
+    """La guarda contra que el formato cambie y esto deje de mirar nada."""
+    assert len(_afirmaciones_de_la_guia()) >= 8, (
+        "No se encontraron relaciones comprobables en las tablas de "
+        "docs/sistema-de-diseno.md. O se quitaron, o cambió el formato de las "
+        "cabeceras que esta prueba sabe leer: «Sobre `--crema`», «Con blanco "
+        "encima», «Sobre `--papel`»."
+    )
+
+
+@pytest.mark.parametrize(
+    "token,hexa,contra,escrito",
+    _afirmaciones_de_la_guia(),
+    ids=lambda v: v if isinstance(v, str) else "",
+)
+def test_la_guia_dice_las_relaciones_que_son(token, hexa, contra, escrito):
+    paleta = _paleta()
+
+    assert token in paleta, (
+        f"La guía documenta `--{token}` y la hoja ya no lo declara. Uno de los "
+        "dos está desactualizado, y la hoja gana."
+    )
+    assert paleta[token] == hexa, (
+        f"La guía dice que `--{token}` vale {hexa} y la hoja dice "
+        f"{paleta[token]}."
+    )
+
+    medido = _COMPARACIONES[contra](paleta, paleta[token])
+
+    assert round(medido, 2) == pytest.approx(escrito, abs=0.02), (
+        f"La guía dice que `--{token}` ({hexa}) da {escrito}:1 «{contra}», y la "
+        f"cuenta da {medido:.2f}:1."
+    )

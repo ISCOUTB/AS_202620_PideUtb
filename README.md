@@ -177,7 +177,7 @@ Con el entorno virtual ya activado (ver paso anterior):
 pytest
 ```
 
-**77 pruebas**, agrupadas por lo que protegen:
+**530 pruebas**, agrupadas por lo que protegen:
 
 | Archivo | Qué protege |
 |---|---|
@@ -194,11 +194,46 @@ pytest
 | **`tests/test_escenarios_de_calidad.py`** | Que las constantes del sitio sigan cumpliendo el umbral del escenario que sostienen |
 | **`tests/test_dependencias.py`** | Que la imagen no instale nada que la aplicación no importe, ni al revés |
 | **`tests/test_aislamiento.py`** | Que la suite dé el mismo resultado sin importar qué tenga exportado quien la ejecuta |
+| `tests/test_promociones.py` | La franja de 2:30 a 3:30, en sus bordes y contra los dos productos reales |
+| `tests/test_migraciones.py` | Que una migración aplicada no se pueda editar: el contenedor entraría en bucle de reinicio |
+| `tests/test_contraste.py` | Que cada color siga siendo legible sobre la superficie donde cae, **y que los números de la hoja y de la guía de diseño sean esos números** |
+| `tests/test_qr.py` | Que el QR de la charla se pueda leer: tabla de formato del estándar, ida y vuelta, y Reed-Solomon |
+| `tests/test_demo.py` | Que el reinicio de la demo no exista salvo donde alguien lo haya encendido |
+| `tests/test_panel_mostrador.py` | La cola del mostrador y el canje con código |
 
 Las tres últimas son las **pruebas de contrato**, y llevan **20 casos negativos**
 —roturas introducidas a propósito— porque una prueba de contrato que no puede
 ponerse en rojo no demuestra nada. Cómo reproducir un fallo:
 [`docs/api/README.md` §3](docs/api/README.md#run-en-rojo).
+
+### El recorrido con navegador
+
+Las 530 pruebas de arriba montan la aplicación en memoria. Ninguna toca un
+botón, así que ninguna puede ver si el botón está donde se alcanza con el pulgar
+o si el carrito se vacía al pagar. Para eso está `e2e/`:
+
+```bash
+cd e2e
+npm ci
+npx playwright install chromium
+npx playwright test
+```
+
+**14 pruebas** en dos tamaños de pantalla, contra el sitio y la API que estén
+levantados (`PIDEUTB_SITIO` y `PIDEUTB_API`, por defecto los locales).
+
+No es un lujo: el rediseño de la semana 15 destapó tres defectos que ninguna de
+las 530 podía ver —el carrito seguía lleno después de pagar, la barra pegajosa se
+quedaba debajo del pie en escritorio, y el botón del carrito dependía de tres
+`<span>` anidados para tener nombre accesible—.
+
+Antes de gastar el navegador conviene comprobar la cadena por HTTP, que dice en
+qué eslabón se rompe:
+
+```bash
+python scripts/verificar_flujo.py                       # local
+python scripts/verificar_flujo.py https://api-pideutb.iscoutb.dev
+```
 
 ### Integración continua
 
@@ -254,8 +289,16 @@ backend/
 │   ├── pedidos/            # Contexto Pedidos — dueño de Pedido y Código de canje
 │   ├── usuarios/           # Contexto Cuentas — dueño de Establecimiento
 │   └── pagos/              # Contexto Pagos — dueño de IntentoPago
+├── migraciones/            # SQL numerado e inmutable; `migrar.py` verifica su huella
 ├── scripts/
 │   ├── medir_linea_base.py   # Medición de latencia de POST /v1/pedidos
+│   ├── medir_esc03.py        # Mide la cadena completa del escenario ESC-03
+│   ├── medir_carga_demo.py   # N personas pidiendo a la vez: p50, p95 y errores
+│   ├── verificar_flujo.py    # Recorre la cadena entera contra una URL y dice qué eslabón falla
+│   ├── generar_qr.py         # El QR de la charla, en SVG y sin dependencias
+│   ├── migrar.py             # Aplica las migraciones pendientes al arrancar
+│   ├── crear_usuario.py      # Alta de cuentas del panel (interactivo)
+│   ├── sembrar_usuario_inicial.py # La primera cuenta, y solo si no hay ninguna
 │   └── comparar_contratos.py # Clasifica cambios del contrato: compatible o no
 ├── tests/
 │   ├── conftest.py                     # Utilidades de las pruebas de contrato
@@ -268,8 +311,14 @@ backend/
 │   ├── test_linea_base.py              # Regresión sobre la línea base de latencia
 │   ├── test_contrato_api.py            # El código cumple el contrato publicado
 │   ├── test_compatibilidad_contrato.py # El contrato no rompe a la versión anterior
-│   └── test_expectativas_consumidor.py # Sigue emitiéndose lo que el consumidor lee
+│   ├── test_expectativas_consumidor.py # Sigue emitiéndose lo que el consumidor lee
+│   ├── test_promociones.py             # La franja horaria, en sus bordes
+│   ├── test_migraciones.py             # Una migración aplicada es inmutable
+│   ├── test_contraste.py               # Los colores se leen, y los números no mienten
+│   ├── test_qr.py                      # El QR de la charla decodifica
+│   └── test_demo.py                    # El reinicio de la demo está apagado por defecto
 ├── requirements.in         # Dependencias directas (rangos legibles)
+│                           #   (e2e/ cuelga de la raíz, no de backend/)
 ├── requirements-ci.txt     # Lock con versiones exactas y hashes, usado por CI
 ├── requirements.txt        # Instalación local
 └── pytest.ini
