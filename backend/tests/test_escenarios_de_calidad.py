@@ -382,3 +382,58 @@ def test_el_establecimiento_de_la_portada_tiene_carta():
         "nada fallara: la API responde 200 con lista vacía, que es una "
         "respuesta válida del contrato."
     )
+
+
+# ---------------------------------------------------------------------------
+# El mostrador mira el mismo establecimiento del que se pide
+# ---------------------------------------------------------------------------
+
+COMPOSE_LAB = RAIZ / "deploy" / "compose.lab.yaml"
+
+
+def test_el_mostrador_y_la_portada_miran_el_mismo_establecimiento():
+    """Los dos números tienen que ser el mismo, y viven en archivos distintos.
+
+    El sitio decide a qué establecimiento le pide en `sitio/config.js`. La
+    cuenta del mostrador nace pegada al que diga
+    `PIDEUTB_USUARIO_INICIAL_ESTABLECIMIENTO`, y la cola del panel se filtra por
+    la sesión, no por un parámetro (`establecimiento_que_puede_ver`). Nada
+    conectaba esos dos valores.
+
+    Estuvieron en 5 y en 1 durante una semana. El panel refrescaba cada cinco
+    segundos una cola que no podía cambiar nunca, y se leyó como «el refresco
+    automático no funciona» — funcionaba. Lo que no existía era esta prueba.
+
+    **Falla hacia el lado tranquilo, que es lo que lo hace caro**: el panel
+    entra, refresca y muestra los pedidos viejos del otro establecimiento. No se
+    parece a una configuración equivocada, se parece a que no ha entrado nadie.
+
+    Se comprueba contra el valor por defecto del compose porque es el único de
+    los dos que vive en el repositorio. El del panel de despliegue puede
+    pisarlo; por eso la migración 008 corrige la cuenta que ya existe, y por eso
+    el panel enseña en su cabecera sobre qué establecimiento opera.
+    """
+    portada = _constante("config.js", "ESTABLECIMIENTO_ID")
+
+    compose = COMPOSE_LAB.read_text(encoding="utf-8")
+    hallado = re.search(
+        r"PIDEUTB_USUARIO_INICIAL_ESTABLECIMIENTO:\s*"
+        r"\$\{PIDEUTB_USUARIO_INICIAL_ESTABLECIMIENTO:-(\d+)\}",
+        compose,
+    )
+
+    assert hallado, (
+        "deploy/compose.lab.yaml ya no declara un valor por defecto para "
+        "`PIDEUTB_USUARIO_INICIAL_ESTABLECIMIENTO`. Si se quitó a propósito, "
+        "esta prueba tiene que decir qué lo sustituye: sin ninguno de los dos, "
+        "un despliegue limpio vuelve a dejar el mostrador mirando a otro sitio."
+    )
+
+    mostrador = hallado.group(1)
+
+    assert mostrador == str(portada), (
+        f"El sitio pide al establecimiento {portada} (`sitio/config.js`) y la "
+        f"cuenta del mostrador nace en el {mostrador} "
+        f"(`deploy/compose.lab.yaml`). Un despliegue limpio dejaría el panel "
+        "refrescando una cola vacía sin que nada fallara."
+    )
