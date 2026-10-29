@@ -468,3 +468,53 @@ def test_los_guiones_que_miden_produccion_dicen_quien_llama(nombre: str) -> None
         f"{presentaciones} dicen quién llama. Las que falten se las come "
         "Cloudflare con un 403 antes de llegar a la API."
     )
+
+
+DOCKERFILE_SITIO = SITIO / "Dockerfile"
+
+
+def test_el_sellado_cubre_todo_lo_que_piden_las_paginas() -> None:
+    """Cada `.css` y cada `.js` que los HTML piden lleva huella en la URL.
+
+    Cloudflare reescribe el `no-cache` que manda `nginx.conf` y entrega los
+    `.css` y los `.js` con `max-age=14400`, mientras que el HTML sigue
+    llegando fresco. Esa mezcla no retrasa la actualización: la rompe. Un
+    `index.html` nuevo con un `app.js` de cuatro horas antes es una página que
+    revienta en la primera línea que toca un elemento que ya no existe, y eso
+    pasó de verdad —`barra.classList` sobre `null`, en un teléfono, con el
+    rediseño recién desplegado—.
+
+    El `Dockerfile` lo arregla pegándole a cada archivo su huella en la URL.
+    Lo que esta prueba vigila no es el sellado en sí: es la **lista**. El fallo
+    realista es que alguien añada un guion nuevo a una página y no lo apunte,
+    y entonces ese archivo —solo ese— se queda servido en versión vieja sin
+    que nada falle en local, donde no hay Cloudflare delante.
+    """
+    pedidos: set[str] = set()
+    for pagina in sorted(SITIO.glob("*.html")):
+        texto = pagina.read_text(encoding="utf-8")
+        pedidos |= set(re.findall(r'(?:href|src)="([^":/]+\.(?:css|js))"', texto))
+
+    dockerfile = DOCKERFILE_SITIO.read_text(encoding="utf-8")
+    hallado = re.search(r"for activo in ([^;]+); do", dockerfile)
+
+    assert hallado, (
+        "sitio/Dockerfile ya no tiene el bucle que sella los activos. Si se "
+        "quitó a propósito, esta prueba tiene que decir qué lo sustituye: sin "
+        "nada, un despliegue deja a quien ya visitó el sitio con el HTML "
+        "nuevo y los guiones viejos."
+    )
+
+    sellados = set(hallado.group(1).split())
+
+    assert pedidos <= sellados, (
+        f"Las páginas piden {sorted(pedidos - sellados)} y el Dockerfile no "
+        "los sella. Quien ya haya abierto el sitio seguirá recibiéndolos en "
+        "la versión vieja hasta cuatro horas, mezclados con el HTML nuevo."
+    )
+
+    assert sellados <= pedidos, (
+        f"El Dockerfile sella {sorted(sellados - pedidos)}, que ninguna "
+        "página pide. O sobra en la lista, o alguien quitó la referencia y se "
+        "dejó el archivo."
+    )
