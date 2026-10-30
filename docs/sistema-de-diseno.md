@@ -24,7 +24,7 @@ Esta guía fija la apariencia y el comportamiento de las dos superficies de
 PideUTB: la del cliente y la del mostrador. Cada pantalla que se desarrolle debe
 ajustarse a ella.
 
-**Versión** 2.2 · 29/10/2026 · **Fundamentos** fondo cálido, marca azul de la
+**Versión** 2.3 · 30/10/2026 · **Fundamentos** fondo cálido, marca azul de la
 UTB y portada fotográfica, con cada contraste medido y **verificado en cada
 construcción** por [`test_contraste.py`](../backend/tests/test_contraste.py) ·
 tokens vigentes en [`sitio/estilos.css`](../sitio/estilos.css) · **Alcance** las
@@ -143,9 +143,9 @@ pasos, y la del mostrador es una sola pantalla.
 
 | Zona | Regla | Dimensiones |
 |---|---|---|
-| **Cabecera** | Título en `--azul`, lema en `--tinta-media`, y debajo el filete de tres colores. Nunca lleva acciones. | Título `clamp(1.9rem … 2.6rem)` · filete de 4 px |
+| **Cabecera** | Título en `--azul`, lema en `--carbon-medio`, y debajo el filete de tres colores. Nunca lleva acciones. | Título `clamp(1.9rem … 2.6rem)` · filete de 4 px |
 | **Contenido** | Una columna. En el cliente, una sola pantalla visible: `.pantalla.activa`. En el mostrador, la cola. | Máx. 720 px, centrada · márgenes laterales de 16 px |
-| **Pie** | Atribución y enlaces. Separado por una línea. | `--tinta-tenue`, 0,9rem |
+| **Pie** | Atribución y enlaces. Separado por una línea. | `--carbon-tenue`, 0,9rem |
 
 El ancho máximo de 720 px es deliberado: aunque el mostrador use una pantalla
 grande, la cola se lee mejor en una columna estrecha que en líneas de 1 400 px de
@@ -342,7 +342,7 @@ Licencia y procedencia en [`sitio/fuentes/LEEME.md`](../sitio/fuentes/LEEME.md).
 | Cuerpo | 1rem / 1,6 | 400 | Textos y campos |
 | Total | 1,25rem · cifras tabulares · espaciado −0,02 em | 800 | La cifra que se mira antes de pagar |
 | Código de canje | `clamp(2rem, 1.2rem + 3.6vw, 2.9rem)` · monoespaciada · espaciado 0,22 em | 700 | Solo el código |
-| Metadatos | 0,9rem · `--tinta-tenue` | 400 | Hora de última carga, notas |
+| Metadatos | 0,9rem · `--carbon-tenue` | 400 | Hora de última carga, notas |
 
 El interlineado del cuerpo es 1,6, más holgado que el de una aplicación de datos:
 aquí no hay tablas densas que comprimir, y el texto se lee en un teléfono a la
@@ -543,13 +543,37 @@ mismo objeto.
 
 | Estado | Apariencia |
 |---|---|
-| Normal | `--papel`, `--sombra`, filete `--cian` |
-| Hover | `--sombra-alta` y 1 px de elevación |
+| Normal | `--papel`, `--sombra`, borde `--linea` |
+| Hover | `--sombra-alta` y 2 px de elevación — **solo con puntero fino**, ver [Pasar por encima y tocar](#c-tacto) |
 | En la cola del mostrador (`.pedido`) | Filete `--azul` |
-| Agotado (`.agotado`) | Sin sombra, borde `--linea`, filete `--linea-fuerte`, nombre en `--tinta-tenue` |
+| Agotado (`.agotado`) | Fondo `--crema-hundido`, sin sombra, no se levanta. Foto al 45 %; nombre y precio en `--carbon-medio`, descripción en `--carbon-tenue`; etiqueta `--papel` sobre `--carbon-medio` |
 
 **El agotado conserva la tarjeta.** Quitarle el fondo lo convertía en un hueco en
 la lista en vez de en un plato que hoy no hay.
+
+**Y conserva su texto legible, que es el arreglo de la 2.3.** Esto se atenuaba
+con `opacity: 0.6` sobre la tarjeta entera, y era un fallo de accesibilidad
+medido: la descripción caía a **2,50:1** y la etiqueta «Agotado» a **2,79:1**,
+las dos por debajo de 4,5:1. La excepción de la norma para controles inactivos
+no cubría nada de esto, porque esta tarjeta **no tiene ni un botón**: es texto
+informativo, y el texto informativo no tiene excepción.
+
+Lo que más dolía era lo único que hay que leer ahí. La palabra que te dice que
+no hay era la menos legible de la tarjeta.
+
+| | Antes | Ahora |
+|---|---|---|
+| Nombre y precio | 4,58:1 | **6,61:1** |
+| Descripción | 2,50:1 | **4,76:1** |
+| Etiqueta «Agotado» | 2,79:1 | **7,82:1** |
+
+La no disponibilidad se dice ahora con lo que puede apagarse sin dejar de
+leerse: el fondo se hunde, la sombra desaparece, la tarjeta no se levanta al
+pasar por encima, y la foto —que es una imagen, no texto— sí baja de opacidad.
+Los textos bajan de jerarquía **cambiando de token**, que es lo que
+`test_contraste.py` sabe medir; la opacidad compone el color después, en el
+navegador, y por eso una prueba de tokens no la ve. Eso lo vigila ahora
+`test_un_producto_agotado_no_apaga_su_texto`.
 
 **La foto va a la izquierda, no arriba.** En una lista vertical, una imagen a
 todo lo ancho empuja el precio fuera de la pantalla y obliga a desplazarse para
@@ -578,7 +602,7 @@ un control que no filtra nada ocupa sitio sin hacer nada.
 
 | Estado | Apariencia |
 |---|---|
-| Normal | `--papel`, borde `--linea-fuerte`, texto `--tinta-media` |
+| Normal | `--papel`, borde `--linea-fuerte`, texto `--carbon-medio` |
 | Elegida (`aria-pressed="true"`) | `--azul` macizo, texto blanco |
 
 ### Control de cantidad
@@ -759,7 +783,7 @@ decisión con consecuencia, que es para lo que `--ambar` existe.
 | `.punto.ok` | `--verde-canje` | Confirmado, listo, entregado |
 | `.punto.espera` | `--ambar` | Esperando algo |
 | `.punto.mal` | `--error` | Rechazado o cancelado |
-| `.etiqueta-agotado` | `--ambar` sobre `--ambar-niebla` | Agotado |
+| `.etiqueta-agotado` | `--papel` sobre `--carbon-medio` · 7,82:1 | Agotado |
 
 **El punto nunca va solo**: siempre lleva su rótulo al lado, y esa es la razón
 por la que el color no es información única. Quien no distingue verde de ámbar
@@ -810,6 +834,62 @@ no dar ninguna.
 | Cierre con `Esc` | Nativo de `<dialog>`; no se desactiva |
 
 <a id="patrones"></a>
+
+<a id="c-tacto"></a>
+
+### Pasar por encima, y tocar
+
+El táctil **no tiene hover**, así que el navegador se lo inventa: el primer
+toque aplica `:hover` y lo deja puesto hasta que la persona toque otra cosa.
+Las nueve reglas de `:hover` de la hoja estaban sueltas y sin compuerta, y en
+un teléfono eso se veía — tocar una tarjeta la dejaba levantada dos píxeles,
+tocar «Agregar» lo dejaba azul oscuro como si siguiera pulsado. Todo el
+recorrido del público es en teléfono.
+
+Van las nueve juntas detrás de `@media (hover: hover) and (pointer: fine)`.
+Hacen falta las dos condiciones: la primera dice que el puntero principal
+puede posarse, la segunda que además es preciso, y eso descarta los lápices y
+los Android que declaran hover sin tenerlo. Lo vigila
+`test_ningun_hover_queda_suelto_fuera_de_su_compuerta`.
+
+Y están al final del archivo por cascada, no por orden estético: una consulta
+de medios **no sube la especificidad**, solo decide si la regla participa.
+Antes ganaban por orden de aparición; metidas en una compuerta a mitad del
+archivo habrían perdido contra las reglas en reposo de más abajo.
+
+| Lo que toca el dedo | Lo que devuelve |
+|---|---|
+| Destino de la barra, categoría | Fondo `--crema-hundido` y `scale(0.97)` |
+| Tarjeta de producto | `scale(0.99)` |
+| Botón | `scale(0.985)` |
+| Botón central del carrito | `scale(0.96)` |
+| Método de pago | Borde `--azul` |
+
+**Quitar el resaltado del navegador obliga a poner uno propio.** El recuadro
+translúcido que iOS y Android pintan sobre lo que se toca es la señal más
+ruidosa de «esto es una página web», y pelea con la respuesta que sí está
+diseñada. Se quita en la raíz con `-webkit-tap-highlight-color: transparent`,
+y a cambio todo lo tocable lleva su `:active` — 120 ms, salida suave. Quitar
+la única respuesta que daba el navegador sin poner otra sería cambiar un
+defecto por otro peor.
+
+**`touch-action: manipulation`** en los controles renuncia al doble toque para
+ampliar *sobre ellos*, y con eso el navegador deja de esperar por si llega un
+segundo toque. No se renuncia a ampliar la página: pellizcar sigue intacto, y
+`user-scalable=no` no está en ningún sitio porque es un fallo de
+accesibilidad.
+
+**`user-select: none` va solo en controles.** Mantener el dedo sobre un botón
+no debe seleccionar su etiqueta: eso delata a un control que no es nativo.
+Pero el código de recogida, los totales y los mensajes de error son
+**contenido**, y ahí poder copiar es justo lo que se quiere — el código lleva
+`user-select: all`, así que un toque lo selecciona entero.
+
+**La selección y el cursor también son del sistema de diseño.** Venían con el
+azul del sistema operativo, que no pertenece a ninguna paleta. `::selection`
+usa `--azul-niebla` sobre `--carbon`, que son dos tokens ya medidos, y el
+cursor de texto usa `--azul`. Son dos líneas y de lo poco que distingue una
+página construida de una ensamblada.
 
 ## Patrones de interacción
 
@@ -918,7 +998,7 @@ PideUTB. Son todas las que hoy existen.
 └──────────────────────────────────────┘
 ```
 
-Una tarjeta por ítem: foto a la izquierda, nombre, descripción en `--tinta-tenue`
+Una tarjeta por ítem: foto a la izquierda, nombre, descripción en `--carbon-tenue`
 y precio, y el control a la derecha. Los agotados **no se ocultan**: saber que
 algo existe y hoy no hay es información, y ocultarlo haría que el cliente lo
 busque.
