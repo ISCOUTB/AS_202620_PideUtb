@@ -722,3 +722,192 @@ def test_todo_lo_que_se_mete_en_una_ruta_va_codificado():
                     "un `..`, la petición sale hacia una dirección distinta "
                     "de la que esa línea aparenta pedir."
                 )
+
+
+def test_un_producto_agotado_no_apaga_su_texto():
+    """Atenuar con `opacity` es invisible para cualquier prueba de tokens.
+
+    Hasta la S16 la tarjeta de un producto agotado llevaba `opacity: 0.6`
+    encima de todo. Los colores seguían siendo los de la paleta y
+    `test_contraste.py` seguía en verde, porque mide tokens contra
+    superficies y la opacidad no es ninguna de las dos cosas: compone el
+    color **después**, en el navegador. La descripción caía a 2,50:1 y la
+    etiqueta «Agotado» a 2,79:1 sin que nada se quejara.
+
+    La regla que lo impide es estructural y no aritmética: en esa tarjeta la
+    opacidad solo puede caer sobre la foto, que es una imagen. Lo demás es
+    texto y baja de jerarquía cambiando de token, que sí se mide.
+    """
+    hoja = (SITIO / "estilos.css").read_text(encoding="utf-8")
+
+    for selector, bloque in re.findall(r"(\.item\.agotado[^{]*)\{([^}]*)\}", hoja):
+        sel = selector.strip()
+        if "opacity" not in bloque:
+            continue
+        assert ".item-foto" in sel, (
+            f"`{sel}` atenúa con opacidad. En una tarjeta agotada eso también "
+            "apaga el texto, y el texto tiene que seguir leyéndose: la palabra "
+            "«Agotado» es justo lo que alguien necesita ver. Bajá la jerarquía "
+            "con un token de color, que `test_contraste.py` sí puede medir."
+        )
+
+
+def test_ningun_hover_queda_suelto_fuera_de_su_compuerta():
+    """El táctil no tiene hover, así que el navegador se lo inventa.
+
+    El primer toque aplica `:hover` y lo deja puesto hasta que la persona
+    toque otra cosa: una tarjeta tocada se queda levantada, un botón tocado
+    se queda oscuro como si siguiera pulsado. Todo el recorrido del público
+    es en teléfono, así que una regla de hover sin compuerta no es un detalle
+    de escritorio.
+
+    Se comprueba sobre la forma del archivo porque es una regla sobre **cómo
+    se escribe una hoja**, no sobre lo que una pantalla concreta enseña.
+    """
+    hoja = (SITIO / "estilos.css").read_text(encoding="utf-8")
+
+    # Fuera los comentarios: esta misma explicación nombra `:hover` varias
+    # veces y no es una regla.
+    sin_comentarios = re.sub(r"/\*.*?\*/", "", hoja, flags=re.S)
+
+    apertura = sin_comentarios.find("@media (hover: hover) and (pointer: fine)")
+    assert apertura != -1, (
+        "no hay ninguna compuerta `@media (hover: hover) and (pointer: fine)` "
+        "en sitio/estilos.css"
+    )
+
+    # El bloque llega hasta su llave de cierre al mismo nivel.
+    i = sin_comentarios.index("{", apertura)
+    nivel = 0
+    for j in range(i, len(sin_comentarios)):
+        if sin_comentarios[j] == "{":
+            nivel += 1
+        elif sin_comentarios[j] == "}":
+            nivel -= 1
+            if nivel == 0:
+                cierre = j
+                break
+
+    fuera = sin_comentarios[:apertura] + sin_comentarios[cierre:]
+    sueltas = [
+        linea.strip()
+        for linea in fuera.splitlines()
+        if ":hover" in linea
+    ]
+    assert not sueltas, (
+        f"estas reglas de hover están fuera de la compuerta: {sueltas}. "
+        "En un teléfono se quedan pegadas después del primer toque."
+    )
+
+
+#: Tokens que la guía nombra a propósito y la hoja ya no declara.
+#:
+#: Todos aparecen contando una decisión pasada, no describiendo el estado de
+#: hoy, y por eso siguen siendo ciertos: `--brasa-viva` es el color que la 2.1
+#: documentó y se quitó por no usarse; `--verde-tinta` es el que medía 4,81:1
+#: sobre blanco y caía a 4,48:1 sobre crema; `--cian-tinta` es de la paleta fría
+#: que la 2.1 sustituyó.
+#:
+#: Añadir algo acá es una decisión, no un trámite: significa afirmar que esa
+#: mención habla del pasado. Si describe el presente, el arreglo es la guía.
+TOKENS_RETIRADOS = {"--brasa-viva", "--cian-tinta", "--verde-tinta"}
+
+
+def test_la_guia_no_nombra_tokens_que_no_existen():
+    """Una guía que nombra un color inexistente miente sin que nada falle.
+
+    Nace de encontrar siete menciones así en la 2.2, repartidas en tres tokens
+    de la paleta fría que la 2.1 había sustituido: `--cian` describía el filete
+    de una tarjeta que ya no lo tiene, y `--tinta-media` y `--tinta-tenue` eran
+    los nombres viejos de `--carbon-medio` y `--carbon-tenue`. Ninguna rompía
+    nada, y esa es exactamente la razón por la que llevaban una entrega
+    enteras: una guía no se ejecuta.
+
+    Es la misma clase de defecto que `.punto.bien` —la hoja declaraba un
+    nombre y los guiones escribían otro— y se vigila igual, atando los dos
+    archivos en vez de confiar en que alguien se acuerde.
+    """
+    hoja = (SITIO / "estilos.css").read_text(encoding="utf-8")
+    guia = (RAIZ / "docs" / "sistema-de-diseno.md").read_text(encoding="utf-8")
+
+    declarados = set(re.findall(r"(--[a-z0-9-]+)\s*:", hoja))
+    nombrados = set(re.findall(r"`(--[a-z0-9-]+)`", guia))
+
+    fantasmas = sorted(nombrados - declarados - TOKENS_RETIRADOS)
+    assert not fantasmas, (
+        f"docs/sistema-de-diseno.md nombra {fantasmas} y sitio/estilos.css no "
+        "los declara. O la guía describe algo que ya no existe —y entonces se "
+        "corrige la guía—, o la mención es histórica y va en TOKENS_RETIRADOS "
+        "con el motivo escrito."
+    )
+
+
+def test_ningun_token_retirado_sigue_vivo_en_la_hoja():
+    """La lista de retirados no puede quedarse mintiendo en la otra dirección.
+
+    Si alguien vuelve a declarar un token que está anotado como retirado, la
+    excepción deja de ser una excepción y empieza a tapar menciones que sí
+    habría que revisar.
+    """
+    hoja = (SITIO / "estilos.css").read_text(encoding="utf-8")
+    declarados = set(re.findall(r"(--[a-z0-9-]+)\s*:", hoja))
+
+    resucitados = sorted(TOKENS_RETIRADOS & declarados)
+    assert not resucitados, (
+        f"{resucitados} están en TOKENS_RETIRADOS y sitio/estilos.css los "
+        "declara otra vez. Sacalos de la lista: ya no son historia."
+    )
+
+
+def test_ningun_titulo_pide_un_peso_que_la_cara_no_tiene():
+    """La negrita sintética no falla, no avisa y no sale en ninguna consola.
+
+    Cuando una regla pide un peso que el archivo de la fuente no trae, el
+    navegador **no** se queda en el que hay: lo inventa, engrosando el
+    contorno del peso real en el sitio. Medido en Chrome sobre «Young Serif» a
+    72 px, el ancho no se mueve y la tinta sube un 31 %; pedir 900 da la misma
+    tinta que 700, porque la falsificación se satura. En una serif eso engorda
+    remates y astiles por igual y se lleva por delante el contraste entre
+    ellos, que es la mitad de lo que hace que una serif sea esa serif.
+
+    Nace del cambio de la S16: la cara de titulares pasó a tener **un solo
+    peso**, y seis reglas seguían pidiendo 600 o 700 —una de ellas la del
+    código de recogida, a 3,5 rem—. Ninguna rompía nada. Se veía mal y ya.
+    """
+    hoja = (SITIO / "estilos.css").read_text(encoding="utf-8")
+
+    # Qué pesos declara de verdad cada familia, según sus `@font-face`.
+    pesos = {}
+    for bloque in re.findall(r"@font-face\s*\{(.*?)\}", hoja, re.S):
+        familia = re.search(r'font-family:\s*"([^"]+)"', bloque)
+        rango = re.search(r"font-weight:\s*(\d+)(?:\s+(\d+))?\s*;", bloque)
+        assert familia and rango, f"un @font-face sin familia o sin peso: {bloque[:80]}"
+        bajo = int(rango.group(1))
+        alto = int(rango.group(2)) if rango.group(2) else bajo
+        pesos[familia.group(1)] = (bajo, alto)
+
+    assert pesos, "ningún @font-face en sitio/estilos.css"
+
+    # A qué familia apunta cada token, que es lo que las reglas nombran.
+    familia_de = {}
+    for token in ("--fuente-titulo", "--fuente"):
+        m = re.search(rf'{token}:\s*"([^"]+)"', hoja)
+        assert m, f"no se encontró el token `{token}`"
+        familia_de[token] = m.group(1)
+
+    for selector, bloque in re.findall(r"([^{}]+)\{([^{}]*)\}", hoja):
+        usa = re.search(r"font-family:\s*var\((--fuente[a-z-]*)\)", bloque)
+        pide = re.search(r"font-weight:\s*(\d+)", bloque)
+        if not (usa and pide):
+            continue
+
+        familia = familia_de[usa.group(1)]
+        bajo, alto = pesos[familia]
+        peso = int(pide.group(1))
+
+        assert bajo <= peso <= alto, (
+            f"`{selector.strip().splitlines()[-1].strip()}` pide un peso "
+            f"{peso} de «{familia}», que solo declara {bajo}–{alto}. El "
+            "navegador lo va a inventar engordando los trazos, y eso no "
+            "falla en ningún sitio: solo se ve peor."
+        )

@@ -98,6 +98,8 @@ PARES = [
     ("ambar", "ambar-niebla", 4.5, "y el título de la advertencia del código"),
     ("carbon", "ambar-niebla", 7.0, "el cuerpo de esa misma advertencia"),
     ("carbon-medio", "crema-hundido", 4.5, "el estado, en la pastilla del billete"),
+    ("carbon-medio", "crema-hundido", 4.5, "y el nombre y el precio de un producto agotado"),
+    ("carbon-tenue", "crema-hundido", 4.5, "la descripción de ese mismo producto agotado"),
     ("error", "error-fondo", 4.5, "el texto del aviso de error"),
 ]
 
@@ -108,6 +110,7 @@ SOBRE_COLOR = [
     ("verde-canje", 4.5, "el billete del código de canje"),
     ("ambar", 4.5, "cualquier etiqueta con tinta blanca"),
     ("carbon", 4.5, "la chapa con la cantidad del carrito"),
+    ("carbon-medio", 4.5, "la etiqueta «Agotado», que es lo único que hay que leer ahí"),
 ]
 
 

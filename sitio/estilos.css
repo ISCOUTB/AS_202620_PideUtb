@@ -54,8 +54,11 @@
    auditorio, y una petición menos a un tercero es un punto menos donde la
    demo se puede quedar sin tipografía delante del público.
 
-   Las dos son variables —un archivo cubre todos los pesos— y están recortadas
-   al subconjunto latino, que cubre el español entero. 115 KB las dos juntas.
+   Hanken Grotesk es **variable** —un archivo cubre de 300 a 900— y Young Serif
+   trae un solo peso, que es todo lo que necesita: es cara de titular, y su 400
+   pesa ya más que el 600 de la serif que sustituyó. Las dos están recortadas al
+   subconjunto latino, que cubre el español entero. **60 KB las dos juntas**,
+   frente a los 115 de antes: casi la mitad de lo que el teléfono descarga.
 
    `font-display: swap` para que el texto aparezca de inmediato con la fuente
    del sistema y cambie cuando la nuestra llegue. En una demo en vivo, texto
@@ -63,18 +66,22 @@
 
    Licencia: las dos son SIL Open Font License 1.1. Ver `fuentes/LEEME.md`. */
 
+/* `font-weight: 400` y no un rango: Young Serif tiene **un solo peso**, y
+   declarar un rango que el archivo no cubre es justo lo que hace que el
+   navegador engorde los trazos por su cuenta. Ver el comentario de los
+   títulos, más abajo. */
 @font-face {
-  font-family: "Fraunces";
-  src: url("fuentes/fraunces-latin.woff2") format("woff2-variations");
-  font-weight: 100 900;
+  font-family: "Young Serif";
+  src: url("fuentes/young-serif-latin.woff2") format("woff2");
+  font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: "Inter";
-  src: url("fuentes/inter-latin.woff2") format("woff2-variations");
-  font-weight: 100 900;
+  font-family: "Hanken Grotesk";
+  src: url("fuentes/hanken-grotesk-latin.woff2") format("woff2-variations");
+  font-weight: 300 900;
   font-style: normal;
   font-display: swap;
 }
@@ -154,8 +161,8 @@
      carta; Inter es la que se lee sin pensar. La regla es simple: **Fraunces
      titula, Inter informa**. Un precio en serif se lee más despacio, y un
      precio hay que leerlo rápido. */
-  --fuente-titulo: "Fraunces", Georgia, "Times New Roman", serif;
-  --fuente: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --fuente-titulo: "Young Serif", Georgia, "Times New Roman", serif;
+  --fuente: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
 
   /* --- Ritmo -----------------------------------------------------------
      Escala de 4 px. Que los espacios salgan de una escala y no de números
@@ -200,6 +207,14 @@ html {
      por encima del crema. */
   background: var(--crema);
   -webkit-text-size-adjust: 100%;
+
+  /* El navegador pinta un recuadro translúcido sobre cualquier cosa que se
+     toque y tenga manejador. Es la señal más ruidosa de «esto es una página
+     web», y además pelea con la respuesta al toque que sí diseñamos abajo.
+     Se quita acá, una vez, y a cambio **todo lo tocable lleva su `:active`**:
+     quitar la única respuesta que daba el navegador sin poner otra sería
+     cambiar un defecto por otro peor. */
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -209,16 +224,36 @@ body {
   font-family: var(--fuente);
   font-size: 16px;
   line-height: 1.55;
-  /* Dos ajustes que Inter trae y hay que pedir: las cifras de ancho fijo
-     evitan que un total «salte» al cambiar de 9 a 10, y el alisado fino
-     compensa que el texto oscuro sobre crema se ve más grueso de lo que es. */
+  /* Las cifras de ancho fijo evitan que un total «salte» al cambiar de 9 a
+     10. Hanken Grotesk ya las trae así de serie —se comprobó midiendo el
+     ancho de `111111` contra el de `000000`—, así que esta línea no cambia
+     nada hoy; se queda porque la siguiente cara puede no traerlas, y entonces
+     sí hará falta. El alisado fino compensa que el texto oscuro sobre crema
+     se ve más grueso de lo que es. */
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
 
+/* --- Los títulos piden 400, y no es una rebaja ---------------------------
+
+   La cara de titulares tiene **un solo peso**. Pedirle un 600 o un 700 no
+   trae nada más grueso: el navegador inventa el grosor engrosando el contorno
+   del 400 en el sitio —negrita sintética—, y en una serif eso arruina lo que
+   la hace esa serif, porque engorda remates y astiles por igual en vez de
+   respetar el contraste entre unos y otros.
+
+   Medido en Chrome, a 72 px: el ancho no cambia ni un píxel y la tinta sube
+   un 31 %. Y pedir 900 da exactamente la misma tinta que 700, porque la
+   falsificación se satura — ni siquiera da grados.
+
+   No hace falta, además. El 400 de esta cara pesa más que el 600 de la que
+   sustituyó: la jerarquía la llevaban el tamaño y el aire, no el peso.
+
+   Lo vigila `test_ningun_titulo_pide_un_peso_que_la_cara_no_tiene`, porque
+   una negrita sintética no falla, no avisa y no sale en ninguna consola. */
 h1, h2, h3 {
   font-family: var(--fuente-titulo);
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.15;
   letter-spacing: -0.015em;
   margin: 0;
@@ -231,12 +266,54 @@ h3 { font-size: 1.1rem; }
 p { margin: 0; }
 
 a { color: var(--azul); }
-a:hover { color: var(--azul-hundido); }
+
+/* La selección y el cursor de texto vienen con el azul del sistema operativo,
+   que no pertenece a ninguna paleta. Cuestan dos líneas y son de lo poco que
+   distingue una página construida de una ensamblada.
+
+   El azul al 8 % es el mismo `--azul-niebla` que ya usan los fondos de apoyo,
+   así que seleccionar texto no introduce un color nuevo: usa uno medido. */
+::selection {
+  background: var(--azul-niebla);
+  color: var(--carbon);
+}
+
+input, textarea { caret-color: var(--azul); }
 
 :focus-visible {
   outline: 2px solid var(--azul);
   outline-offset: 2px;
   border-radius: var(--radio-chico);
+}
+
+/* --- Lo que se toca -----------------------------------------------------
+
+   `touch-action: manipulation` renuncia al doble toque para ampliar sobre
+   estos elementos, y con eso el navegador deja de esperar 300 ms por si
+   llega un segundo toque. No se renuncia a ampliar la página: el gesto de
+   pellizcar sigue intacto, y `user-scalable=no` sigue sin estar en ningún
+   sitio porque es un fallo de accesibilidad.
+
+   `user-select: none` evita que mantener el dedo sobre un botón seleccione
+   su etiqueta, que es lo que delata a un control que no es nativo. Va **solo
+   en controles**: el código de recogida, los mensajes de error y los totales
+   son contenido, y ahí poder copiar es justo lo que se quiere. */
+button,
+a,
+[role="button"],
+.categoria,
+.metodos label.metodo {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Y lo contrario donde importa: un toque selecciona el código entero, que es
+   exactamente lo que alguien quiere hacer con él. */
+.billete .codigo-canje {
+  user-select: all;
+  -webkit-user-select: all;
 }
 
 .oculto { display: none !important; }
@@ -461,7 +538,6 @@ footer {
   transition: color 0.15s ease, background 0.15s ease;
 }
 
-.nav-boton:hover:not(:disabled) { background: var(--crema-hundido); }
 .nav-boton[aria-current="page"] { color: var(--azul); }
 
 .nav-boton:disabled {
@@ -505,7 +581,6 @@ footer {
   transition: transform 0.12s ease, background 0.15s ease;
 }
 
-.nav-carrito:hover:not(:disabled) { background: var(--azul-hundido); }
 .nav-carrito:active:not(:disabled) { transform: scale(0.96); }
 
 .nav-carrito:disabled {
@@ -583,7 +658,6 @@ button, .boton {
   border-color: transparent;
 }
 
-button:hover:not(:disabled), .boton:hover { background: var(--azul-hundido); color: #fff; }
 button:active:not(:disabled) { transform: scale(0.985); }
 
 button:disabled {
@@ -596,12 +670,6 @@ button.secundario {
   background: transparent;
   color: var(--azul);
   border-color: var(--linea-fuerte);
-}
-
-button.secundario:hover:not(:disabled) {
-  background: var(--azul-niebla);
-  color: var(--azul-hundido);
-  border-color: var(--azul);
 }
 
 /* Los botones de pantalla van apilados con aire; los de dentro de una tarjeta
@@ -639,12 +707,6 @@ button.secundario:hover:not(:disabled) {
   scroll-snap-align: start;
 }
 
-.categoria:hover:not(:disabled) {
-  background: var(--azul-niebla);
-  color: var(--azul);
-  border-color: var(--azul);
-}
-
 .categoria[aria-pressed="true"] {
   background: var(--azul);
   color: #fff;
@@ -675,10 +737,31 @@ button.secundario:hover:not(:disabled) {
   transition: box-shadow 0.18s ease, transform 0.18s ease;
 }
 
-.catalogo .item.producto:hover { box-shadow: var(--sombra-alta); transform: translateY(-2px); }
+/* --- Agotado ------------------------------------------------------------
 
-.item.agotado { opacity: 0.6; box-shadow: none; }
-.item.agotado:hover { transform: none; }
+   Esto era `opacity: 0.6` sobre la tarjeta entera, y era un fallo de
+   accesibilidad medido: la descripción caía a **2,50:1** y la etiqueta
+   «Agotado» a **2,79:1**, las dos por debajo del mínimo de 4,5:1. La
+   excepción de la norma para controles inactivos no cubría nada de esto,
+   porque esta tarjeta **no tiene ni un botón**: es texto informativo.
+
+   Y lo que peor salía era lo único que hay que leer. La palabra que te dice
+   que no hay era la menos legible de la tarjeta.
+
+   Ahora la no disponibilidad se dice con lo que sí puede apagarse sin dejar
+   de leerse: el fondo se hunde, la tarjeta pierde la sombra y no se levanta,
+   y la foto —que es una imagen, no texto— sí baja de opacidad. Los textos
+   bajan de jerarquía cambiando de token, no de opacidad, y cada uno tiene su
+   contraste medido contra el crema hundido en `test_contraste.py`. */
+.item.agotado {
+  background: var(--crema-hundido);
+  box-shadow: none;
+}
+
+.item.agotado .item-foto { opacity: 0.45; }
+
+.item.agotado .item-nombre,
+.item.agotado .item-precio { color: var(--carbon-medio); }
 
 /* --- La foto, y qué pasa mientras no hay fotos ----------------------------
    El hueco es cuadrado y se reserva siempre, con foto o sin ella: si
@@ -710,7 +793,7 @@ button.secundario:hover:not(:disabled) {
   color: var(--azul);
   font-family: var(--fuente-titulo);
   font-size: 1.75rem;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .item-datos { flex: 1 1 auto; min-width: 0; }
@@ -760,8 +843,12 @@ button.secundario:hover:not(:disabled) {
   margin-top: var(--e1);
   padding: 2px var(--e2);
   border-radius: var(--radio-pildora);
-  background: var(--crema-hundido);
-  color: var(--carbon-medio);
+  /* Invertida a propósito, y es el cambio que más importa de los dos. Era
+     carbón medio sobre crema hundido: sobre una tarjeta ya hundida se perdía.
+     Blanco sobre carbón medio da 7,82:1 y la convierte en lo más visible de
+     la tarjeta, que es lo que le corresponde. */
+  background: var(--carbon-medio);
+  color: var(--papel);
   font-size: 0.75rem;
   font-weight: 600;
 }
@@ -872,7 +959,7 @@ button.secundario:hover:not(:disabled) {
   border-top: 1px solid var(--linea);
   font-family: var(--fuente-titulo);
   font-size: 1.15rem;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--carbon);
 }
 
@@ -892,7 +979,7 @@ button.secundario:hover:not(:disabled) {
   padding: 0 0 var(--e3);
   font-family: var(--fuente-titulo);
   font-size: 1.1rem;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .metodos-opciones {
@@ -919,11 +1006,6 @@ button.secundario:hover:not(:disabled) {
   border-color: var(--linea);
   font-size: 0.95rem;
   font-weight: 500;
-}
-
-.metodos label.metodo:hover {
-  border-color: var(--azul);
-  color: var(--azul);
 }
 
 .metodos input[type="radio"]:checked + label.metodo {
@@ -1065,7 +1147,7 @@ button.secundario:hover:not(:disabled) {
   text-align: center;
   font-family: var(--fuente-titulo);
   font-size: clamp(2.25rem, 13vw, 3.5rem);
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.14em;
   /* La letra va centrada pese al espaciado: sin esto, el `letter-spacing`
      añade un hueco detrás del último carácter y el conjunto se ve corrido
@@ -1102,7 +1184,7 @@ button.secundario:hover:not(:disabled) {
   color: var(--ambar);
   font-family: var(--fuente-titulo);
   font-size: 1.15rem;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 /* El código, dentro de la frase, con la letra del billete y su espaciado: es
@@ -1365,6 +1447,90 @@ input.codigo-canje {
 
 @media (min-width: 1040px) {
   .catalogo { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ===========================================================================
+   PASAR POR ENCIMA, Y TOCAR
+   ===========================================================================
+
+   Las nueve reglas de `:hover` de esta hoja estaban sueltas por el archivo y
+   sin compuerta, y en un teléfono eso no es un detalle: el táctil **no tiene
+   hover**, así que el navegador se lo inventa — el primer toque aplica
+   `:hover` y lo deja puesto hasta que toques otra cosa. Tocar una tarjeta la
+   dejaba levantada dos píxeles; tocar «Agregar» lo dejaba azul oscuro, como
+   si siguiera pulsado. Todo el recorrido del 3 de noviembre es en teléfono.
+
+   Hacen falta las dos condiciones. `hover: hover` dice que el puntero
+   principal puede posarse; `pointer: fine` dice que además es preciso, y eso
+   descarta los lápices y los Android que declaran hover sin tenerlo.
+
+   Van juntas y al final del archivo por una razón de cascada: una consulta de
+   medios no sube la especificidad, solo decide si la regla participa. Estando
+   al final ganan a la regla en reposo que cada una sobrescribe, que es lo que
+   hacían antes por orden de aparición.
+
+   Quien toca no se queda sin respuesta: la da `:active`, que funciona en
+   todos los punteros y está justo debajo. */
+
+@media (hover: hover) and (pointer: fine) {
+  a:hover { color: var(--azul-hundido); }
+
+  .nav-boton:hover:not(:disabled) { background: var(--crema-hundido); }
+
+  .nav-carrito:hover:not(:disabled) { background: var(--azul-hundido); }
+
+  button:hover:not(:disabled), .boton:hover {
+    background: var(--azul-hundido);
+    color: #fff;
+  }
+
+  button.secundario:hover:not(:disabled) {
+    background: var(--azul-niebla);
+    color: var(--azul-hundido);
+    border-color: var(--azul);
+  }
+
+  .categoria:hover:not(:disabled) {
+    background: var(--azul-niebla);
+    color: var(--azul);
+    border-color: var(--azul);
+  }
+
+  .catalogo .item.producto:hover {
+    box-shadow: var(--sombra-alta);
+    transform: translateY(-2px);
+  }
+
+  .item.agotado:hover { transform: none; box-shadow: none; }
+
+  .metodos label.metodo:hover {
+    border-color: var(--azul);
+    color: var(--azul);
+  }
+}
+
+/* Un botón nativo responde en el instante en que el dedo aterriza. Uno que
+   solo cambia al soltar responde cuando el dedo **se va**, y eso se lee como
+   lentitud aunque no haya ni un milisegundo de retraso. Los dos que ya
+   existían —el carrito y los botones— se quedan donde están; estos cuatro
+   faltaban. 120 ms y salida suave: lo justo para que se note y no para que
+   estorbe. */
+.nav-boton:active:not(:disabled),
+.categoria:active:not(:disabled) {
+  background: var(--crema-hundido);
+  transform: scale(0.97);
+}
+
+.catalogo .item.producto:active { transform: scale(0.99); }
+
+.metodos label.metodo:active { border-color: var(--azul); }
+
+.nav-boton,
+.categoria,
+.catalogo .item.producto,
+.metodos label.metodo {
+  transition: transform 0.12s ease-out, background 0.12s ease-out,
+    border-color 0.12s ease-out, box-shadow 0.18s ease-out;
 }
 
 /* ===========================================================================

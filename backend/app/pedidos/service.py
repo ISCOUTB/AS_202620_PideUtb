@@ -25,7 +25,35 @@ from app.usuarios import service as cuentas_service
 
 #: Alfabeto del código de canje. Debe respetar el `pattern` declarado para
 #: `codigo_canje` en docs/api/openapi.yaml.
-_ALFABETO_CANJE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+#:
+#: Faltan cinco letras —`B`, `G`, `I`, `O`, `Q`— y no es una convención
+#: copiada de otro sitio: se eligieron midiendo. Este código se lee de la
+#: pantalla de un teléfono y se teclea en el mostrador, así que lo que importa
+#: es si dos caracteres se confunden **en la tipografía con la que se pinta**,
+#: que desde la S16 es Young Serif.
+#:
+#: Comparando la silueta de cada par (0 = idénticas, 1 = disjuntas):
+#:
+#:     O/Q  0,186     G/C  0,279     O/D  0,420
+#:     B/8  0,426     I/1  0,438     G/6  0,485
+#:
+#: Quitando esas cinco, todos esos pares desaparecen. Lo que **no** hacía falta
+#: quitar, y por eso sigue: `O/0` mide 0,782, `S/5` 0,897 y `Z/2` 0,765 — esta
+#: cara los separa de sobra, y quitarlos por costumbre habría costado espacio
+#: sin ganar nada.
+#:
+#: Cuidado al leer una medición nueva: la métrica compara siluetas, no
+#: legibilidad. En el alfabeto reducido el par peor es `K/R` con 0,276, y nadie
+#: confunde una K con una R leyendo un código de seis caracteres. No hay que
+#: "arreglarlo".
+#:
+#: El contrato **no cambia**. Declara `^[A-Z0-9]{6}$`, que es un superconjunto:
+#: los códigos nuevos siguen encajando y los viejos, que sí llevan estas
+#: letras, siguen siendo válidos. Estrechar el patrón haría que el contrato
+#: mintiera sobre los datos que ya existen.
+#:
+#: Cuesta 1,29 bits: de 36^6 (2.176.782.336) a 31^6 (887.503.681).
+_ALFABETO_CANJE = "ACDEFHJKLMNPRSTUVWXYZ0123456789"
 _LONGITUD_CANJE = 6
 
 

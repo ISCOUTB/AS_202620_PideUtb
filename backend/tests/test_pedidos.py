@@ -7,6 +7,9 @@ un error claro si el ítem no existe o no está disponible.
 Las pruebas de propiedad de datos entre contextos están en
 `test_propiedad_datos.py`.
 """
+import re
+import string
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -158,3 +161,56 @@ def test_un_token_que_no_existe_da_404_y_no_otra_cosa():
     )
 
     assert con_token_falso.status_code == inexistente.status_code == 404
+
+
+#: Las cinco que se quitaron del alfabeto de canje, con el par que las condena.
+#:
+#: Medido sobre la silueta de cada glifo en Young Serif, que es la cara con la
+#: que el código se pinta (0 = idénticas, 1 = disjuntas). El detalle y el
+#: porqué de cada una, en `app/pedidos/service.py`.
+CONFUNDIBLES = {
+    "B": "con 8 · 0,426",
+    "G": "con C · 0,279",
+    "I": "con 1 · 0,438",
+    "O": "con Q · 0,186",
+    "Q": "con O · 0,186",
+}
+
+
+def test_el_alfabeto_de_canje_no_trae_letras_que_se_confunden():
+    """Un código mal leído en el mostrador cuesta una comida.
+
+    Este código se lee de la pantalla de un teléfono y se teclea en el panel:
+    es el único caso del sistema donde un carácter viaja **por el ojo de una
+    persona**. Hasta la S16 el alfabeto era `A–Z0–9` entero, con `O` y `Q`
+    dentro, y en la cara con la que se pinta esas dos siluetas se solapan casi
+    por completo.
+
+    Lo que se quitó se decidió midiendo y no por costumbre, y por eso `O/0`,
+    `S/5` y `Z/2` **siguen**: esta cara los separa de sobra.
+    """
+    from app.pedidos.service import _ALFABETO_CANJE
+
+    presentes = sorted(c for c in CONFUNDIBLES if c in _ALFABETO_CANJE)
+    assert not presentes, (
+        "el alfabeto de canje trae "
+        + ", ".join(f"`{c}` ({CONFUNDIBLES[c]})" for c in presentes)
+        + ". Se quitaron porque se confunden al leer el código en el mostrador."
+    )
+
+
+def test_el_alfabeto_de_canje_sigue_cumpliendo_el_contrato():
+    """Estrechar el generador no puede sacar los códigos del patrón declarado.
+
+    El contrato dice `^[A-Z0-9]{6}$`, y se queda como está a propósito: es un
+    superconjunto, así que los códigos viejos —que sí llevan las letras
+    retiradas— siguen siendo válidos. Estrecharlo haría que el contrato
+    mintiera sobre datos que ya existen.
+    """
+    from app.pedidos.service import _ALFABETO_CANJE, _generar_codigo_canje
+
+    assert set(_ALFABETO_CANJE) <= set(string.ascii_uppercase + string.digits)
+    assert len(set(_ALFABETO_CANJE)) == len(_ALFABETO_CANJE), "hay repetidos"
+
+    for _ in range(200):
+        assert re.fullmatch(r"[A-Z0-9]{6}", _generar_codigo_canje())
