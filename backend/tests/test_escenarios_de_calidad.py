@@ -691,3 +691,34 @@ def test_las_imagenes_viajan_en_la_imagen_del_sitio():
             "servidor sirve la carpeta entera; en el contenedor desplegado no "
             "están y la portada sale sin foto."
         )
+
+
+def test_todo_lo_que_se_mete_en_una_ruta_va_codificado():
+    """Un valor interpolado en una ruta sin codificar deja de ser un valor.
+
+    Nace de un hallazgo del Quality Gate de la S16 (`jssecurity:S7044`), y el
+    defecto no se ve leyendo la línea: `api(f"/v1/pedidos/{id}")` parece pedir
+    un pedido, y con un `id` de `1/../../../v1/sesiones` pide otra cosa. El
+    navegador resuelve los `..` antes de enviar, así que la dirección que sale
+    no es la que el código aparenta.
+
+    Da igual de dónde venga el identificador. Del almacenamiento, que
+    cualquiera edita desde la consola; o de la propia API, que es de fiar hasta
+    el día que deje de serlo. La regla es la misma y es barata, así que se
+    aplica siempre en vez de discutirla caso por caso.
+
+    Se comprueba sobre la forma del código y no sobre una petición porque es
+    una regla sobre **cómo se escribe una ruta**: la prueba que la ejercitara
+    tendría que adivinar qué rutas existirán mañana.
+    """
+    for nombre in ("app.js", "panel.js"):
+        fuente = (SITIO / nombre).read_text(encoding="utf-8")
+
+        for ruta in re.findall(r"\bapi\(\s*`(/[^`]*)`", fuente):
+            for valor in re.findall(r"\$\{([^}]*)\}", ruta):
+                assert "encodeURIComponent(" in valor, (
+                    f"sitio/{nombre} arma la ruta `{ruta}` metiendo "
+                    f"`{valor}` sin codificar. Si ese valor trae una barra o "
+                    "un `..`, la petición sale hacia una dirección distinta "
+                    "de la que esa línea aparenta pedir."
+                )

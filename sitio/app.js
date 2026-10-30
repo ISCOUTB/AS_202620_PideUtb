@@ -60,6 +60,15 @@ function limpiarError() {
  * El contrato declara qué códigos emite cada operación; aquí se traducen los
  * que el consumidor dice manejar. Un código no contemplado cae en el mensaje
  * genérico en lugar de romper la página.
+ *
+ * **Quien arma la ruta codifica lo que meta dentro.** `ruta` llega ya armada y
+ * desde aquí no se distingue qué parte es estructura y qué parte es un valor,
+ * así que esta función no puede hacerlo por nadie. Y hace falta: interpolar un
+ * valor sin codificar lo asciende a estructura —una barra o un `..` dentro del
+ * valor dejan de ser texto y pasan a ser dirección, que es otra dirección—.
+ * Vale tanto para lo que sale del almacenamiento, que cualquiera edita desde
+ * la consola, como para lo que llega de la API, que es de fiar hasta el día
+ * que deje de serlo. Cuesta una llamada a `encodeURIComponent`.
  */
 async function api(ruta, opciones = {}) {
   // Las cabeceras se **fusionan**, no se reemplazan. Con el `...opciones`
@@ -424,7 +433,7 @@ async function cargarCarta() {
 
   try {
     const carta = await api(
-      `/v1/menu/establecimientos/${CONFIG.ESTABLECIMIENTO_ID}/items`
+      `/v1/menu/establecimientos/${encodeURIComponent(CONFIG.ESTABLECIMIENTO_ID)}/items`
     );
 
     cartaCompleta = carta.items;
@@ -1130,7 +1139,9 @@ async function mirarSiElCobroFueRechazado() {
 
   let intento;
   try {
-    intento = await api(`/v1/pagos/intentos/${referenciaDelCobro}`);
+    intento = await api(
+      `/v1/pagos/intentos/${encodeURIComponent(referenciaDelCobro)}`
+    );
   } catch {
     return;
   }
@@ -1197,9 +1208,10 @@ async function consultarEstado() {
     // El token va en una cabecera y no en la dirección: una URL acaba en los
     // registros del servidor y del proxy, y este token es lo que permite leer
     // el código de canje.
-    const pedido = await api(`/v1/pedidos/${pedidoActual.pedido_id}`, {
-      headers: { "X-Token-Pedido": tokenDelPedido },
-    });
+    const pedido = await api(
+      `/v1/pedidos/${encodeURIComponent(pedidoActual.pedido_id)}`,
+      { headers: { "X-Token-Pedido": tokenDelPedido } }
+    );
     pedidoActual = pedido;
 
     // El pedido sigue en `pendiente_pago`. Eso **no** quiere decir que no haya
@@ -1564,9 +1576,10 @@ async function retomarElPedidoGuardado() {
 
   let pedido;
   try {
-    pedido = await api(`/v1/pedidos/${guardado.pedido_id}`, {
-      headers: { "X-Token-Pedido": guardado.token_consulta },
-    });
+    pedido = await api(
+      `/v1/pedidos/${encodeURIComponent(guardado.pedido_id)}`,
+      { headers: { "X-Token-Pedido": guardado.token_consulta } }
+    );
   } catch (e) {
     if (e.status === 404) olvidarElPedido();
     return;

@@ -310,20 +310,61 @@ configuración de ahí gobierna el escaneo del job `SonarCloud`, que se omite si
 configuración diga que no**, y eso es una suerte, porque los tres hallazgos de
 abajo son reales.
 
-### El que tumbó el gate
+### El que tumbó el gate, en dos intentos
 
 | Regla | Dónde | Qué se hizo |
 |---|---|---|
-| `jssecurity:S7044` — travesía de API por entrada sin sanear, y `jssecurity:S8476` sobre la misma línea | `app.js`, el `fetch` de `api()` | **Corregido en el origen, no en el destino.** Guardar el pedido en `localStorage` abrió un camino que antes no existía: el `pedido_id` que arma `/v1/pedidos/${id}` pasó a venir de un sitio que cualquiera edita desde la consola del navegador. Un `pedido_id` de `1/../../../v1/sesiones` armaba una dirección distinta de la que el código aparenta pedir. `leerElPedidoGuardado` lo convierte ahora con `Number` y exige un entero positivo, así que a la URL solo puede llegar una cifra |
+| `jssecurity:S7044` — travesía de API por entrada sin sanear, y `jssecurity:S8476` sobre la misma línea | `app.js`, el `fetch` de `api()` | **Corregido en dos pasos**, porque el primero solo tapó uno de los tres caminos. Ver abajo |
 
-El arreglo **no** fue escapar el valor al construir la ruta. Escapar deja el
-problema planteado como «qué caracteres hay que filtrar», que es una pregunta
-que se responde mal tarde o temprano; convertir a número lo cierra, porque un
-número no tiene caracteres que filtrar. La API declara el identificador como
-entero: aceptar solo enteros no es una restricción nueva, es la que ya había.
+El defecto no se ve leyendo la línea. `api(\`/v1/pedidos/${id}\`)` parece pedir
+un pedido; con un `id` de `1/../../../v1/sesiones` el navegador resuelve los
+`..` antes de enviar y la petición sale hacia `/v1/sesiones`. La dirección que
+sale no es la que el código aparenta pedir. Está comprobado y no supuesto: con
+la validación quitada, la prueba de abajo ve la petición salir.
 
-Lo cubre `e2e/flujo-completo.spec.js`, escribiendo un identificador manipulado
-en el almacenamiento y comprobando que no sale ninguna petición hacia él.
+**El primer intento** atacó el origen. Guardar el pedido en `localStorage`
+había abierto un camino que antes no existía —el `pedido_id` pasó a venir de un
+sitio que cualquiera edita desde la consola del navegador—, así que
+`leerElPedidoGuardado` lo convierte con `Number` y exige un entero positivo.
+
+**No bastó, y el rastro del segundo análisis explicó por qué.** Quedaban dos
+caminos más hacia el mismo `fetch`:
+
+| Camino | Origen que declara Sonar | Por qué el primer arreglo no lo tocaba |
+|---|---|---|
+| `referencia_pago` → `/v1/pagos/intentos/${ref}` | El almacenamiento | Se validó el identificador y no la referencia, que sale del mismo sitio. Un descuido, no una decisión |
+| `pedido_id` → `/v1/pedidos/${id}` en `consultarEstado` | La respuesta de la API | Ese valor nunca pasó por el almacenamiento: llega del servidor. Sonar lo cuenta igual, y tiene su razón —«de fiar» no es lo mismo que «verificado»— |
+
+**El segundo intento** atacó el destino, que es donde la regla se puede
+sostener: todo valor que se interpola en una ruta pasa por
+`encodeURIComponent`. No sustituye a la validación del identificador, que hace
+otra cosa —rechazar pronto lo que no es un pedido y tirar lo que está roto en
+el almacenamiento—; la acompaña. Una dice *qué vale*, la otra impide que lo que
+vale se convierta en estructura.
+
+Conviene ser honesto sobre el orden: escapar al construir la ruta se descartó
+primero, con el argumento de que deja el problema planteado como «qué
+caracteres hay que filtrar». El argumento era bueno para el identificador, que
+sí tiene un tipo —entero—, y no servía para la referencia de pago, que es texto
+libre de hasta 64 caracteres. Para esa, codificar **es** la respuesta. La
+referencia real es `pago-{id}-{seis hex}`, así que codificarla no cambia ni un
+carácter de las que existen.
+
+Lo cubren dos pruebas, y cada una ve algo distinto:
+
+- `e2e/flujo-completo.spec.js` escribe un identificador manipulado en el
+  almacenamiento y comprueba que no sale ninguna petición hacia él, y que lo
+  guardado se descarta. Es la prueba del comportamiento.
+- `test_todo_lo_que_se_mete_en_una_ruta_va_codificado` recorre `app.js` y
+  `panel.js` y exige que toda interpolación dentro de una ruta pase por
+  `encodeURIComponent`. Es la prueba de la regla, y se ganó el sitio en cuanto
+  se escribió: encontró un cuarto punto que la revisión a ojo había dejado
+  pasar, `/v1/menu/establecimientos/${CONFIG.ESTABLECIMIENTO_ID}/items`.
+
+Ese cuarto punto no venía de ningún sitio hostil —sale de `config.js`, que es
+nuestro— y se codificó igual. Una regla con una excepción razonable es una
+regla que hay que discutir cada vez; sin excepciones se aplica sola. De paso se
+corrigió el mismo patrón en `panel.js`, que nadie había señalado todavía.
 
 ### Los dos que no bloqueaban
 
