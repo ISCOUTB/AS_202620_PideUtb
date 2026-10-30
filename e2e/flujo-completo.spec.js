@@ -237,6 +237,43 @@ test.describe("El recorrido del cliente", () => {
     await pasarela.close();
   });
 
+  test("un identificador manipulado en el almacenamiento no sale a la red", async ({
+    page,
+  }) => {
+    // Guardar el pedido en el navegador para no perderlo trajo una pregunta
+    // que antes no existía: lo guardado lo edita cualquiera desde la consola,
+    // y de ahí sale el identificador con el que se arma la ruta de la
+    // consulta. Sin validarlo, `pedido_id` podía ser cualquier texto y el
+    // sitio pedía la dirección que le escribieran, no la que el código
+    // aparenta pedir.
+    await abrirLaCarta(page);
+
+    await page.evaluate(() => {
+      localStorage.setItem(
+        "pideutb.pedido",
+        JSON.stringify({
+          pedido_id: "1/../../../v1/sesiones",
+          token_consulta: "da-igual",
+          guardado_en: Date.now(),
+        })
+      );
+    });
+
+    const pedidas = [];
+    page.on("request", (peticion) => pedidas.push(peticion.url()));
+
+    await abrirLaCarta(page);
+
+    // El navegador resuelve los `..` antes de enviar, así que de haber salido
+    // habría salido hacia `/v1/sesiones`. No salió.
+    expect(pedidas.filter((u) => u.includes("sesiones"))).toEqual([]);
+
+    // Y lo que no se puede interpretar no se conserva.
+    expect(
+      await page.evaluate(() => localStorage.getItem("pideutb.pedido"))
+    ).toBeNull();
+  });
+
   test("empezar otro pedido avisa antes de tirar un código pagado", async ({
     page,
     request,

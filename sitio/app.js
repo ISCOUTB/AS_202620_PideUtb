@@ -218,7 +218,7 @@ const HORAS_QUE_DURA_LO_GUARDADO = 6;
  * Un fallo al escribir **no se cuenta y no rompe nada**: en modo privado, con el
  * almacenamiento lleno o con el sitio sin permiso para guardar, `setItem` lanza.
  * El pedido sigue en memoria y la pestaña funciona como funcionaba antes de
- * todo esto, que era peor pero no era inservible.
+ * este arreglo, que era peor pero no era inservible.
  */
 function guardarElPedido() {
   if (pedidoActual === null || tokenDelPedido === null) return;
@@ -258,10 +258,32 @@ function leerElPedidoGuardado() {
   try {
     guardado = JSON.parse(localStorage.getItem(LLAVE_DEL_PEDIDO) || "null");
   } catch {
+    olvidarElPedido();
     return null;
   }
 
-  if (!guardado || !guardado.pedido_id || !guardado.token_consulta) return null;
+  // Sin nada guardado no hay nada que olvidar. A partir de acá sí: lo que haya
+  // y no se entienda se tira, porque volver a leerlo en cada carga para volver
+  // a rechazarlo no ayuda a nadie.
+  if (guardado === null) return null;
+
+  // El identificador vuelve **convertido a número**, no tal como se leyó.
+  //
+  // De acá sale hacia la ruta de una consulta —`/v1/pedidos/${pedido_id}`— y
+  // lo que hay en el almacenamiento es texto que cualquiera edita desde la
+  // consola del navegador en dos segundos. Sin convertirlo, un `pedido_id` de
+  // `1/../../../v1/sesiones` armaba una dirección distinta de la que esta línea
+  // aparenta, y el sitio la pedía sin rechistar.
+  //
+  // La API declara el identificador como entero, así que un entero es lo único
+  // que se acepta. Con la conversión por delante, a la URL solo puede llegar
+  // una cifra: deja de ser una cuestión de qué texto se filtra.
+  const id = Number(guardado.pedido_id);
+
+  if (!Number.isSafeInteger(id) || id <= 0 || !guardado.token_consulta) {
+    olvidarElPedido();
+    return null;
+  }
 
   const horas = (Date.now() - guardado.guardado_en) / 3600000;
 
@@ -274,7 +296,15 @@ function leerElPedidoGuardado() {
     return null;
   }
 
-  return guardado;
+  // Se devuelven los cuatro campos que alguien usa, uno por uno, y no lo leído
+  // tal cual. Así lo que sale de esta función es lo que esta función promete,
+  // y no cualquier cosa que apareciera escrita en el almacenamiento.
+  return {
+    pedido_id: id,
+    token_consulta: guardado.token_consulta,
+    referencia_pago: guardado.referencia_pago,
+    url_checkout: guardado.url_checkout,
+  };
 }
 
 // --------------------------------------------------------------------------

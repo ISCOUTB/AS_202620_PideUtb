@@ -297,3 +297,41 @@ repositorio, y conviene hacerla a la vista y no de pasada dentro de una entrega
 sobre otra cosa. Lo que sí se hace es no dejar que el 0 % se lea como un dato
 sobre el código: la cobertura real está medida, el comando para reproducirla
 está en §4, y el pipeline la exige con `--cov-fail-under=85`.
+
+## 7. Lo que el gate señaló en la semana 16, y qué se hizo con cada cosa
+
+El gate volvió a salir **en rojo**, esta vez con `new_security_rating` en **C**,
+y lo señalado era del sitio: `sitio/app.js`. Conviene decir por qué eso es
+posible, porque `sonar-project.properties` declara `sonar.sources=backend/app` y
+la contradicción desconcierta: el análisis que publica el gate es el
+**automático** (§1), que recorre el repositorio entero y no lee ese archivo. La
+configuración de ahí gobierna el escaneo del job `SonarCloud`, que se omite sin
+`SONAR_TOKEN`. Dicho de otro modo: **el sitio está analizado aunque la
+configuración diga que no**, y eso es una suerte, porque los tres hallazgos de
+abajo son reales.
+
+### El que tumbó el gate
+
+| Regla | Dónde | Qué se hizo |
+|---|---|---|
+| `jssecurity:S7044` — travesía de API por entrada sin sanear, y `jssecurity:S8476` sobre la misma línea | `app.js`, el `fetch` de `api()` | **Corregido en el origen, no en el destino.** Guardar el pedido en `localStorage` abrió un camino que antes no existía: el `pedido_id` que arma `/v1/pedidos/${id}` pasó a venir de un sitio que cualquiera edita desde la consola del navegador. Un `pedido_id` de `1/../../../v1/sesiones` armaba una dirección distinta de la que el código aparenta pedir. `leerElPedidoGuardado` lo convierte ahora con `Number` y exige un entero positivo, así que a la URL solo puede llegar una cifra |
+
+El arreglo **no** fue escapar el valor al construir la ruta. Escapar deja el
+problema planteado como «qué caracteres hay que filtrar», que es una pregunta
+que se responde mal tarde o temprano; convertir a número lo cierra, porque un
+número no tiene caracteres que filtrar. La API declara el identificador como
+entero: aceptar solo enteros no es una restricción nueva, es la que ya había.
+
+Lo cubre `e2e/flujo-completo.spec.js`, escribiendo un identificador manipulado
+en el almacenamiento y comprobando que no sale ninguna petición hacia él.
+
+### Los dos que no bloqueaban
+
+| Regla | Dónde | Decisión |
+|---|---|---|
+| `javascript:S6582` — preferir encadenamiento opcional | `app.js`, `leerElPedidoGuardado` | **Corregido**, pero de paso: la comprobación de la que se quejaba desapareció al reescribir la función para validar el identificador |
+| `javascript:S1135` — «completa la tarea de este `TODO`» | `app.js`, un comentario | **Falso positivo, y conviene saberlo.** No había ninguna tarea pendiente: el comentario decía «antes de **todo** esto». La regla busca líneas de comentario que *empiecen* por `TODO`, y este proyecto está escrito en español, donde «todo» es una palabra corriente. Se reescribió la frase |
+
+Ese último deja una regla práctica para quien escriba aquí: **no empezar una
+línea de comentario por la palabra «todo»**. Es más barato que desactivar la
+regla, que seguiría haciendo falta el día que alguien deje un `TODO` de verdad.

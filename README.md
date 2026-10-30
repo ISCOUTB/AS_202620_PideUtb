@@ -219,7 +219,7 @@ npx playwright install chromium
 npx playwright test
 ```
 
-**22 pruebas** en dos tamaños de pantalla, contra el sitio y la API que estén
+**24 pruebas** en dos tamaños de pantalla, contra el sitio y la API que estén
 levantados (`PIDEUTB_SITIO` y `PIDEUTB_API`, por defecto los locales). Las dos
 del mostrador se saltan si no hay `PIDEUTB_MOSTRADOR_CORREO` y
 `PIDEUTB_MOSTRADOR_CONTRASENA`: necesitan una sesión de verdad para mover un
