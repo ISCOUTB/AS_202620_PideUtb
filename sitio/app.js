@@ -216,6 +216,15 @@ let cartaCompleta = [];
 const LLAVE_DEL_PEDIDO = "pideutb.pedido";
 const HORAS_QUE_DURA_LO_GUARDADO = 6;
 
+//: Qué se acepta como referencia de un cobro antes de meterla en una ruta.
+//:
+//: No reproduce el formato que la API genera hoy —`pago-{id}-{seis hex}`—
+//: a propósito: ese formato lo decide el servidor y puede cambiar sin avisar
+//: a nadie, y una copia aquí convertiría ese cambio en una pantalla rota. Lo
+//: que se exige es lo que el contrato ya declara, de 1 a 64 caracteres, y que
+//: sean caracteres que quepan en un segmento de ruta sin significar nada.
+const ES_UNA_REFERENCIA = /^[A-Za-z0-9._-]{1,64}$/;
+
 /**
  * Deja constancia del pedido en curso.
  *
@@ -1135,7 +1144,17 @@ function esperarLaConfirmacion() {
  * mientras espera es peor que una que espera.
  */
 async function mirarSiElCobroFueRechazado() {
-  if (referenciaDelCobro === null) return;
+  // La comprobación va aquí, donde se usa, y no solo donde se lee del
+  // almacenamiento: a esta variable se llega por dos caminos —lo guardado y
+  // la respuesta que abrió el cobro— y validar en el punto de consumo los
+  // cubre los dos sin repetirse. Es también donde vive la suposición: esta
+  // línea es la que da por hecho que eso es una referencia.
+  if (
+    typeof referenciaDelCobro !== "string" ||
+    !ES_UNA_REFERENCIA.test(referenciaDelCobro)
+  ) {
+    return;
+  }
 
   let intento;
   try {
@@ -1204,12 +1223,23 @@ function detenerConsultas() {
 }
 
 async function consultarEstado() {
+  // Lo mismo que con la referencia, y por el mismo motivo. A `pedidoActual`
+  // se llega desde tres sitios —crear el pedido, retomarlo de lo guardado y
+  // esta misma función— y solo uno de los tres pasaba por una validación.
+  // Los otros dos vienen de la respuesta de la API, que es de fiar hasta el
+  // día que deje de serlo; dos líneas aquí valen más que confiar tres veces.
+  const id = Number(pedidoActual.pedido_id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    detenerConsultas();
+    return;
+  }
+
   try {
     // El token va en una cabecera y no en la dirección: una URL acaba en los
     // registros del servidor y del proxy, y este token es lo que permite leer
     // el código de canje.
     const pedido = await api(
-      `/v1/pedidos/${encodeURIComponent(pedidoActual.pedido_id)}`,
+      `/v1/pedidos/${encodeURIComponent(id)}`,
       { headers: { "X-Token-Pedido": tokenDelPedido } }
     );
     pedidoActual = pedido;

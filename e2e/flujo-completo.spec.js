@@ -237,6 +237,45 @@ test.describe("El recorrido del cliente", () => {
     await pasarela.close();
   });
 
+  test("un cobro rechazado lo dice, y deja intentarlo otra vez", async ({
+    page,
+    request,
+  }) => {
+    // Este camino llevaba sin prueba desde que existe, y en la S16 se le puso
+    // una guardia: la referencia del cobro se valida antes de preguntar por
+    // ella. Una guardia sin prueba es exactamente como el siguiente la rompe
+    // sin enterarse —basta con que el patron deje de aceptar las referencias
+    // que la API genera, y entonces esta pantalla no vuelve a salir nunca—.
+    const productos = await abrirLaCarta(page);
+    await productos.nth(0).getByRole("button", { name: /^Agregar/ }).click();
+    await page.getByRole("button", { name: /Ver mi pedido/ }).click();
+    await page.getByText("Nequi", { exact: true }).click();
+    await page.locator("#pagar").click();
+
+    const enlace = page.locator("#ir-a-pasarela");
+    await expect(enlace).toBeVisible({ timeout: 20_000 });
+    const referencia = new URL(await enlace.getAttribute("href"))
+      .searchParams.get("referencia");
+
+    const acuse = await request.post(
+      `${API}/v1/pagos/simulador/${referencia}`,
+      { data: { estado_pago: "rechazado" } }
+    );
+    expect(acuse.status()).toBe(202);
+
+    // El pedido no cambia de estado cuando el cobro se rechaza —sigue en
+    // `pendiente_pago`—, asi que lo unico que puede contarlo es la consulta
+    // al cobro. Si la guardia lo impidiera, esta pantalla se quedaria
+    // esperando para siempre sin decir nada.
+    await expect(page.locator("#titulo-resultado")).toHaveText(
+      "El pago fue rechazado",
+      { timeout: 20_000 }
+    );
+    await expect(
+      page.getByRole("button", { name: /Intentar el pago otra vez/ })
+    ).toBeVisible();
+  });
+
   test("un identificador manipulado en el almacenamiento no sale a la red", async ({
     page,
   }) => {
