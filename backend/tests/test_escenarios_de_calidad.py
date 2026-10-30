@@ -857,3 +857,57 @@ def test_ningun_token_retirado_sigue_vivo_en_la_hoja():
         f"{resucitados} están en TOKENS_RETIRADOS y sitio/estilos.css los "
         "declara otra vez. Sacalos de la lista: ya no son historia."
     )
+
+
+def test_ningun_titulo_pide_un_peso_que_la_cara_no_tiene():
+    """La negrita sintética no falla, no avisa y no sale en ninguna consola.
+
+    Cuando una regla pide un peso que el archivo de la fuente no trae, el
+    navegador **no** se queda en el que hay: lo inventa, engrosando el
+    contorno del peso real en el sitio. Medido en Chrome sobre «Young Serif» a
+    72 px, el ancho no se mueve y la tinta sube un 31 %; pedir 900 da la misma
+    tinta que 700, porque la falsificación se satura. En una serif eso engorda
+    remates y astiles por igual y se lleva por delante el contraste entre
+    ellos, que es la mitad de lo que hace que una serif sea esa serif.
+
+    Nace del cambio de la S16: la cara de titulares pasó a tener **un solo
+    peso**, y seis reglas seguían pidiendo 600 o 700 —una de ellas la del
+    código de recogida, a 3,5 rem—. Ninguna rompía nada. Se veía mal y ya.
+    """
+    hoja = (SITIO / "estilos.css").read_text(encoding="utf-8")
+
+    # Qué pesos declara de verdad cada familia, según sus `@font-face`.
+    pesos = {}
+    for bloque in re.findall(r"@font-face\s*\{(.*?)\}", hoja, re.S):
+        familia = re.search(r'font-family:\s*"([^"]+)"', bloque)
+        rango = re.search(r"font-weight:\s*(\d+)(?:\s+(\d+))?\s*;", bloque)
+        assert familia and rango, f"un @font-face sin familia o sin peso: {bloque[:80]}"
+        bajo = int(rango.group(1))
+        alto = int(rango.group(2)) if rango.group(2) else bajo
+        pesos[familia.group(1)] = (bajo, alto)
+
+    assert pesos, "ningún @font-face en sitio/estilos.css"
+
+    # A qué familia apunta cada token, que es lo que las reglas nombran.
+    familia_de = {}
+    for token in ("--fuente-titulo", "--fuente"):
+        m = re.search(rf'{token}:\s*"([^"]+)"', hoja)
+        assert m, f"no se encontró el token `{token}`"
+        familia_de[token] = m.group(1)
+
+    for selector, bloque in re.findall(r"([^{}]+)\{([^{}]*)\}", hoja):
+        usa = re.search(r"font-family:\s*var\((--fuente[a-z-]*)\)", bloque)
+        pide = re.search(r"font-weight:\s*(\d+)", bloque)
+        if not (usa and pide):
+            continue
+
+        familia = familia_de[usa.group(1)]
+        bajo, alto = pesos[familia]
+        peso = int(pide.group(1))
+
+        assert bajo <= peso <= alto, (
+            f"`{selector.strip().splitlines()[-1].strip()}` pide un peso "
+            f"{peso} de «{familia}», que solo declara {bajo}–{alto}. El "
+            "navegador lo va a inventar engordando los trazos, y eso no "
+            "falla en ningún sitio: solo se ve peor."
+        )

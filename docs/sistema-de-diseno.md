@@ -24,7 +24,7 @@ Esta guía fija la apariencia y el comportamiento de las dos superficies de
 PideUTB: la del cliente y la del mostrador. Cada pantalla que se desarrolle debe
 ajustarse a ella.
 
-**Versión** 2.3 · 30/10/2026 · **Fundamentos** fondo cálido, marca azul de la
+**Versión** 2.4 · 30/10/2026 · **Fundamentos** fondo cálido, marca azul de la
 UTB y portada fotográfica, con cada contraste medido y **verificado en cada
 construcción** por [`test_contraste.py`](../backend/tests/test_contraste.py) ·
 tokens vigentes en [`sitio/estilos.css`](../sitio/estilos.css) · **Alcance** las
@@ -311,12 +311,12 @@ pantalla, no solo reactivarla.
 **Dos familias, autohospedadas, ninguna cargada desde un CDN.**
 
 ```css
---fuente-titulo: "Fraunces", Georgia, "Times New Roman", serif;
---fuente:        "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+--fuente-titulo: "Young Serif", Georgia, "Times New Roman", serif;
+--fuente:        "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
 ```
 
-> **Fraunces titula, Inter informa.** Un precio en serif se lee más despacio, y un
-> precio hay que leerlo rápido.
+> **La serif titula, la de palo informa.** Un precio en serif se lee más despacio,
+> y un precio hay que leerlo rápido.
 
 La 1.0 usaba solo la fuente del sistema y escribió la condición para cambiarlo:
 «si alguna vez se quiere una tipografía propia, se **autohospeda** en el
@@ -325,26 +325,52 @@ el 3 de noviembre el público abre el sitio a la vez desde la red de un
 auditorio, y una petición menos a `fonts.gstatic.com` es un punto menos donde la
 demostración se queda sin tipografía delante de todos.
 
-Las dos son variables —un archivo cubre todos los pesos— y están recortadas al
-subconjunto latino, que cubre el español entero: **115 KB entre las dos**, con
-`font-display: swap` para que el texto aparezca de inmediato con la fuente del
-sistema y cambie cuando la nuestra llegue. En una demostración en vivo, texto feo
-al instante gana a texto bonito dentro de dos segundos.
+Las dos están recortadas al subconjunto latino, que cubre el español entero:
+**61,7 KB entre las dos**, con `font-display: swap` para que el texto aparezca de
+inmediato con la fuente del sistema y cambie cuando la nuestra llegue. En una
+demostración en vivo, texto feo al instante gana a texto bonito dentro de dos
+segundos.
+
+**La 2.3 cambió las dos caras.** Eran Fraunces e Inter, 115,6 KB, y las dos
+salían marcadas como caras que de tanto usarse han dejado de distinguir a nada.
+El cambio cuesta la mitad del peso, y en la red de un auditorio con doscientos
+teléfonos abriendo a la vez, 54 KB menos no es una cifra decorativa.
+
+**Young Serif tiene un solo peso, y eso manda sobre toda la escala de abajo.**
+Es cara de titular y su 400 pesa ya más que el 600 de la serif que sustituyó,
+así que la jerarquía la llevan el tamaño y el aire, no el grosor. Pedirle un 600
+no da nada más grueso: el navegador inventa el peso engrosando el contorno en el
+sitio. Medido en Chrome a 72 px, el ancho no se mueve y la tinta sube un 31 %, y
+pedir 900 da la misma tinta que 700 porque la falsificación se satura. No falla,
+no avisa, solo se ve peor — por eso lo vigila
+`test_ningun_titulo_pide_un_peso_que_la_cara_no_tiene`.
+
+Hanken Grotesk sí es variable, de 300 a 900, y trae las cifras de ancho fijo de
+serie: se comprobó midiendo el ancho de `111111` contra el de `000000`, que es
+lo que decide si un total salta al pasar de 9 a 10.
 
 Licencia y procedencia en [`sitio/fuentes/LEEME.md`](../sitio/fuentes/LEEME.md).
 
-| Función | Tamaño / interlineado | Grosor | Uso |
-|---|---|---|---|
-| Título de marca | `clamp(1.9rem, 1.4rem + 2.2vw, 2.6rem)` / 1,05 · espaciado −0,035 em | 800 | Uno por página |
-| Título de sección | 1,5rem / 1,3 · espaciado −0,02 em | 750 | Secciones |
-| Título de bloque | 1,08rem / 1,4 | 700 | Diálogos, paneles |
-| Nombre de ítem | 1,05rem · espaciado −0,01 em | 650 | Tarjetas |
-| Cuerpo | 1rem / 1,6 | 400 | Textos y campos |
-| Total | 1,25rem · cifras tabulares · espaciado −0,02 em | 800 | La cifra que se mira antes de pagar |
-| Código de canje | `clamp(2rem, 1.2rem + 3.6vw, 2.9rem)` · monoespaciada · espaciado 0,22 em | 700 | Solo el código |
-| Metadatos | 0,9rem · `--carbon-tenue` | 400 | Hora de última carga, notas |
+Esta tabla venía describiendo una escala que la hoja no tenía: pesos de 800,
+750 y 650, y un código de canje «monoespaciada · espaciado 0,22 em» que nunca
+lo fue. Son los valores reales, leídos de `sitio/estilos.css`.
 
-El interlineado del cuerpo es 1,6, más holgado que el de una aplicación de datos:
+| Función | Cara | Tamaño / interlineado | Grosor | Uso |
+|---|---|---|---|---|
+| Título de marca (`h1`) | Titular | `clamp(1.75rem, 6vw, 2.25rem)` / 1,15 · espaciado −0,015 em | 400 | Uno por página |
+| Título de sección (`h2`) | Titular | `clamp(1.35rem, 4.5vw, 1.6rem)` / 1,15 | 400 | Secciones |
+| Título de bloque (`h3`) | Titular | 1,1rem / 1,15 | 400 | Diálogos, paneles |
+| Nombre de ítem | Cuerpo | 1rem / 1,3 | 600 | Tarjetas |
+| Cuerpo | Cuerpo | 16px / 1,55 · cifras tabulares | 400 | Textos y campos |
+| Descripción de ítem | Cuerpo | 0,875rem · `--carbon-tenue` | 400 | Debajo del nombre |
+| Rótulo del billete | Cuerpo | 0,78rem · versalitas · espaciado 0,08 em | 600 | «Tu código de recogida» |
+| Código de canje | Titular | `clamp(2.25rem, 13vw, 3.5rem)` · espaciado 0,14 em | 400 | Solo el código |
+
+Los tres títulos comparten grosor **a propósito**: con una cara de un solo peso,
+pedir otro no da otro. Lo que los separa es el tamaño, y eso basta porque nunca
+aparecen dos del mismo nivel juntos.
+
+El interlineado del cuerpo es 1,55, más holgado que el de una aplicación de datos:
 aquí no hay tablas densas que comprimir, y el texto se lee en un teléfono a la
 intemperie.
 

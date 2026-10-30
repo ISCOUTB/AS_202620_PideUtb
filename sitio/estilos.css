@@ -54,8 +54,11 @@
    auditorio, y una petición menos a un tercero es un punto menos donde la
    demo se puede quedar sin tipografía delante del público.
 
-   Las dos son variables —un archivo cubre todos los pesos— y están recortadas
-   al subconjunto latino, que cubre el español entero. 115 KB las dos juntas.
+   Hanken Grotesk es **variable** —un archivo cubre de 300 a 900— y Young Serif
+   trae un solo peso, que es todo lo que necesita: es cara de titular, y su 400
+   pesa ya más que el 600 de la serif que sustituyó. Las dos están recortadas al
+   subconjunto latino, que cubre el español entero. **60 KB las dos juntas**,
+   frente a los 115 de antes: casi la mitad de lo que el teléfono descarga.
 
    `font-display: swap` para que el texto aparezca de inmediato con la fuente
    del sistema y cambie cuando la nuestra llegue. En una demo en vivo, texto
@@ -63,18 +66,22 @@
 
    Licencia: las dos son SIL Open Font License 1.1. Ver `fuentes/LEEME.md`. */
 
+/* `font-weight: 400` y no un rango: Young Serif tiene **un solo peso**, y
+   declarar un rango que el archivo no cubre es justo lo que hace que el
+   navegador engorde los trazos por su cuenta. Ver el comentario de los
+   títulos, más abajo. */
 @font-face {
-  font-family: "Fraunces";
-  src: url("fuentes/fraunces-latin.woff2") format("woff2-variations");
-  font-weight: 100 900;
+  font-family: "Young Serif";
+  src: url("fuentes/young-serif-latin.woff2") format("woff2");
+  font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: "Inter";
-  src: url("fuentes/inter-latin.woff2") format("woff2-variations");
-  font-weight: 100 900;
+  font-family: "Hanken Grotesk";
+  src: url("fuentes/hanken-grotesk-latin.woff2") format("woff2-variations");
+  font-weight: 300 900;
   font-style: normal;
   font-display: swap;
 }
@@ -154,8 +161,8 @@
      carta; Inter es la que se lee sin pensar. La regla es simple: **Fraunces
      titula, Inter informa**. Un precio en serif se lee más despacio, y un
      precio hay que leerlo rápido. */
-  --fuente-titulo: "Fraunces", Georgia, "Times New Roman", serif;
-  --fuente: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --fuente-titulo: "Young Serif", Georgia, "Times New Roman", serif;
+  --fuente: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
 
   /* --- Ritmo -----------------------------------------------------------
      Escala de 4 px. Que los espacios salgan de una escala y no de números
@@ -217,16 +224,36 @@ body {
   font-family: var(--fuente);
   font-size: 16px;
   line-height: 1.55;
-  /* Dos ajustes que Inter trae y hay que pedir: las cifras de ancho fijo
-     evitan que un total «salte» al cambiar de 9 a 10, y el alisado fino
-     compensa que el texto oscuro sobre crema se ve más grueso de lo que es. */
+  /* Las cifras de ancho fijo evitan que un total «salte» al cambiar de 9 a
+     10. Hanken Grotesk ya las trae así de serie —se comprobó midiendo el
+     ancho de `111111` contra el de `000000`—, así que esta línea no cambia
+     nada hoy; se queda porque la siguiente cara puede no traerlas, y entonces
+     sí hará falta. El alisado fino compensa que el texto oscuro sobre crema
+     se ve más grueso de lo que es. */
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
 
+/* --- Los títulos piden 400, y no es una rebaja ---------------------------
+
+   La cara de titulares tiene **un solo peso**. Pedirle un 600 o un 700 no
+   trae nada más grueso: el navegador inventa el grosor engrosando el contorno
+   del 400 en el sitio —negrita sintética—, y en una serif eso arruina lo que
+   la hace esa serif, porque engorda remates y astiles por igual en vez de
+   respetar el contraste entre unos y otros.
+
+   Medido en Chrome, a 72 px: el ancho no cambia ni un píxel y la tinta sube
+   un 31 %. Y pedir 900 da exactamente la misma tinta que 700, porque la
+   falsificación se satura — ni siquiera da grados.
+
+   No hace falta, además. El 400 de esta cara pesa más que el 600 de la que
+   sustituyó: la jerarquía la llevaban el tamaño y el aire, no el peso.
+
+   Lo vigila `test_ningun_titulo_pide_un_peso_que_la_cara_no_tiene`, porque
+   una negrita sintética no falla, no avisa y no sale en ninguna consola. */
 h1, h2, h3 {
   font-family: var(--fuente-titulo);
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.15;
   letter-spacing: -0.015em;
   margin: 0;
@@ -766,7 +793,7 @@ button.secundario {
   color: var(--azul);
   font-family: var(--fuente-titulo);
   font-size: 1.75rem;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .item-datos { flex: 1 1 auto; min-width: 0; }
@@ -932,7 +959,7 @@ button.secundario {
   border-top: 1px solid var(--linea);
   font-family: var(--fuente-titulo);
   font-size: 1.15rem;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--carbon);
 }
 
@@ -952,7 +979,7 @@ button.secundario {
   padding: 0 0 var(--e3);
   font-family: var(--fuente-titulo);
   font-size: 1.1rem;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .metodos-opciones {
@@ -1120,7 +1147,7 @@ button.secundario {
   text-align: center;
   font-family: var(--fuente-titulo);
   font-size: clamp(2.25rem, 13vw, 3.5rem);
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.14em;
   /* La letra va centrada pese al espaciado: sin esto, el `letter-spacing`
      añade un hueco detrás del último carácter y el conjunto se ve corrido
@@ -1157,7 +1184,7 @@ button.secundario {
   color: var(--ambar);
   font-family: var(--fuente-titulo);
   font-size: 1.15rem;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 /* El código, dentro de la frase, con la letra del billete y su espaciado: es
