@@ -24,11 +24,11 @@ Esta guía fija la apariencia y el comportamiento de las dos superficies de
 PideUTB: la del cliente y la del mostrador. Cada pantalla que se desarrolle debe
 ajustarse a ella.
 
-**Versión** 2.1 · 29/10/2026 · **Fundamentos** fondo cálido y marca azul de la
-UTB, con cada contraste medido y **verificado en cada construcción** por
-[`test_contraste.py`](../backend/tests/test_contraste.py) · tokens vigentes en
-[`sitio/estilos.css`](../sitio/estilos.css) · **Alcance** las seis pantallas que
-hoy existen
+**Versión** 2.2 · 29/10/2026 · **Fundamentos** fondo cálido, marca azul de la
+UTB y portada fotográfica, con cada contraste medido y **verificado en cada
+construcción** por [`test_contraste.py`](../backend/tests/test_contraste.py) ·
+tokens vigentes en [`sitio/estilos.css`](../sitio/estilos.css) · **Alcance** las
+seis pantallas que hoy existen
 
 > **Qué cambió, en dos pasos.** La 1.0 usaba los tres colores de la Universidad
 > Tecnológica de Bolívar y declaraba esa paleta «no negociable». La 2.0 la
@@ -42,7 +42,21 @@ hoy existen
 > sobre el crema frente a los 6,43 del ladrillo, y **8,05:1** con blanco encima
 > frente a 6,92. Era un cambio de identidad disfrazado de cambio de fondo.
 >
-> Lo que **no** cambió en ninguno de los dos pasos es la regla de medir, y
+> La **2.2** añade la portada fotográfica y, con ella, el primer sitio de la
+> guía donde el texto no cae sobre un color sino sobre una **imagen**. Eso
+> obliga a una regla nueva, porque la de medir no se puede aplicar tal cual: una
+> foto tiene un píxel distinto en cada punto y no hay un contraste que escribir.
+> Lo que se hace en su lugar está en [Portada](#c-portada), y se resume en una
+> frase: se impone un suelo de negro y se mide **el suelo** contra el peor píxel
+> que la foto podría traer.
+>
+> La 2.2 corrige además dos cosas que esta guía venía afirmando y no eran
+> ciertas: el punto de estado verde (`.punto.ok`) no existía en la hoja —se
+> llamaba `.punto.bien` y ningún guion lo escribía así, de modo que **el punto
+> verde nunca fue verde**—, y el punto de «esperando» no late, ni ha latido
+> nunca. Ver [Estados y etiquetas](#c-estados).
+>
+> Lo que **no** ha cambiado en ninguno de los tres pasos es la regla de medir, y
 > ahora además se comprueba sola.
 
 > **Esta guía describe lo que hay, no lo que se querría tener.** Cada token que
@@ -166,9 +180,16 @@ El filete de tres colores desapareció con la paleta de la 1.0. Era lo único
 decorativo de la hoja y su función —decir «esto es de la UTB»— dejó de aplicar.
 No se sustituyó por otro adorno: la tipografía ya hace ese trabajo.
 
-**Hacer.** Dejar el título en `--azul` y el lema en `--carbon-medio`.
+**Hacer.** En cualquier superficie de color, el título en `--azul` y el lema en
+`--carbon-medio`. Sobre la portada fotográfica, los dos en blanco puro.
 
-**Evitar.** Poner el título sobre una foto; recolorearlo; añadirle una sombra.
+**Evitar.** Recolorear el título fuera de esos dos casos.
+
+**Sobre una foto, solo con el velo medido.** Hasta la 2.2 esta guía lo prohibía
+sin matices, y el motivo era bueno: sobre una fotografía el contraste no se
+puede escribir, porque depende del píxel. La prohibición se levanta únicamente
+donde hay un suelo de negro medido debajo —ver [Portada](#c-portada)—. Sin ese
+suelo la regla vieja sigue en pie: el título no va sobre una imagen.
 
 El día que la universidad entregue un logotipo, entra en la cabecera a la
 izquierda del título sin ningún otro cambio.
@@ -262,6 +283,8 @@ es el color del momento en que la comida está lista. Lo que cambió es su valor
 de `#3E811E` a `#356F1A`— por el motivo de arriba: sobre crema, el anterior se
 quedaba en 4,48:1.
 
+<a id="un-solo-tema"></a>
+
 ### Un solo tema, y es el claro
 
 **No hay tema oscuro.** Lo hubo —seguía al del sistema, con el azul aclarado
@@ -339,9 +362,10 @@ intemperie.
 | Token | Valores | Regla |
 |---|---|---|
 | `--e1` … `--e8` | 4 · 8 · 12 · 16 · 24 · 32 · 48 · 64 px | **Todo margen y todo espaciado sale de esta escala.** Entre hermanos, con `gap` |
-| `--radio` | 12 px | Tarjetas, diálogos, código de canje |
-| `--radio-chico` | 8 px | Botones, campos, líneas de estado |
-| `--radio-pildora` | 999 px | Etiquetas, el filete de marca |
+| `--radio` | 18 px | Tarjetas, diálogos, el billete del código |
+| `--radio-chico` | 12 px | Campos, destinos de la barra, esqueletos |
+| `--radio-pildora` | 999 px | Botones, etiquetas, pastillas de estado |
+| `--radio-hoja` | 26 px | **Una sola cosa:** la esquina con la que la carta se monta sobre la portada. A todo el ancho de la pantalla, 18 px se leen como un recorte |
 | `--sombra` | `0 1px 2px / 6%`, `0 2px 8px / 4%` | Tarjetas en reposo |
 | `--sombra-alta` | `0 4px 12px / 8%`, `0 12px 32px / 8%` | Hover de tarjeta y diálogos |
 | `--foco` | `0 0 0 3px rgb(9 58 216 / 35%)` | **Todo** elemento enfocable |
@@ -356,6 +380,90 @@ jerarquía en ruido.
 Cada uno con los tokens reales. La estructura de clases es la que `app.js` y
 `panel.js` ya manipulan: **cambiar un nombre de clase rompe el comportamiento**,
 así que el rediseño se hace sobre ellas, no contra ellas.
+
+<a id="c-portada"></a>
+
+### Portada
+
+La franja de arriba de la carta lleva una fotografía de la parrilla. No es
+decoración: lo que se vende es comida, y una carta que alguien abre con hambre
+no empieza bien por el nombre del servicio sobre un fondo plano.
+
+```
+┌──────────────────────────────────────┐
+│                                      │  velo 14 %   ← se ve la carne
+│          (la parrilla)               │
+│                                      │  velo 34 %
+│ ····································· │
+│  PideUTB                             │  velo 72 %   ← el suelo medido
+│  Pedí sin hacer fila.                │
+└──────────────────────────────────────┘
+ ╭────────────────────────────────────╮   --radio-hoja, el crema encima
+ │  Carta                             │
+```
+
+**Qué se queda fuera.** La portada es la franja y nada más. Debajo de la esquina
+redondeada empieza el crema y todo sigue igual: las tarjetas, los precios, el
+carrito, la paleta entera. Un encabezado oscuro no es un tema oscuro, y esta
+guía sigue teniendo [un solo tema, y es el claro](#un-solo-tema).
+
+#### El velo, que es lo único medible
+
+| Token | Valor | Para qué |
+|---|---|---|
+| `--velo-portada` | `72%` | El mínimo de negro que hay entre la foto y el texto |
+| `--negro-velo` | `14 9 6` | Con qué negro. Cálido, no neutro: un gris sobre una foto de fuego la apaga y la vuelve ceniza |
+
+Sobre un color, el contraste se calcula. Sobre una foto no: hay uno distinto en
+cada píxel. Así que en vez de medir el contraste se **impone un suelo** y se mide
+el suelo contra el peor caso que la fotografía podría ofrecer, que es un píxel
+blanco puro:
+
+```
+blanco (255 255 255) con 72 % de #0E0906 encima → #514E4C
+texto blanco sobre #514E4C                      → 8,38:1
+```
+
+Ese 8,38:1 es el **peor** caso, no el habitual: con la foto real el texto se
+apoya en algo bastante más oscuro. `test_contraste.py` rehace la cuenta en cada
+construcción, y es la prueba que va a saltar el día que alguien mire la portada,
+le parezca apagada y aclare el velo para que la carne luzca — que es una reacción
+razonable, y por eso conviene que haya un número que diga hasta dónde.
+
+#### Y por qué el suelo es una regla, no un cálculo
+
+El número de arriba solo vale si **todo** el texto cae sobre el velo plano. Eso
+no se consigue calculando dónde acaba cayendo —cambia con el ancho, con el
+tamaño de letra del sistema y con lo que mida la frase— sino con la estructura:
+
+- la portada es una rejilla de dos filas;
+- la de arriba lleva el degradado, que sube de `--velo-portada` a 14 %;
+- la de abajo lleva el velo **plano**, y el texto vive dentro de ella.
+
+Las dos capas se encuentran en el mismo valor, así que no hay costura: lo que se
+ve es una sola foto que se oscurece hacia abajo. Hay una prueba para cada mitad
+de esa frase.
+
+#### La foto
+
+| Archivo | Tamaño | Dónde |
+|---|---|---|
+| `fotos/portada-movil.webp` | 640 px · 34 KB | Por defecto |
+| `fotos/portada.webp` | 1024 px · 61 KB | A partir de 768 px |
+
+El teléfono se lleva el pequeño, y eso importa más de lo que parece: el 3 de
+noviembre el sitio se abre a la vez desde la red de un auditorio.
+
+**Debajo de la foto hay un color opaco** (`#241711`), y no es un adorno de
+reserva: hasta que la imagen llega —o si no llega, que en esa red es un caso
+real— el texto blanco caería sobre crema y no se leería. Con el color debajo, lo
+peor que pasa es una franja oscura sin foto.
+
+**Sustituir la foto es cambiarle el nombre.** Va dentro de `estilos.css`, que
+lleva huella en la URL, así que cambiar la hoja cambia su dirección; lo que eso
+no cubre es reemplazar el archivo dejándole el mismo nombre, y entonces
+Cloudflare serviría la vieja durante cuatro horas. Misma regla que las
+tipografías.
 
 ### Botones
 
@@ -568,42 +676,115 @@ rellenar la pantalla le dice a quien espera que falta más de lo que falta.
 ### Código de canje
 
 El momento alto de la aplicación: lo que el cliente enseña para recoger. Se trata
-como un **billete**, y es el único sitio donde el verde de la marca se usa entero
-—porque ahí es fondo y no letra.
+como un **billete**, y es el único sitio donde el verde se usa entero —porque ahí
+es fondo y no letra—.
 
 ```
-    ╭──────────────────────────────────╮
-   ◖│          K 7 M 2 Q 9             │◗   fondo --verde
-    ╰──────────────────────────────────╯    tinta --tinta · 12,40:1
+┌──────────────────────────────────────┐
+│       TU CÓDIGO DE RECOGIDA          │  --carbon-tenue, versalitas
+│  ╭────────────────────────────────╮  │
+│  │        K 7 M 2 Q 9             │  │  fondo --verde-canje
+│  ╰────────────────────────────────╯  │  blanco encima · 6,10:1
+│          ( ● En preparación )        │  pastilla --crema-hundido
+└──────────────────────────────────────┘
 ```
+
+Los tres datos van en la misma tarjeta porque son la respuesta a una sola
+pregunta —«¿y el mío?»— y se miran juntos: qué es, cuál es, y qué está pasando
+con él. Repartirlos por la pantalla obliga a buscar dos de los tres.
+
+| Parte | Clase | Nota |
+|---|---|---|
+| La tarjeta | `.billete` | Fondo `--papel` sobre el crema de la pantalla |
+| El rótulo | `.billete-rotulo` | Dice qué es el número. Sin él, un código de seis caracteres puede ser cualquier cosa |
+| El código | `.codigo-canje` | `clamp(2.25rem, 13vw, 3.5rem)`: en la charla esto se proyecta y tiene que leerse desde la última fila |
+| El estado | `.billete-estado` | Pastilla con punto y rótulo. **La palabra es la del mostrador**, no una traducción |
+
+**El estado dice la palabra del mostrador, y eso es el punto.** El título de la
+pantalla ya cuenta lo que el estado significa para quien pidió —«Lo están
+preparando»—; la pastilla dice cómo lo llama la otra pantalla —«En
+preparación»—. Son lo mismo y no se parecen, y la conversación que ocurre en una
+barra con ruido es «a mí me dice tal» / «a mí me sale tal».
+`test_escenarios_de_calidad.py` falla si las dos tablas de etiquetas se
+desvían.
 
 | Variante | Uso |
 |---|---|
-| `.codigo-canje` en bloque | La pantalla de resultado del cliente |
+| `.billete` | La pantalla de resultado del cliente |
 | `input.codigo-canje` | El diálogo de entrega del mostrador: mismo tratamiento, fondo `--papel`, sin muescas, `text-transform: uppercase` |
 
 La conversión a mayúsculas del campo es **visual**: el servidor compara sin
 distinguir la caja, así que no cambia lo que se envía.
 
+<a id="c-advertencia"></a>
+
+### Advertencia antes de perder un código
+
+```
+┌──────────────────────────────────────┐
+│ Guardá tu código antes de seguir     │  --ambar, Fraunces
+│ Ya pagaste este pedido y su código   │
+│ es K7M2Q9. Si empezás otro, esta     │  fondo --ambar-niebla
+│ pantalla deja de mostrarlo…          │  borde --ambar
+│                                      │
+│ [ Seguir viendo mi código ]          │  primario: el que no destruye
+│ [ Ya lo anoté, hacer otro pedido ]   │  secundario
+└──────────────────────────────────────┘
+```
+
+**Ámbar y no rojo.** El rojo es el color de lo que ya salió mal, y aquí no ha
+salido nada mal: el pedido está pagado y el código es bueno. Lo que hay es una
+decisión con consecuencia, que es para lo que `--ambar` existe.
+
+| Regla | Por qué |
+|---|---|
+| Ocupa el sitio del botón que la abrió | El código sigue a la vista mientras se lee la advertencia, que es de lo que trata la advertencia |
+| El primario es el que **conserva** | El botón grande y lleno nunca es el que destruye |
+| El foco entra en el primario | Quien llegue con el teclado y pulse Intro sin leer se queda donde estaba |
+| **Solo cuando hay algo que perder** | Con el pedido entregado, cancelado o sin pagar no aparece. Una confirmación que sale siempre se aprende a despachar sin leerla, y deja de proteger de nada |
+| No se cierra sola | Vive fuera del cuerpo de la pantalla, que se repinta cuando el mostrador mueve el pedido. Si viviera dentro, desaparecería bajo el dedo de quien la está leyendo |
+
+<a id="c-estados"></a>
+
 ### Estados y etiquetas
 
 ```
-●  Pago confirmado          --verde-tinta
-◉  Esperando confirmación   --cian, late
-●  El pago fue rechazado    --error
+●  Pagado · Listo para recoger · Entregado   --verde-canje
+●  Esperando pago · En preparación           --ambar
+●  Cancelado · El pago fue rechazado         --error
 ```
 
 | Clase | Color | Significado |
 |---|---|---|
-| `.punto.ok` | `--verde-tinta` | Confirmado |
-| `.punto.espera` | `--cian`, con latido | Esperando |
-| `.punto.mal` | `--error` | Rechazado |
-| `.etiqueta-agotado` | `--aviso` sobre `--aviso-fondo` | Agotado |
+| `.punto.ok` | `--verde-canje` | Confirmado, listo, entregado |
+| `.punto.espera` | `--ambar` | Esperando algo |
+| `.punto.mal` | `--error` | Rechazado o cancelado |
+| `.etiqueta-agotado` | `--ambar` sobre `--ambar-niebla` | Agotado |
 
-**El punto nunca va solo**: siempre lleva su rótulo al lado. Y el de «esperando»
-late, para distinguir esperando de terminado sin depender del tono — que es lo
-que no ve quien no distingue colores. El latido se desactiva con
-`prefers-reduced-motion`.
+**El punto nunca va solo**: siempre lleva su rótulo al lado, y esa es la razón
+por la que el color no es información única. Quien no distingue verde de ámbar
+lee «En preparación» igual que todo el mundo.
+
+**Las dos correcciones de la 2.2, porque las dos venían de aquí.**
+
+La primera: esta tabla decía `.punto.ok` y la hoja declaraba `.punto.bien`. Los
+tres guiones que pintan puntos escriben `ok`, así que durante todo el proyecto
+**el punto verde cayó en el gris por defecto de `.punto`** —el mismo que
+significa «estado que no reconozco»—. Nadie lo vio, porque un punto gris parece
+un punto; no hay consola que se queje de una clase que no existe, y el ojo no
+echa de menos un verde que no ha visto nunca. Lo destapó necesitarlo: el estado
+pasó a ir junto al código, donde el color hace trabajo.
+
+La segunda: esta guía decía que el punto de «esperando» **late**, y presentaba
+ese latido como la mitigación para quien no distingue colores. No late. No ha
+latido nunca: no hay animación en la hoja ni la ha habido. Se ha quitado la
+frase en vez de escribir la animación, porque la mitigación que sí existe —el
+rótulo siempre al lado— ya cubre lo que el latido iba a cubrir, y una animación
+que nadie necesita es una animación que hay que mantener.
+
+Desde la 2.2, `test_escenarios_de_calidad.py` comprueba que toda clase de punto
+que un guion escriba exista en la hoja, y que ninguna regla sobre. Es la prueba
+que habría encontrado lo primero el día que se escribió.
 
 ### Aviso, error, vacío y carga
 
@@ -638,7 +819,8 @@ Las mismas situaciones se resuelven siempre igual.
 |---|---|---|
 | **Avanzar en el flujo del cliente** | Una pantalla visible a la vez, `.pantalla.activa`, con una entrada de 0,22 s | Carta → pedido → espera → resultado |
 | **Esperar algo que no depende de nosotros** | Estado consultable más sondeo. Nunca una pantalla bloqueada | Esperando la confirmación del pago, cada 3 s |
-| **Enterarse de un cambio ajeno** | Sondeo con intervalo atado a su umbral | La cola del mostrador, cada 5 s |
+| **Enterarse de un cambio ajeno** | Sondeo con intervalo atado a su umbral | La cola del mostrador, cada 5 s; el estado del pedido en el teléfono de quien pidió, también cada 5 s |
+| **Decisión que destruye algo que no se puede recuperar** | Advertencia en el sitio del botón, con lo que se va a perder a la vista, y confirmación explícita | [Hacer otro pedido con un código sin recoger](#c-advertencia) |
 | **Acción que compromete dinero** | Resumen de lo que se va a cobrar **antes** del botón | «Tu pedido» antes de «Pagar con…» |
 | **Acción irreversible del mostrador** | Diálogo que nombra el pedido y pide el código | Entregar un pedido |
 | **Acción reversible** | Sin confirmación | Volver a la carta, refrescar |
@@ -665,6 +847,23 @@ razonable para alguien que está cocinando.
 sube, y también si baja sin motivo — porque sondear de más cuesta peticiones y no
 mejora ningún umbral.
 
+#### Dos esperas, dos cadencias
+
+La pantalla del cliente sondea a dos ritmos distintos, y la diferencia no es de
+ahorro:
+
+| Qué se espera | Cada | Por qué |
+|---|---|---|
+| La confirmación del pago | 3 s | Llega de un sistema externo en cualquier instante, y quien espera está mirando la pantalla con el teléfono en la mano |
+| Que el mostrador avance el pedido | 5 s | Lo mueve una persona con una plancha delante, y el panel refresca su propia cola cada 5 s: preguntar más rápido no puede enterarse de nada antes de que exista |
+
+**Y el sondeo no se para al confirmarse el pago.** Se paraba, y era un defecto:
+la pantalla se quedaba congelada en «Pago confirmado» mientras el mostrador
+movía el pedido a «En preparación» y a «Listo para recoger». Las dos pantallas
+decían cosas distintas del mismo pedido, y la que se equivocaba era la de quien
+había pagado. Ahora se sigue preguntando hasta que el pedido llega a un estado
+del que no se mueve —entregado o cancelado—, y ahí sí se para.
+
 ### Redacción
 
 | Regla | Ejemplo |
@@ -687,13 +886,16 @@ PideUTB. Son todas las que hoy existen.
 ### La carta
 
 ```
-PideUTB
-Pide desde el celular y recoge sin fila.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┌──────────────────────────────────────┐
+│          (la parrilla)               │
+│  PideUTB                             │  ← portada, velo 72 % bajo el texto
+│  Pedí sin hacer fila. Recogé con…    │
+└──────────────────────────────────────┘
+ ╭────────────────────────────────────╮   el crema se monta encima
+ │                                     │
+   Carta
 
-Carta
-
-( Todas )( Adiciones )( Asados )( Bebid…
+   ( Todas )( Adiciones )( Asados )( Bebid…
 
 ┃ ┌──┐ Pechuga asada              ┌──┐
 ┃ │  │ Con papa criolla y ensalada│+ │
@@ -723,6 +925,10 @@ busque.
 
 La segunda tarjeta muestra el estado con cantidad en móvil, con el control en su
 fila. La barra de abajo aparece con el primer producto.
+
+Arriba, la [portada](#c-portada): la foto llega hasta los dos bordes y se corta
+donde empieza la esquina redondeada del crema. Lo que hay debajo de esa esquina
+—las tarjetas, los precios, el filtro, el carrito— no cambió con ella.
 
 <a id="p-pedido"></a>
 
@@ -872,13 +1078,17 @@ nada, así que la elección se vuelve a abrir en vez de repetirse sola.
 ### El código de canje
 
 ```
-¡Listo! Pago confirmado
+Lo están preparando
 
-●  Presentá este código en el establecimiento.
+●  El establecimiento ya recibió tu pedido.
 
-   ╭──────────────────────────────╮
-  ◖│        K 7 M 2 Q 9           │◗
-   ╰──────────────────────────────╯
+┌──────────────────────────────────┐
+│      TU CÓDIGO DE RECOGIDA       │
+│  ╭────────────────────────────╮  │
+│  │      K 7 M 2 Q 9           │  │
+│  ╰────────────────────────────╯  │
+│      ( ● En preparación )        │  ← la palabra del mostrador
+└──────────────────────────────────┘
 
 ┌──────────────────────────────────┐
 │  1 × Pechuga asada    $ 18.000   │
@@ -891,7 +1101,25 @@ nada, así que la elección se vuelve a abrir en vez de repetirse sola.
 [ Hacer otro pedido ]
 ```
 
-El billete es el protagonista; encima, el estado con su punto y su rótulo.
+El billete es el protagonista. Encima, la frase que cuenta lo que el estado
+significa para quien pidió; dentro, la pastilla que dice cómo lo llama el
+mostrador.
+
+**Esta pantalla se mueve sola.** Es la misma a lo largo de todo el pedido: el
+título, la frase y la pastilla cambian cuando el mostrador avanza, sin recargar
+y sin tocar nada, hasta que el pedido se entrega o se cancela. Y se repinta
+**solo cuando algo cambia**, no en cada vuelta del sondeo, porque reconstruirla
+cada cinco segundos cancelaría la selección de quien está copiando su código.
+
+**Y no se pierde.** El pedido y su token viven en `localStorage`, así que
+recargar, bloquear el teléfono o volver desde la pasarela vuelven a esta
+pantalla y no a la portada. Caduca a las seis horas, y se borra solo cuando el
+pedido llega a entregado o cancelado: a partir de ahí el código no le sirve a
+nadie, y guardarlo solo serviría para enseñárselo a quien abra la carta después
+en ese mismo teléfono.
+
+Pulsar «Hacer otro pedido» con un código todavía sin recoger abre la
+[advertencia](#c-advertencia) en vez de tirarlo.
 
 **Debajo va el recibo: qué se compró, no solo cuánto.** Antes esta pantalla
 decía únicamente «Total pagado: …», que además mentía en los estados donde no se

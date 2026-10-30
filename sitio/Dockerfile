@@ -83,4 +83,19 @@ COPY --from=sellado /sitio/ /usr/share/nginx/html/
 # archivo de tipografía no cambia sin cambiar de nombre.
 COPY fuentes/ /usr/share/nginx/html/fuentes/
 
+# La foto de la portada, en sus dos tamaños.
+#
+# Va por el mismo camino que las tipografías y por el mismo motivo: la
+# referencia está dentro de `estilos.css`, que sí lleva huella, así que cambiar
+# la hoja cambia su URL y con ella la del fondo que pide. Lo que **no** cubre
+# eso es sustituir la foto dejándole el mismo nombre: Cloudflare serviría la
+# vieja durante cuatro horas. La regla, entonces, es la de las tipografías —una
+# foto nueva es un archivo nuevo, con nombre nuevo— y queda escrita acá para
+# que no haya que deducirla con el público delante.
+#
+# Una prueba comprueba que lo que `estilos.css` pide exista de verdad en esta
+# carpeta: un fondo que no carga no rompe nada, no sale en ninguna consola y no
+# se nota hasta que alguien mira la pantalla.
+COPY fotos/ /usr/share/nginx/html/fotos/
+
 EXPOSE 8080
