@@ -666,22 +666,59 @@ ya existía y decía exactamente eso desde la S10; lo que faltaba era que el
 comparador la aplicara. Es el mismo hueco que la S10 encontró en `security`, un
 nivel más abajo, y ahora tiene sus dos casos negativos.
 
-**Lo que queda.** El token vive en memoria del navegador: recargar la página
-pierde el pedido, igual que antes de este cambio. No hay «buscar mi pedido»
-porque no hay dónde buscarlo, y añadirlo volvería a abrir la pregunta de qué
-identifica a quien pregunta.
+**Lo que quedaba, y se cerró en la S16.** El token vivía en memoria del
+navegador, así que recargar la página perdía el pedido igual que antes de este
+cambio. Eso se escribió aquí como una limitación aceptada, y resultó ser un
+defecto con consecuencia: quien ya había pagado y recargaba —o volvía desde la
+pasarela, que abre otra pestaña, o pulsaba «Hacer otro pedido»— se quedaba sin
+el código con el que recoge. El dinero se había movido y la prueba de que se
+había movido, no.
 
-**Y sigue abierto en un despliegue que se daba por apagado.** `pideutb-api.onrender.com`
-—el despliegue anterior a [ADR-0008](adr/0008-despliegue-en-el-servidor-del-laboratorio.md)—
-**está vivo**, anuncia la versión 2.0.0 del contrato y responde a
+Ahora el pedido y su token se guardan en `localStorage`, y el sitio los retoma
+al abrir. Lo que eso **añade** a la superficie de ataque es poco y conviene
+decirlo con precisión:
+
+| | Antes | Ahora |
+|---|---|---|
+| Qué puede leer un XSS en el sitio | El token, de la variable | El token, del almacenamiento |
+| Qué sobrevive a cerrar la pestaña | Nada | El pedido propio, seis horas |
+| Qué ve la siguiente persona en un aparato compartido | Nada | Nada: se borra al entregarse o cancelarse el pedido, y caduca |
+
+El primer renglón es el que importa, y no cambia: un XSS que pueda leer
+`localStorage` ya podía leer la variable. Los otros dos son los que sí añaden
+exposición, y los dos están acotados a propósito —seis horas es más que una
+comida y menos que un día—.
+
+Lo que **sigue sin existir** es «buscar mi pedido»: se recupera lo que este
+navegador guardó, no una cuenta. Desde otro aparato no hay nada que encontrar, y
+añadirlo volvería a abrir la pregunta de qué identifica a quien pregunta.
+
+**Y estuvo abierto en un despliegue que se daba por apagado.**
+`pideutb-api.onrender.com` —el anterior a
+[ADR-0008](adr/0008-despliegue-en-el-servidor-del-laboratorio.md)— seguía vivo,
+anunciando la versión 2.0.0 del contrato y respondiendo a
 `GET /v1/pedidos/{id}` con el `codigo_canje` dentro. `infra/README.md` lo daba
 por inexistente; se comprobó pidiéndoselo y respondió `200`.
 
-Que ahora mismo no filtre nada es casualidad: sus tres pedidos están en
-`pendiente_pago` y un pedido sin pagar no tiene código. Cualquiera que se pague
-ahí lo expone.
+Que no llegara a filtrar nada fue casualidad: sus tres pedidos estaban en
+`pendiente_pago` y un pedido sin pagar no tiene código. Cualquiera que se
+hubiera pagado ahí lo habría expuesto.
 
-**Corregir el código no cierra una vulnerabilidad si el código viejo sigue
-atendiendo.** Se cierra apagando ese servicio desde el panel de Render, y hasta
-entonces esta violación está corregida **en el despliegue vigente**, no en todos
-los que existen.
+**Cerrado el 29 de octubre de 2026**, apagando el servicio desde el panel de
+Render. Comprobado como se comprobó que estaba abierto, pidiéndoselo:
+
+```
+$ curl -i https://pideutb-api.onrender.com/health
+HTTP/1.1 404 Not Found
+x-render-routing: no-server
+```
+
+`no-server` es el borde de Render diciendo que detrás de ese nombre no hay
+ningún servicio. Las tres rutas que antes respondían —`/`, `/health` y
+`/v1/pedidos/{id}`— dan lo mismo.
+
+**La lección se queda escrita aunque el caso esté cerrado:** corregir el código
+no cierra una vulnerabilidad si el código viejo sigue atendiendo. Entre la
+corrección (S14) y el apagado pasaron dos semanas en las que esta violación
+estaba corregida *en el despliegue vigente* y abierta en otro que nadie
+miraba.

@@ -518,3 +518,176 @@ def test_el_sellado_cubre_todo_lo_que_piden_las_paginas() -> None:
         "página pide. O sobra en la lista, o alguien quitó la referencia y se "
         "dejó el archivo."
     )
+
+
+
+# ---------------------------------------------------------------------------
+# Las clases que los guiones escriben y la hoja tiene que conocer
+# ---------------------------------------------------------------------------
+#
+# Esta prueba nace de un defecto que llevaba desde el principio y que nadie vio:
+# la hoja declaraba `.punto.bien` y los tres guiones que pintan puntos escribían
+# `punto ok`. No casaban, así que el punto verde —el de «pagado» y el de «listo
+# para recoger»— **nunca fue verde**: caía en el gris de `.punto` a secas, el
+# mismo de un estado que el sitio no reconoce.
+#
+# No lo vio nadie porque un punto gris parece un punto. No hay consola que se
+# queje de una clase que no existe, no hay prueba de comportamiento que mire un
+# color, y el ojo no echa de menos un verde que no ha visto nunca.
+
+GUIONES_DEL_SITIO = ("app.js", "panel.js", "pasarela.js")
+
+
+def test_todo_punto_de_estado_tiene_su_color_en_la_hoja():
+    clases: set[str] = set()
+    for nombre in GUIONES_DEL_SITIO:
+        fuente = (SITIO / nombre).read_text(encoding="utf-8")
+        # Dos formas: `punto: "ok"` dentro de una tabla de estados, y
+        # `className = "punto mal"` escrito directo.
+        clases |= set(re.findall(r'punto:\s*"([a-z-]+)"', fuente))
+        clases |= set(re.findall(r'className = "punto ([a-z-]+)"', fuente))
+
+    # Y una tercera, la de `panel.js`: una tabla cuyo **valor** es la clase.
+    clases |= set(
+        _tabla((SITIO / "panel.js").read_text(encoding="utf-8"), "PUNTO_ESTADO").values()
+    )
+
+    assert clases, (
+        "No se encontró ninguna clase de punto en los guiones del sitio. O se "
+        "quitaron los indicadores de estado, o cambió la forma de escribirlos "
+        "y esta prueba dejó de mirar donde hay que mirar."
+    )
+
+    hoja = (SITIO / "estilos.css").read_text(encoding="utf-8")
+    declaradas = set(re.findall(r"\.punto\.([a-z-]+)\s*\{", hoja))
+
+    assert clases <= declaradas, (
+        f"Los guiones pintan {sorted(clases - declaradas)} y sitio/estilos.css "
+        "no tiene regla para esas clases. El punto sale del gris por defecto, "
+        "que es el que significa «estado desconocido»: dice lo contrario de lo "
+        "que pasa, y no falla nada."
+    )
+
+    assert declaradas <= clases, (
+        f"sitio/estilos.css declara {sorted(declaradas - clases)}, que ningún "
+        "guion escribe. O sobra la regla, o alguien le cambió el nombre a la "
+        "clase en un sitio y no en el otro — que es exactamente cómo el punto "
+        "verde se pasó el proyecto entero siendo gris."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Que el cliente y el mostrador llamen igual a lo mismo
+# ---------------------------------------------------------------------------
+#
+# `app.js` y `panel.js` son dos páginas que no comparten código, y las dos
+# escriben el nombre del estado de un pedido: una en el teléfono de quien pidió,
+# otra en la pantalla de quien atiende. La conversación que ocurre en la barra
+# es «a mí me dice tal» / «a mí me sale tal», y si las dos palabras no son la
+# misma, esa conversación no se resuelve.
+#
+# Lo mismo con el color del punto: el mismo estado no puede ser ámbar en una
+# pantalla y verde en la otra.
+
+def _tabla(fuente: str, nombre: str) -> dict[str, str]:
+    """Un objeto literal `const NOMBRE = { clave: "valor", ... };`."""
+    bloque = re.search(rf"const {nombre} = \{{(.*?)\n\}};", fuente, re.S)
+    assert bloque, f"no se encontró `{nombre}` donde se esperaba"
+    return dict(re.findall(r'(\w+):\s*"([^"]*)"', bloque.group(1)))
+
+
+def test_el_cliente_y_el_mostrador_dicen_la_misma_palabra():
+    cliente = (SITIO / "app.js").read_text(encoding="utf-8")
+    mostrador = (SITIO / "panel.js").read_text(encoding="utf-8")
+
+    etiquetas_cliente = _tabla(cliente, "ETIQUETA_ESTADO")
+    etiquetas_mostrador = _tabla(mostrador, "ETIQUETA_ESTADO")
+
+    assert len(etiquetas_cliente) == 6, (
+        f"`ETIQUETA_ESTADO` de app.js tiene {len(etiquetas_cliente)} estados y "
+        "la máquina de estados del pedido tiene seis. Falta uno, o esta prueba "
+        "dejó de leer bien el archivo."
+    )
+
+    assert etiquetas_cliente == etiquetas_mostrador, (
+        "La pantalla del cliente y la del mostrador no llaman igual al mismo "
+        "estado:\n"
+        + "\n".join(
+            f"  {clave}: cliente dice «{etiquetas_cliente.get(clave)}», "
+            f"mostrador dice «{etiquetas_mostrador.get(clave)}»"
+            for clave in sorted(set(etiquetas_cliente) | set(etiquetas_mostrador))
+            if etiquetas_cliente.get(clave) != etiquetas_mostrador.get(clave)
+        )
+    )
+
+
+def test_el_mismo_estado_se_pinta_del_mismo_color_en_las_dos_pantallas():
+    cliente = (SITIO / "app.js").read_text(encoding="utf-8")
+    mostrador = (SITIO / "panel.js").read_text(encoding="utf-8")
+
+    puntos_mostrador = _tabla(mostrador, "PUNTO_ESTADO")
+
+    # En app.js el color va dentro de `RESPUESTA_POR_ESTADO`, junto al título y
+    # al texto, porque ahí es un dato más de cómo se cuenta cada estado.
+    bloque = re.search(r"const RESPUESTA_POR_ESTADO = \{(.*?)\n\};", cliente, re.S)
+    assert bloque, "no se encontró `RESPUESTA_POR_ESTADO` en app.js"
+
+    puntos_cliente = dict(
+        re.findall(r'(\w+):\s*\{[^}]*?punto:\s*"([a-z-]+)"', bloque.group(1), re.S)
+    )
+
+    assert puntos_cliente == puntos_mostrador, (
+        "El mismo estado lleva un punto de distinto color en cada pantalla:\n"
+        + "\n".join(
+            f"  {clave}: cliente «{puntos_cliente.get(clave)}», "
+            f"mostrador «{puntos_mostrador.get(clave)}»"
+            for clave in sorted(set(puntos_cliente) | set(puntos_mostrador))
+            if puntos_cliente.get(clave) != puntos_mostrador.get(clave)
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
+# Que las imágenes que la hoja pide existan y lleguen a la imagen de Docker
+# ---------------------------------------------------------------------------
+#
+# Un fondo que no carga es el fallo más silencioso de todos: no hay error de
+# consola que importe, no hay petición que falle de forma visible, y la página
+# sigue funcionando entera. Simplemente no está la foto, y no se sabe hasta que
+# alguien mira la pantalla — que en este proyecto es el 3 de noviembre.
+
+def test_las_imagenes_que_pide_la_hoja_existen():
+    hoja = (SITIO / "estilos.css").read_text(encoding="utf-8")
+    pedidas = set(re.findall(r'url\("([^"]+\.(?:webp|png|jpg|svg))"\)', hoja))
+
+    assert pedidas, (
+        "sitio/estilos.css no pide ninguna imagen. Si la portada dejó de "
+        "tener foto a propósito, esta prueba sobra; si no, alguien se llevó "
+        "por delante el fondo sin que nada se quejara."
+    )
+
+    faltan = [ruta for ruta in sorted(pedidas) if not (SITIO / ruta).is_file()]
+    assert not faltan, (
+        f"La hoja pide {faltan} y esos archivos no están en sitio/. El fondo "
+        "no carga, la franja se queda del color de reserva y nada falla."
+    )
+
+
+def test_las_imagenes_viajan_en_la_imagen_del_sitio():
+    """Existir en el repositorio no basta: hay que copiarlas al contenedor."""
+    dockerfile = DOCKERFILE_SITIO.read_text(encoding="utf-8")
+    hoja = (SITIO / "estilos.css").read_text(encoding="utf-8")
+
+    carpetas = {
+        ruta.split("/")[0]
+        for ruta in re.findall(r'url\("([^"]+\.(?:webp|png|jpg))"\)', hoja)
+        if "/" in ruta
+    }
+
+    for carpeta in sorted(carpetas):
+        assert re.search(rf"^COPY {carpeta}/ ", dockerfile, re.M), (
+            f"sitio/estilos.css pide imágenes de `{carpeta}/` y el Dockerfile "
+            f"no lleva un `COPY {carpeta}/`. En local se ven, porque el "
+            "servidor sirve la carpeta entera; en el contenedor desplegado no "
+            "están y la portada sale sin foto."
+        )

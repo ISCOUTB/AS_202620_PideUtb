@@ -177,7 +177,7 @@ Con el entorno virtual ya activado (ver paso anterior):
 pytest
 ```
 
-**530 pruebas**, agrupadas por lo que protegen:
+**548 pruebas**, agrupadas por lo que protegen:
 
 | Archivo | Qué protege |
 |---|---|
@@ -208,7 +208,7 @@ ponerse en rojo no demuestra nada. Cómo reproducir un fallo:
 
 ### El recorrido con navegador
 
-Las 530 pruebas de arriba montan la aplicación en memoria. Ninguna toca un
+Las 548 pruebas de arriba montan la aplicación en memoria. Ninguna toca un
 botón, así que ninguna puede ver si el botón está donde se alcanza con el pulgar
 o si el carrito se vacía al pagar. Para eso está `e2e/`:
 
@@ -219,13 +219,20 @@ npx playwright install chromium
 npx playwright test
 ```
 
-**14 pruebas** en dos tamaños de pantalla, contra el sitio y la API que estén
-levantados (`PIDEUTB_SITIO` y `PIDEUTB_API`, por defecto los locales).
+**22 pruebas** en dos tamaños de pantalla, contra el sitio y la API que estén
+levantados (`PIDEUTB_SITIO` y `PIDEUTB_API`, por defecto los locales). Las dos
+del mostrador se saltan si no hay `PIDEUTB_MOSTRADOR_CORREO` y
+`PIDEUTB_MOSTRADOR_CONTRASENA`: necesitan una sesión de verdad para mover un
+pedido por la máquina de estados.
 
 No es un lujo: el rediseño de la semana 15 destapó tres defectos que ninguna de
-las 530 podía ver —el carrito seguía lleno después de pagar, la barra pegajosa se
+las 548 podía ver —el carrito seguía lleno después de pagar, la barra pegajosa se
 quedaba debajo del pie en escritorio, y el botón del carrito dependía de tres
-`<span>` anidados para tener nombre accesible—.
+`<span>` anidados para tener nombre accesible—. En la 16 destapó otros tres, y
+los tres eran del mismo tipo: el código de recogida de un pedido **ya pagado** se
+perdía al recargar, al volver desde la pasarela y al pulsar «Hacer otro pedido»,
+porque vivía en una variable de la pestaña. Ninguna prueba de contrato puede ver
+eso: el contrato se cumplía entero.
 
 Antes de gastar el navegador conviene comprobar la cadena por HTTP, que dice en
 qué eslabón se rompe:
