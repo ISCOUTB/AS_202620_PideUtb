@@ -119,6 +119,28 @@
      con blanco encima, que es como se usa en el billete del código. */
   --verde-canje: #356f1a;
 
+  /* --- El velo de la portada -------------------------------------------
+     Cuánto negro hay, como mínimo, entre la foto de la parrilla y el texto
+     blanco que va encima.
+
+     Es el único sitio de la hoja donde la superficie de debajo **no es un
+     color**: es una fotografía, y una fotografía tiene un píxel distinto en
+     cada punto. No se puede medir el contraste contra ella, así que en vez de
+     medirlo se impone un suelo — y el suelo sí se mide, contra el peor caso
+     posible, que es un píxel blanco.
+
+     Con 72 % de este negro cálido encima, un píxel blanco queda en
+     #514e4c y el texto blanco encima da **8,38:1**. `test_contraste.py` rehace la cuenta, y la
+     estructura de la portada garantiza que bajo el texto hay exactamente este
+     valor y no el degradado: ver `.portada-velo`. */
+  --velo-portada: 72%;
+
+  /* El negro del velo, en componentes y no en `#hex`: así `rgb()` le puede dar
+     la opacidad de arriba sin repetir el color en cada parada del degradado.
+     Es un negro cálido —tira a la brasa— porque un gris neutro encima de una
+     foto de fuego la apaga y la vuelve ceniza. */
+  --negro-velo: 14 9 6;
+
   /* --- Estados --------------------------------------------------------- */
   --error: #b3261e;          /* 5,72:1 sobre --error-fondo. */
   --error-fondo: #fdecea;
@@ -146,6 +168,10 @@
   --radio: 18px;
   --radio-chico: 12px;
   --radio-pildora: 999px;
+  /* Más abierto que `--radio`, y solo para una cosa: la esquina con la que la
+     carta se monta sobre la foto de la portada. A todo el ancho de la pantalla,
+     18 px se leen como un recorte; 26 px se leen como una hoja apoyada. */
+  --radio-hoja: 26px;
 
   /* --- Elevación -------------------------------------------------------
      Teñida de marrón y no de negro. Una sombra gris sobre un fondo cálido se
@@ -246,6 +272,87 @@ header h1 {
   margin-top: var(--e1);
 }
 
+/* --- La portada -----------------------------------------------------------
+
+   Solo la lleva `index.html`. El panel del mostrador y la pasarela usan esta
+   misma hoja y no son una carta: una foto de carne encima de la cola de
+   pedidos no le dice nada a quien está atendiendo.
+
+   Sangra a todo el ancho mientras el resto del caparazón sigue centrado en
+   1100 px, así que el máximo se lo pone el bloque de dentro y no el `header`.
+
+   **El color de fondo no es un adorno de reserva.** Hasta que la foto llega
+   —o si no llega nunca, que en la red de un auditorio con doscientas personas
+   es un caso real y no una hipótesis— el texto blanco caería sobre crema y no
+   se leería. Con el color debajo, lo peor que pasa es una franja oscura sin
+   foto.
+
+   Dos filas, y la división es lo que hace medible el contraste:
+
+     · arriba, la foto con un velo que sube desde `--velo-portada` hasta casi
+       nada, para que se vea la carne, que es de lo que va todo esto;
+     · abajo, donde cae el texto, un velo **plano** de exactamente
+       `--velo-portada`.
+
+   Las dos capas se encuentran en el mismo valor, así que no hay costura: se ve
+   una sola foto que se va oscureciendo hacia abajo. Y la garantía deja de
+   depender de dónde acabe cayendo el texto —que cambia con el ancho, con el
+   idioma y con el tamaño de letra del sistema— para depender de una regla. */
+
+.portada {
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: 300px;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  background-color: #241711;
+  background-image: url("fotos/portada-movil.webp");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* Fila 1: la foto, destapándose hacia arriba. */
+.portada::before {
+  content: "";
+  grid-row: 1;
+  background: linear-gradient(
+    to top,
+    rgb(var(--negro-velo) / var(--velo-portada)) 0%,
+    rgb(var(--negro-velo) / 34%) 46%,
+    rgb(var(--negro-velo) / 14%) 100%
+  );
+}
+
+/* Fila 2: el suelo medido. Ni un píxel de texto cae fuera de acá. */
+.portada-velo {
+  grid-row: 2;
+  background: rgb(var(--negro-velo) / var(--velo-portada));
+}
+
+.portada-texto {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--e4) var(--e4) var(--e6);
+}
+
+/* Blanco puro los dos, y no un blanco rebajado para hacer jerarquía. Un color
+   translúcido sobre una foto no tiene contraste que se pueda escribir: el
+   número dependería de lo que haya debajo. La jerarquía la hace el tamaño y
+   que uno sea serif y el otro no, que es como la hace el resto de la hoja. */
+.portada h1 {
+  color: #fff;
+  text-shadow: 0 2px 14px rgb(0 0 0 / 45%);
+}
+
+.portada .lema {
+  color: #fff;
+  margin-top: var(--e2);
+  text-shadow: 0 1px 10px rgb(0 0 0 / 45%);
+}
+
 main {
   max-width: 1100px;
   margin: 0 auto;
@@ -254,6 +361,23 @@ main {
      del gesto de inicio en los iPhone sin botón). Sin `env()`, el último
      producto queda bajo la barra del sistema. */
   padding-bottom: calc(var(--alto-nav) + var(--e6) + env(safe-area-inset-bottom, 0px));
+}
+
+/* La costura entre la foto y la carta.
+
+   El crema sube sobre la foto y se redondea arriba. Eso es lo que hace que la
+   carta se lea como una hoja apoyada encima de la parrilla y no como la mitad
+   de abajo de una pantalla partida en dos.
+
+   `.portada + main` y no una clase: es exactamente «el `main` que viene
+   después de una portada», y así el panel y la pasarela —que usan esta hoja y
+   no tienen portada— no se enteran. */
+.portada + main {
+  position: relative;
+  margin-top: calc(var(--e5) * -1);
+  padding-top: var(--e5);
+  background: var(--crema);
+  border-radius: var(--radio-hoja) var(--radio-hoja) 0 0;
 }
 
 footer {
@@ -863,7 +987,19 @@ button.secundario:hover:not(:disabled) {
   background: var(--carbon-tenue);
 }
 
-.punto.bien { background: var(--verde-canje); }
+/* `ok` y no `bien`, que es como se llamaba.
+
+   Llevaba así desde que existe: la regla declaraba `.punto.bien` y los tres
+   guiones que pintan puntos —`app.js`, `panel.js`, `pasarela.js`— escribían
+   `punto ok`. Ninguno casaba, así que **el punto verde nunca fue verde**: caía
+   en el gris de `.punto` a secas, el mismo de un estado que no se reconoce.
+
+   No lo vio nadie porque un punto gris parece un punto, no parece un error.
+   Lo que lo destapó fue necesitarlo: el estado del pedido ahora va al lado del
+   código, y ahí la diferencia entre «listo para recoger» y «esto no sé qué es»
+   la lleva el color. `test_escenarios_de_calidad.py` comprueba desde ahora que
+   toda clase de punto que un guion escriba exista en esta hoja. */
+.punto.ok { background: var(--verde-canje); }
 .punto.espera { background: var(--ambar); }
 .punto.mal { background: var(--error); }
 
@@ -873,7 +1009,53 @@ button.secundario:hover:not(:disabled) {
    en voz alta por encima del ruido de una freidora.
 
    En la charla, además, esto es lo que se proyecta: tiene que leerse desde la
-   última fila. */
+   última fila.
+
+   Desde ahora el código viene acompañado: encima, de qué es; debajo, de en qué
+   punto va el pedido. Los tres datos son la respuesta a la misma pregunta
+   —«¿y el mío?»— y se miran juntos, así que van en la misma tarjeta en vez de
+   repartidos por la pantalla. */
+
+.billete {
+  margin: var(--e4) 0;
+  padding: var(--e4);
+  background: var(--papel);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  text-align: center;
+}
+
+.billete-rotulo {
+  color: var(--carbon-tenue);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Dentro del billete el código ya no necesita separarse de nada: el rótulo y
+   el estado le hacen el aire. */
+.billete .codigo-canje { margin: var(--e2) 0 var(--e3); }
+
+/* El estado, en pastilla. Que sea una pastilla y no una línea de texto es lo
+   que lo hace encontrable de un vistazo entre el ruido de un mostrador. */
+.billete-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e2);
+  padding: var(--e1) var(--e3);
+  border-radius: var(--radio-pildora);
+  background: var(--crema-hundido);
+  color: var(--carbon-medio);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* `.punto` se descuelga 7 px para alinearse con la primera línea de un párrafo
+   de varias. Acá el texto es una línea dentro de una pastilla centrada, y ese
+   descuelgue lo deja fuera de sitio. */
+.billete-estado .punto { margin-top: 0; }
 .codigo-canje {
   margin: var(--e4) 0;
   padding: var(--e5) var(--e4);
@@ -890,6 +1072,50 @@ button.secundario:hover:not(:disabled) {
      hacia la izquierda. */
   text-indent: 0.14em;
   box-shadow: var(--sombra-alta);
+}
+
+/* ===========================================================================
+   LA ADVERTENCIA ANTES DE PERDER UN CÓDIGO
+   ===========================================================================
+
+   Ámbar y no rojo, y la diferencia importa. El rojo es el color de lo que ya
+   salió mal, y acá no ha salido nada mal: el pedido está pagado y el código es
+   bueno. Lo que hay es una decisión que tiene consecuencia, que es justo lo
+   que `--ambar` existe para decir («lo que avisa sin ser un error», más
+   arriba).
+
+   Ocupa el sitio del botón que la abrió, en vez de aparecer encima de la
+   pantalla: así el código sigue a la vista mientras se lee la advertencia,
+   que es de lo que trata la advertencia. */
+
+.advertencia {
+  display: grid;
+  gap: var(--e2);
+  margin: var(--e4) 0 0;
+  padding: var(--e4);
+  background: var(--ambar-niebla);
+  border: 1.5px solid var(--ambar);
+  border-radius: var(--radio);
+}
+
+.advertencia-titulo {
+  color: var(--ambar);
+  font-family: var(--fuente-titulo);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+/* El código, dentro de la frase, con la letra del billete y su espaciado: es
+   el mismo dato y conviene que se reconozca como tal. */
+.advertencia strong {
+  font-family: var(--fuente-titulo);
+  letter-spacing: 0.1em;
+}
+
+.advertencia-botones {
+  display: grid;
+  gap: var(--e2);
+  margin-top: var(--e2);
 }
 
 /* ===========================================================================
@@ -1110,6 +1336,24 @@ input.codigo-canje {
   .nav-carrito-total::before { content: "·"; margin-right: var(--e2); }
 
   main, footer { padding-bottom: var(--e7); }
+
+  /* La franja crece con la pantalla y pasa a la foto grande: a 1100 px de
+     ancho, la de 640 se estiraría hasta verse el grano. */
+  .portada {
+    min-height: 380px;
+    background-image: url("fotos/portada.webp");
+  }
+
+  .portada-texto { padding: var(--e5) var(--e4) var(--e7); }
+
+  /* Lado a lado, y sin estirarse: dos botones de 1100 px de ancho son dos
+     dianas que nadie puede fallar, incluida la que no quería acertar. */
+  .advertencia-botones {
+    grid-auto-flow: column;
+    justify-content: start;
+  }
+
+  .advertencia-botones button { width: auto; min-width: 220px; }
 
   .catalogo { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
 

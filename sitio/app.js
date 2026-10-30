@@ -27,6 +27,12 @@ function mostrar(nombre) {
   // Lo que cambia es qué destino está marcado y cuáles se pueden pulsar, y eso
   // depende de la pantalla activa, así que se recalcula acá.
   dibujarNavegacion();
+
+  // La advertencia de «vas a perder el código» pertenece a la pantalla del
+  // resultado. Irse a otra dejándola abierta y volver la encontraría a medias,
+  // preguntando por una decisión que quien vuelve ya no recuerda haber
+  // empezado a tomar.
+  if (nombre !== "resultado") cerrarLaAdvertencia();
 }
 
 /** Centavos de COP a texto legible. 400000 → "$4.000". */
@@ -54,6 +60,15 @@ function limpiarError() {
  * El contrato declara qué códigos emite cada operación; aquí se traducen los
  * que el consumidor dice manejar. Un código no contemplado cae en el mensaje
  * genérico en lugar de romper la página.
+ *
+ * **Quien arma la ruta codifica lo que meta dentro.** `ruta` llega ya armada y
+ * desde aquí no se distingue qué parte es estructura y qué parte es un valor,
+ * así que esta función no puede hacerlo por nadie. Y hace falta: interpolar un
+ * valor sin codificar lo asciende a estructura —una barra o un `..` dentro del
+ * valor dejan de ser texto y pasan a ser dirección, que es otra dirección—.
+ * Vale tanto para lo que sale del almacenamiento, que cualquiera edita desde
+ * la consola, como para lo que llega de la API, que es de fiar hasta el día
+ * que deje de serlo. Cuesta una llamada a `encodeURIComponent`.
  */
 async function api(ruta, opciones = {}) {
   // Las cabeceras se **fusionan**, no se reemplazan. Con el `...opciones`
@@ -135,9 +150,10 @@ let metodoElegido = null;
  * secuenciales: sin token, cualquiera podía recorrerlos y cosechar los códigos
  * de canje de los pedidos pagados (contrato 4.0.0).
  *
- * Vive en memoria, como el resto del pedido: recargar la página pierde el
- * pedido igual que antes de esto, porque no hay cuentas de cliente y no hay
- * dónde volver a buscarlo.
+ * **Ya no vive solo en memoria.** Se guarda junto al pedido —más abajo— para
+ * que recargar la página, o volver desde la pasarela, no borre el código de
+ * recogida. Lo que sigue sin existir es «buscar mi pedido»: se recupera lo que
+ * este navegador guardó, no una cuenta de cliente, porque no hay cuentas.
  */
 let tokenDelPedido = null;
 
@@ -151,11 +167,163 @@ let tokenDelPedido = null;
  */
 let referenciaDelCobro = null;
 
+/**
+ * A dónde manda la API a pagar este cobro.
+ *
+ * Se recuerda por lo mismo que la referencia: al recuperar un pedido que quedó
+ * a medias hay que poder volver a ofrecer la pasarela, y la API dice esta
+ * dirección **una sola vez**, al abrir el intento.
+ */
+let urlDelCheckout = null;
+
 /** Categoría activa del filtro. `null` = todas. */
 let categoriaActiva = null;
 
 /** La carta completa, para filtrar sin volver a pedirla. */
 let cartaCompleta = [];
+
+// --------------------------------------------------------------------------
+// El pedido en curso, fuera de la memoria de la pestaña
+//
+// Hasta acá el pedido vivía solo en las variables de arriba, y eso se leía como
+// tres defectos distintos cuando en realidad era uno:
+//
+//   · recargar la página borraba el código de un pedido ya pagado;
+//   · volver desde la pasarela aterrizaba en la portada, porque la pasarela
+//     abre **otra pestaña**, y otra pestaña es otra memoria: no sabe que haya
+//     un pedido en marcha;
+//   · «Hacer otro pedido» lo tiraba sin preguntar.
+//
+// El defecto único: el único sitio donde vivía el código de recogida era una
+// variable que cualquier navegación tiraba a la basura. Quien ya había pagado
+// se quedaba sin lo que había comprado, y lo descubría en el mostrador.
+//
+// `localStorage` y no `sessionStorage`, que es el almacenamiento más corto y
+// por tanto el que habría preferido: `sessionStorage` **no viaja** a la pestaña
+// que abre `target="_blank"` con `rel="noopener"`, que es exactamente cómo se
+// abre la pasarela. Elegirlo habría dejado el segundo defecto sin arreglar.
+//
+// Lo que se guarda son cuatro datos del pedido propio —ni sesión, ni cuenta, ni
+// nada de otra persona—, y **caduca**. La caducidad no es ceremonia: en un
+// teléfono prestado, un pedido pagado y nunca recogido dejaría el código de
+// alguien en la pantalla del siguiente que abra la carta. Seis horas es más que
+// una comida y menos que un día.
+//
+// Lo que esto **no** hace es permitir recuperar el pedido desde otro aparato:
+// se lee lo que este navegador escribió. Sigue sin haber dónde buscarlo.
+// --------------------------------------------------------------------------
+
+const LLAVE_DEL_PEDIDO = "pideutb.pedido";
+const HORAS_QUE_DURA_LO_GUARDADO = 6;
+
+//: Qué se acepta como referencia de un cobro antes de meterla en una ruta.
+//:
+//: No reproduce el formato que la API genera hoy —`pago-{id}-{seis hex}`—
+//: a propósito: ese formato lo decide el servidor y puede cambiar sin avisar
+//: a nadie, y una copia aquí convertiría ese cambio en una pantalla rota. Lo
+//: que se exige es lo que el contrato ya declara, de 1 a 64 caracteres, y que
+//: sean caracteres que quepan en un segmento de ruta sin significar nada.
+const ES_UNA_REFERENCIA = /^[A-Za-z0-9._-]{1,64}$/;
+
+/**
+ * Deja constancia del pedido en curso.
+ *
+ * Se llama en los dos momentos en que aparece algo que la API no vuelve a
+ * decir: al crear el pedido —que es cuando entrega el token, una sola vez— y al
+ * abrir el cobro —que es cuando entrega la referencia y la dirección del
+ * checkout—.
+ *
+ * Un fallo al escribir **no se cuenta y no rompe nada**: en modo privado, con el
+ * almacenamiento lleno o con el sitio sin permiso para guardar, `setItem` lanza.
+ * El pedido sigue en memoria y la pestaña funciona como funcionaba antes de
+ * este arreglo, que era peor pero no era inservible.
+ */
+function guardarElPedido() {
+  if (pedidoActual === null || tokenDelPedido === null) return;
+
+  try {
+    localStorage.setItem(LLAVE_DEL_PEDIDO, JSON.stringify({
+      pedido_id: pedidoActual.pedido_id,
+      token_consulta: tokenDelPedido,
+      referencia_pago: referenciaDelCobro,
+      url_checkout: urlDelCheckout,
+      guardado_en: Date.now(),
+    }));
+  } catch {
+    // Ver arriba: se degrada a lo de antes, en silencio.
+  }
+}
+
+/** Borra lo guardado. Se llama cuando el código ya no le sirve a nadie. */
+function olvidarElPedido() {
+  try {
+    localStorage.removeItem(LLAVE_DEL_PEDIDO);
+  } catch {
+    // Ídem.
+  }
+}
+
+/**
+ * Lo guardado, si lo hay, si se entiende y si todavía vale.
+ *
+ * Cualquier cosa rara —otra versión del sitio que guardó otra forma, alguien
+ * editando el almacenamiento a mano, un reloj que se movió hacia atrás— sale
+ * por la misma puerta: se descarta y se olvida. Un pedido que no se puede
+ * interpretar es un pedido que no existe.
+ */
+function leerElPedidoGuardado() {
+  let guardado = null;
+  try {
+    guardado = JSON.parse(localStorage.getItem(LLAVE_DEL_PEDIDO) || "null");
+  } catch {
+    olvidarElPedido();
+    return null;
+  }
+
+  // Sin nada guardado no hay nada que olvidar. A partir de acá sí: lo que haya
+  // y no se entienda se tira, porque volver a leerlo en cada carga para volver
+  // a rechazarlo no ayuda a nadie.
+  if (guardado === null) return null;
+
+  // El identificador vuelve **convertido a número**, no tal como se leyó.
+  //
+  // De acá sale hacia la ruta de una consulta —`/v1/pedidos/${pedido_id}`— y
+  // lo que hay en el almacenamiento es texto que cualquiera edita desde la
+  // consola del navegador en dos segundos. Sin convertirlo, un `pedido_id` de
+  // `1/../../../v1/sesiones` armaba una dirección distinta de la que esta línea
+  // aparenta, y el sitio la pedía sin rechistar.
+  //
+  // La API declara el identificador como entero, así que un entero es lo único
+  // que se acepta. Con la conversión por delante, a la URL solo puede llegar
+  // una cifra: deja de ser una cuestión de qué texto se filtra.
+  const id = Number(guardado.pedido_id);
+
+  if (!Number.isSafeInteger(id) || id <= 0 || !guardado.token_consulta) {
+    olvidarElPedido();
+    return null;
+  }
+
+  const horas = (Date.now() - guardado.guardado_en) / 3600000;
+
+  // La condición va negada a propósito. Con un `guardado_en` ausente o absurdo
+  // la resta da `NaN`, toda comparación con `NaN` es falsa, y así el pedido se
+  // descarta. Escrito al derecho —`if (horas >= HORAS...) descartar`— el `NaN`
+  // también daría falso y lo daría por bueno para siempre.
+  if (!(horas >= 0 && horas < HORAS_QUE_DURA_LO_GUARDADO)) {
+    olvidarElPedido();
+    return null;
+  }
+
+  // Se devuelven los cuatro campos que alguien usa, uno por uno, y no lo leído
+  // tal cual. Así lo que sale de esta función es lo que esta función promete,
+  // y no cualquier cosa que apareciera escrita en el almacenamiento.
+  return {
+    pedido_id: id,
+    token_consulta: guardado.token_consulta,
+    referencia_pago: guardado.referencia_pago,
+    url_checkout: guardado.url_checkout,
+  };
+}
 
 // --------------------------------------------------------------------------
 // Pantalla 0 · comprobar que la API responde
@@ -181,6 +349,9 @@ async function comprobarSalud() {
       throw new Error("El servicio respondió, pero se declaró no disponible.");
     }
     await cargarCarta();
+
+    // Y, si esta persona dejó un pedido a medias, se retoma donde lo dejó.
+    await retomarElPedidoGuardado();
   } catch (e) {
     clearTimeout(avisar);
     $("aviso-lentitud").classList.add("oculto");
@@ -271,7 +442,7 @@ async function cargarCarta() {
 
   try {
     const carta = await api(
-      `/v1/menu/establecimientos/${CONFIG.ESTABLECIMIENTO_ID}/items`
+      `/v1/menu/establecimientos/${encodeURIComponent(CONFIG.ESTABLECIMIENTO_ID)}/items`
     );
 
     cartaCompleta = carta.items;
@@ -779,12 +950,23 @@ async function pagarCarrito() {
     lineas.push({ item_id: linea.item.item_id, cantidad: linea.cantidad });
   }
 
+  // Un pedido nuevo todavía no tiene cobro. Si quedaran los del anterior, lo
+  // que se guarde a continuación ataría este pedido a una referencia que no es
+  // la suya.
+  referenciaDelCobro = null;
+  urlDelCheckout = null;
+
   try {
     pedidoActual = await api("/v1/pedidos", {
       method: "POST",
       body: JSON.stringify({ lineas }),
     });
     tokenDelPedido = pedidoActual.token_consulta;
+
+    // Acá, y no después de pagar. El token se entrega **una sola vez**, en esta
+    // respuesta: si la pestaña se cierra entre este instante y la confirmación,
+    // sin esto el pedido quedaría pagado y sin nadie que pueda leer su código.
+    guardarElPedido();
   } catch (e) {
     const mensajes = {
       404: "Uno de los productos ya no existe en la carta.",
@@ -852,10 +1034,12 @@ async function pagar(metodo) {
     // la pantalla de espera y se consulta el pedido, que es la única forma de
     // enterarse de algo que llega por otro canal.
     referenciaDelCobro = intento.referencia_pago;
+    urlDelCheckout = intento.url_checkout;
+    guardarElPedido();
 
     mostrar("espera");
-    ofrecerLaPasarela(intento.url_checkout);
-    consultarEstadoPeriodicamente();
+    ofrecerLaPasarela(urlDelCheckout);
+    esperarLaConfirmacion();
   } catch (e) {
     const mensajes = {
       404: "El pedido ya no existe.",
@@ -883,7 +1067,13 @@ function ofrecerLaPasarela(urlCheckout) {
 
   let esNuestra = false;
   try {
-    esNuestra = new URL(urlCheckout, location.href).origin === location.origin;
+    // El `Boolean` cubre el caso que apareció al poder recuperar un pedido:
+    // de lo guardado puede salir un pedido sin cobro abierto, y `new URL(null)`
+    // resuelve tan contento contra el origen propio y deja un enlace que
+    // apunta a `null`.
+    esNuestra =
+      Boolean(urlCheckout) &&
+      new URL(urlCheckout, location.href).origin === location.origin;
   } catch {
     // Una URL que no se puede analizar no es la nuestra.
   }
@@ -907,12 +1097,37 @@ function ofrecerLaPasarela(urlCheckout) {
 // vendría en la misma respuesta y esta pantalla sobraría.
 // --------------------------------------------------------------------------
 
-function consultarEstadoPeriodicamente() {
+// Son dos esperas distintas y no merecen la misma cadencia:
+//
+//   · **La confirmación del pago** llega de un sistema externo en cualquier
+//     momento, y quien espera está mirando la pantalla con el teléfono en la
+//     mano. Ahí se pregunta seguido.
+//   · **El avance en el mostrador** lo mueve una persona con una plancha
+//     delante, y el propio panel se refresca cada cinco segundos: preguntar más
+//     rápido que eso no puede enterarse de nada antes.
+//
+// Lo que comparten es que solo hay **un** temporizador, y que pedir una
+// cadencia que ya está en marcha no lo reinicia. Sin esa comprobación,
+// `mostrarResultado` —que se llama en cada vuelta— reiniciaría el intervalo en
+// cada vuelta, y la consulta siguiente no llegaría nunca.
+
+//: Cada cuántos ms pregunta el temporizador en marcha, o `null` si no hay.
+let cadenciaDeConsulta = null;
+
+function consultarCada(ms) {
+  if (temporizadorConsulta !== null && cadenciaDeConsulta === ms) return;
+
   detenerConsultas();
-  temporizadorConsulta = setInterval(
-    consultarEstado,
-    CONFIG.MS_ENTRE_CONSULTAS_DE_ESTADO
-  );
+  cadenciaDeConsulta = ms;
+  // `lanzar` y no `consultarEstado` a secas: un intervalo no espera a una
+  // función asíncrona, así que un fallo que ocurriera fuera de su `try` se
+  // quedaría en la consola con la pantalla sin decir nada.
+  temporizadorConsulta = setInterval(() => lanzar(consultarEstado()), ms);
+}
+
+/** Espera a que la pasarela confirme, preguntando ya y luego seguido. */
+function esperarLaConfirmacion() {
+  consultarCada(CONFIG.MS_ENTRE_CONSULTAS_DE_ESTADO);
   lanzar(consultarEstado());
 }
 
@@ -929,11 +1144,23 @@ function consultarEstadoPeriodicamente() {
  * mientras espera es peor que una que espera.
  */
 async function mirarSiElCobroFueRechazado() {
-  if (referenciaDelCobro === null) return;
+  // La comprobación va aquí, donde se usa, y no solo donde se lee del
+  // almacenamiento: a esta variable se llega por dos caminos —lo guardado y
+  // la respuesta que abrió el cobro— y validar en el punto de consumo los
+  // cubre los dos sin repetirse. Es también donde vive la suposición: esta
+  // línea es la que da por hecho que eso es una referencia.
+  if (
+    typeof referenciaDelCobro !== "string" ||
+    !ES_UNA_REFERENCIA.test(referenciaDelCobro)
+  ) {
+    return;
+  }
 
   let intento;
   try {
-    intento = await api(`/v1/pagos/intentos/${referenciaDelCobro}`);
+    intento = await api(
+      `/v1/pagos/intentos/${encodeURIComponent(referenciaDelCobro)}`
+    );
   } catch {
     return;
   }
@@ -945,6 +1172,12 @@ async function mirarSiElCobroFueRechazado() {
 }
 
 function mostrarCobroRechazado() {
+  // Esta pantalla usa el mismo hueco que `mostrarResultado` pero no pasa por
+  // ella, así que su huella deja de valer: sin esto, un estado que coincidiera
+  // con el último pintado se daría por ya dibujado y el rechazo se quedaría en
+  // pantalla encima de un pedido que ya avanzó.
+  huellaDelResultado = null;
+
   $("titulo-resultado").textContent = "El pago fue rechazado";
 
   const cuerpo = $("cuerpo-resultado");
@@ -984,20 +1217,31 @@ function mostrarCobroRechazado() {
 }
 
 function detenerConsultas() {
-  if (temporizadorConsulta !== null) {
-    clearInterval(temporizadorConsulta);
-    temporizadorConsulta = null;
-  }
+  if (temporizadorConsulta !== null) clearInterval(temporizadorConsulta);
+  temporizadorConsulta = null;
+  cadenciaDeConsulta = null;
 }
 
 async function consultarEstado() {
+  // Lo mismo que con la referencia, y por el mismo motivo. A `pedidoActual`
+  // se llega desde tres sitios —crear el pedido, retomarlo de lo guardado y
+  // esta misma función— y solo uno de los tres pasaba por una validación.
+  // Los otros dos vienen de la respuesta de la API, que es de fiar hasta el
+  // día que deje de serlo; dos líneas aquí valen más que confiar tres veces.
+  const id = Number(pedidoActual.pedido_id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    detenerConsultas();
+    return;
+  }
+
   try {
     // El token va en una cabecera y no en la dirección: una URL acaba en los
     // registros del servidor y del proxy, y este token es lo que permite leer
     // el código de canje.
-    const pedido = await api(`/v1/pedidos/${pedidoActual.pedido_id}`, {
-      headers: { "X-Token-Pedido": tokenDelPedido },
-    });
+    const pedido = await api(
+      `/v1/pedidos/${encodeURIComponent(id)}`,
+      { headers: { "X-Token-Pedido": tokenDelPedido } }
+    );
     pedidoActual = pedido;
 
     // El pedido sigue en `pendiente_pago`. Eso **no** quiere decir que no haya
@@ -1016,10 +1260,24 @@ async function consultarEstado() {
       return;
     }
 
-    detenerConsultas();
+    // **Acá ya no se para el temporizador**, y ese era el tercer defecto.
+    // Pagar no es el final del pedido: después viene el mostrador. Parando
+    // aquí, la pantalla se quedaba congelada en «Pago confirmado» mientras la
+    // de al lado decía «En preparación» y luego «Listo para recoger». Quien
+    // había pagado era el único que no se enteraba de su propio pedido.
+    //
+    // Quien decide si queda algo que esperar es `mostrarResultado`, que es
+    // quien sabe en qué estado está.
     mostrarResultado(pedido);
   } catch (e) {
     detenerConsultas();
+    huellaDelResultado = null;
+
+    // Un pedido que ya no existe tampoco tiene que seguir guardado: la demo se
+    // reinicia entre una charla y la siguiente, y sin esto cada recarga
+    // buscaría un pedido borrado para volver a enseñar el mismo error.
+    if (e.status === 404) olvidarElPedido();
+
     mostrar("resultado");
     $("titulo-resultado").textContent = "No pudimos consultar tu pedido";
     fallar(
@@ -1075,6 +1333,68 @@ const RESPUESTA_POR_ESTADO = {
   },
 };
 
+/**
+ * Cómo llama el mostrador a cada estado.
+ *
+ * Es **literalmente** `ETIQUETA_ESTADO` de `panel.js`, y esa repetición es
+ * deliberada: son dos páginas que no comparten código y que tienen que decir la
+ * misma palabra, porque la conversación que ocurre en la barra es «mi pedido
+ * dice tal» / «acá me sale tal». `test_escenarios_de_calidad.py` falla si una
+ * de las dos se desvía de la otra.
+ *
+ * No sustituye a `RESPUESTA_POR_ESTADO.texto`, que cuenta lo que el estado
+ * significa para quien pidió —«Lo están preparando»—. Esto es el nombre del
+ * estado, que es otra cosa y hace otra falta.
+ */
+const ETIQUETA_ESTADO = {
+  pendiente_pago: "Esperando pago",
+  pagado: "Pagado",
+  en_preparacion: "En preparación",
+  listo_para_recoger: "Listo para recoger",
+  entregado: "Entregado",
+  cancelado: "Cancelado",
+};
+
+/**
+ * Los estados en los que hay un código que alguien va a presentar.
+ *
+ * Sale de `RESPUESTA_POR_ESTADO` en vez de escribirse al lado: son exactamente
+ * los estados que enseñan el código, y dos listas con la misma intención se
+ * separan en cuanto alguien añade un estado y solo se acuerda de una.
+ */
+const ESTADOS_CON_CODIGO_VIVO = new Set(
+  Object.entries(RESPUESTA_POR_ESTADO)
+    .filter(([, respuesta]) => respuesta.mostrarCodigo)
+    .map(([estado]) => estado)
+);
+
+/** Estados en los que el pedido ya no se mueve: no queda nada que esperar. */
+const ESTADOS_FINALES = new Set(["entregado", "cancelado"]);
+
+/**
+ * Hay un código que alguien todavía tiene que presentar en el mostrador.
+ *
+ * Es la condición que convierte «Hacer otro pedido» en algo que hay que
+ * confirmar. Un pedido sin pagar no tiene código; uno entregado o cancelado ya
+ * gastó el suyo. Lo que no se puede perder está entre esos dos extremos.
+ */
+function hayUnCodigoEnJuego() {
+  return (
+    pedidoActual !== null &&
+    Boolean(pedidoActual.codigo_canje) &&
+    ESTADOS_CON_CODIGO_VIVO.has(pedidoActual.estado)
+  );
+}
+
+//: La huella de lo último que se pintó en la pantalla del resultado.
+//:
+//: Mientras no cambie, no se repinta. **No es una optimización.** Desde que se
+//: sigue al mostrador, esta pantalla se visita cada cinco segundos: reconstruir
+//: el cuerpo en cada vuelta cancelaría la selección de quien está copiando su
+//: código y cerraría la advertencia de «vas a perderlo» por debajo del dedo.
+//: Es el mismo motivo por el que `panel.js` lleva su `huellaPintada`.
+let huellaDelResultado = null;
+
 function mostrarResultado(pedido) {
   const respuesta = RESPUESTA_POR_ESTADO[pedido.estado];
 
@@ -1091,6 +1411,31 @@ function mostrarResultado(pedido) {
   // (`dibujarLineasDelCarrito`), y vaciarlo antes la dejaría en blanco con el
   // pedido todavía por pagar.
   if (pedido.estado !== "pendiente_pago") carrito.clear();
+
+  // --- ¿Queda algo que esperar? ---------------------------------------
+  //
+  // Antes no se preguntaba, porque antes se daba por hecho que confirmar el
+  // pago era el final. No lo es: después viene el mostrador, y el mostrador
+  // mueve el pedido dos veces más.
+  if (ESTADOS_FINALES.has(pedido.estado)) {
+    detenerConsultas();
+    // El código ya se gastó. Guardarlo a partir de acá solo serviría para
+    // enseñárselo a quien abra la carta después en este mismo teléfono.
+    olvidarElPedido();
+  } else if (ESTADOS_CON_CODIGO_VIVO.has(pedido.estado)) {
+    consultarCada(CONFIG.MS_ENTRE_CONSULTAS_DE_SEGUIMIENTO);
+  }
+  // `pendiente_pago` no cae en ninguna de las dos a propósito: acá se llega con
+  // ese estado cuando alguien pulsó «Consultar más tarde», y encender un
+  // temporizador le quitaría a ese botón lo único que hace.
+
+  // --- ¿Hace falta repintar? ------------------------------------------
+  const huella = `${pedido.estado}|${pedido.codigo_canje || ""}`;
+  const yaEstaEnPantalla =
+    huella === huellaDelResultado &&
+    $("pantalla-resultado").classList.contains("activa");
+  if (yaEstaEnPantalla) return;
+  huellaDelResultado = huella;
 
   // Un estado que el consumidor no conoce no debe romper la página: se informa
   // con honestidad en vez de mostrar una pantalla en blanco.
@@ -1119,10 +1464,7 @@ function mostrarResultado(pedido) {
   cuerpo.append(linea);
 
   if (respuesta.mostrarCodigo && pedido.codigo_canje) {
-    const codigo = document.createElement("div");
-    codigo.className = "codigo-canje";
-    codigo.textContent = pedido.codigo_canje;
-    cuerpo.append(codigo);
+    cuerpo.append(dibujarElBillete(pedido, respuesta));
   }
 
   // El recibo: qué se compró y cuánto. Antes solo decía «Total pagado: …», que
@@ -1133,11 +1475,168 @@ function mostrarResultado(pedido) {
   mostrar("resultado");
 }
 
+/**
+ * El código y, pegado debajo, en qué punto va el pedido.
+ *
+ * El estado ya estaba en esta pantalla —en el título y en la frase de arriba—,
+ * pero contado como lo que significa para quien pidió: «Lo están preparando».
+ * El mostrador lo llama «En preparación». Son lo mismo y no se parecen, y en
+ * una barra con ruido las dos pantallas tienen que decir la misma palabra.
+ *
+ * Va **dentro** del billete y no en otro sitio de la pantalla porque la
+ * pregunta es siempre la misma —«¿y el mío?»— y la respuesta son dos datos que
+ * se miran juntos: el código que hay que enseñar y lo que está pasando con él.
+ *
+ * El color del punto sale de `RESPUESTA_POR_ESTADO`, que para estos tres
+ * estados ya coincide con el `PUNTO_ESTADO` del panel; la prueba que ata las
+ * etiquetas ata también los puntos.
+ */
+function dibujarElBillete(pedido, respuesta) {
+  const billete = document.createElement("div");
+  billete.className = "billete";
+
+  const rotulo = document.createElement("p");
+  rotulo.className = "billete-rotulo";
+  rotulo.textContent = "Tu código de recogida";
+
+  const codigo = document.createElement("div");
+  codigo.className = "codigo-canje";
+  codigo.textContent = pedido.codigo_canje;
+
+  const estado = document.createElement("p");
+  estado.className = "billete-estado";
+  const punto = document.createElement("span");
+  punto.className = `punto ${respuesta.punto}`;
+  const texto = document.createElement("span");
+  texto.textContent = ETIQUETA_ESTADO[pedido.estado] || pedido.estado;
+  estado.append(punto, texto);
+
+  billete.append(rotulo, codigo, estado);
+  return billete;
+}
+
 function nota(texto) {
   const p = document.createElement("p");
   p.className = "nota";
   p.textContent = texto;
   return p;
+}
+
+// --------------------------------------------------------------------------
+// Hacer otro pedido sin perder el anterior
+//
+// «Hacer otro pedido» borraba el pedido en curso, su token y su código sin
+// preguntar nada. Para quien ya había pagado y no había copiado el código, eso
+// era perder lo comprado de un toque — y el toque está justo debajo del
+// código, que es donde la vista acaba de posarse.
+//
+// El botón no se quita: hacer otro pedido es lo normal cuando el anterior ya se
+// recogió. Lo que se añade es un paso más, y **solo cuando hay algo que
+// perder**. Una confirmación que aparece siempre se aprende a despachar sin
+// leerla, y entonces deja de proteger de nada.
+// --------------------------------------------------------------------------
+
+function abrirLaAdvertencia() {
+  const fuerte = document.createElement("strong");
+  fuerte.textContent = pedidoActual.codigo_canje;
+
+  $("advertencia-texto").replaceChildren(
+    "Ya pagaste este pedido y su código es ",
+    fuerte,
+    ". Si empezás otro, esta pantalla deja de mostrarlo: desde el teléfono no " +
+      "hay dónde volver a buscarlo, y habría que pedirlo en el mostrador."
+  );
+
+  $("advertencia-codigo").classList.remove("oculto");
+  $("nuevo-pedido").classList.add("oculto");
+
+  // El foco va al botón que **no** destruye nada. Quien llegue acá con el
+  // teclado y pulse Intro sin leer se queda donde estaba, que es lo que
+  // habría querido.
+  $("seguir-viendo-el-codigo").focus();
+}
+
+function cerrarLaAdvertencia() {
+  $("advertencia-codigo").classList.add("oculto");
+  $("nuevo-pedido").classList.remove("oculto");
+}
+
+function empezarOtroPedido() {
+  // El temporizador primero. Desde que se sigue al pedido después de pagar hay
+  // uno en marcha casi siempre, y una vuelta suya con `pedidoActual` ya nulo
+  // tira un error de lectura sobre la pantalla de la carta.
+  detenerConsultas();
+  olvidarElPedido();
+
+  pedidoActual = null;
+  tokenDelPedido = null;
+  referenciaDelCobro = null;
+  urlDelCheckout = null;
+  huellaDelResultado = null;
+
+  // El carrito se vacía: sin esto el pedido siguiente empezaría con lo que la
+  // persona acaba de pagar y recoger.
+  carrito.clear();
+  metodoElegido = null;
+
+  cerrarLaAdvertencia();
+  dibujarNavegacion();
+  limpiarError();
+  lanzar(cargarCarta());
+}
+
+/**
+ * Recupera el pedido que esta persona dejó a medias, si lo dejó.
+ *
+ * Es lo que hace que volver desde la pasarela aterrice en el código y no en la
+ * portada: esa pestaña, al navegar a `index.html`, pasa por acá y encuentra el
+ * pedido que escribió la otra.
+ *
+ * Se llama **después** de la carta y no antes. Así la pantalla del código se
+ * abre sobre una carta ya cargada, y el destino «Carta» de la barra lleva a
+ * algún sitio en cuanto alguien lo toca.
+ *
+ * Nada de lo que falle acá se cuenta: quien abre la carta no pidió recuperar
+ * nada. Un `404` es lo normal entre una demostración y la siguiente —el
+ * reinicio borra los pedidos—, y un fallo de red no impide pedir otra vez.
+ */
+async function retomarElPedidoGuardado() {
+  const guardado = leerElPedidoGuardado();
+  if (guardado === null) return;
+
+  let pedido;
+  try {
+    pedido = await api(
+      `/v1/pedidos/${encodeURIComponent(guardado.pedido_id)}`,
+      { headers: { "X-Token-Pedido": guardado.token_consulta } }
+    );
+  } catch (e) {
+    if (e.status === 404) olvidarElPedido();
+    return;
+  }
+
+  pedidoActual = pedido;
+  tokenDelPedido = guardado.token_consulta;
+  referenciaDelCobro = guardado.referencia_pago || null;
+  urlDelCheckout = guardado.url_checkout || null;
+
+  if (pedido.estado !== "pendiente_pago") {
+    mostrarResultado(pedido);
+    return;
+  }
+
+  // Sigue sin pagarse. Con un cobro abierto se vuelve a la espera, que es de
+  // donde se salió y donde la confirmación está por llegar. Sin él no hay nada
+  // que esperar: se deja la carta y «Mi código» encendido, que lleva a la
+  // pantalla donde se explica que el pedido está esperando el pago.
+  if (referenciaDelCobro === null) {
+    dibujarNavegacion();
+    return;
+  }
+
+  mostrar("espera");
+  ofrecerLaPasarela(urlDelCheckout);
+  esperarLaConfirmacion();
 }
 
 // --------------------------------------------------------------------------
@@ -1183,7 +1682,11 @@ $("nav-codigo").addEventListener("click", () => {
   // herramientas del navegador y una pantalla de resultado sin pedido tira un
   // error de lectura de `null`.
   if (pedidoActual === null) return;
-  detenerConsultas();
+
+  // **Ya no se detienen las consultas.** Antes sí, y era un castigo por mirar:
+  // quien tocaba «Mi código» mientras esperaba la confirmación se quedaba sin
+  // sondeo y con una pantalla que ya no se iba a mover sola. Ahora decide
+  // `mostrarResultado`, que es quien sabe si queda algo por pasar.
   mostrarResultado(pedidoActual);
 });
 
@@ -1205,16 +1708,21 @@ $("dejar-de-esperar").addEventListener("click", () => {
 });
 
 $("nuevo-pedido").addEventListener("click", () => {
-  pedidoActual = null;
-  tokenDelPedido = null;
-  referenciaDelCobro = null;
-  // El carrito se vacia: sin esto el pedido siguiente empezaria con lo que la
-  // persona acaba de pagar y recoger.
-  carrito.clear();
-  metodoElegido = null;
-  dibujarNavegacion();
-  limpiarError();
-  lanzar(cargarCarta());
+  if (hayUnCodigoEnJuego()) {
+    abrirLaAdvertencia();
+    return;
+  }
+  empezarOtroPedido();
+});
+
+$("confirmar-nuevo-pedido").addEventListener("click", empezarOtroPedido);
+
+$("seguir-viendo-el-codigo").addEventListener("click", () => {
+  cerrarLaAdvertencia();
+  // El foco vuelve al botón desde el que se abrió. Sin esto se queda en un
+  // botón que acaba de desaparecer, y el tabulador siguiente empieza desde
+  // arriba del documento.
+  $("nuevo-pedido").focus();
 });
 
 lanzar(comprobarSalud());

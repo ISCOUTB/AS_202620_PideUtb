@@ -75,9 +75,33 @@
   </button>
 </nav>
 
-<header>
-  <h1>PideUTB</h1>
-  <p class="lema">Pedí sin hacer fila. Recogé con un código.</p>
+<!-- Portada.
+     ==========================================================================
+     La franja de arriba lleva una foto de la parrilla, no un color liso. No es
+     decoración y conviene dejar escrito por qué: lo que se vende acá es comida,
+     y una carta que alguien abre con hambre no empieza bien por el nombre del
+     servicio sobre un fondo plano.
+
+     Lo que **no** cambia con esto: la paleta, la carta, las tarjetas, los
+     precios, el carrito. La foto ocupa su franja y se detiene donde empieza el
+     crema. Un encabezado oscuro no es un tema oscuro.
+
+     El texto va en blanco sobre fotografía, y eso no se puede medir contra un
+     color porque debajo hay una foto distinta en cada píxel. Lo que se mide es
+     el velo: `--velo-portada` en `estilos.css` es el mínimo de negro que queda
+     bajo estas dos líneas, y `test_contraste.py` comprueba que con ese mínimo
+     hasta el peor píxel posible —uno blanco— deja leer el texto. -->
+
+<header class="portada">
+  <!-- `portada-velo` no es un envoltorio de más: es la fila de abajo de la
+       rejilla, la que lleva el velo plano, y es lo que hace que el contraste
+       del texto sea una regla y no una casualidad de dónde acabe cayendo. -->
+  <div class="portada-velo">
+    <div class="portada-texto">
+      <h1>PideUTB</h1>
+      <p class="lema">Pedí sin hacer fila. Recogé con un código.</p>
+    </div>
+  </div>
 </header>
 
 <main>
@@ -181,6 +205,27 @@
   <section id="pantalla-resultado" class="pantalla">
     <h2 id="titulo-resultado"></h2>
     <div id="cuerpo-resultado"></div>
+
+    <!-- La advertencia antes de tirar un código que todavía sirve.
+
+         Vive acá fuera y no dentro de `#cuerpo-resultado` a propósito: ese
+         hueco se vuelve a dibujar cuando el mostrador mueve el pedido, y esta
+         advertencia no puede desaparecer debajo del dedo de quien la está
+         leyendo solo porque la cocina acabe de empezar a preparar.
+
+         El botón que conserva el código es el primario. El que lo tira es el
+         secundario y dice en voz alta lo que hace falta haber hecho antes. -->
+    <div id="advertencia-codigo" class="advertencia oculto" role="alert">
+      <p class="advertencia-titulo">Guardá tu código antes de seguir</p>
+      <p id="advertencia-texto"></p>
+      <div class="advertencia-botones">
+        <button id="seguir-viendo-el-codigo">Seguir viendo mi código</button>
+        <button id="confirmar-nuevo-pedido" class="secundario">
+          Ya lo anoté, hacer otro pedido
+        </button>
+      </div>
+    </div>
+
     <button id="nuevo-pedido" class="secundario">Hacer otro pedido</button>
   </section>
 

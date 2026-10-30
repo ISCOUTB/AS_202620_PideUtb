@@ -2,12 +2,16 @@
 //
 // Carta → carrito → pedido → pasarela → pago confirmado → código de recogida.
 //
-// La pasarela se aprueba llamando a `/v1/pagos/simulador/{ref}` desde la propia
-// prueba en vez de navegando a `pasarela.html`. No es un atajo: el enlace a la
-// pasarela abre **otra pestaña**, y el estado del pedido —el token con el que
-// se consulta— vive en la memoria de la primera. Navegando se pierde, que es
-// justo lo que documenta `docs/violaciones.md`. Llamando al simulador, la
-// pestaña del cliente sigue sondeando, que es lo que esta prueba quiere ver.
+// La mayoría de las pruebas aprueban el cobro llamando a
+// `/v1/pagos/simulador/{ref}` en vez de navegando a `pasarela.html`, porque lo
+// que quieren mirar es el sondeo: que la pestaña del cliente se entere sola.
+//
+// Durante mucho tiempo hubo además un motivo que ya no existe. El enlace a la
+// pasarela abre **otra pestaña**, y el pedido —con el token que permite
+// consultarlo— vivía solo en la memoria de la primera, así que navegar lo
+// perdía. Eso está arreglado: el pedido se guarda en `localStorage`, que es de
+// todo el origen, y «el recorrido completo con la pasarela» de más abajo
+// recorre justo ese camino para que no se vuelva a romper.
 
 const { test, expect } = require("@playwright/test");
 
@@ -67,6 +71,27 @@ async function aprobarElCobro(page, request) {
   ).toBe(202);
 
   return referencia;
+}
+
+/**
+ * Pide un producto, lo paga y devuelve el código de recogida.
+ *
+ * Las pruebas que miran lo que pasa **después** de pagar no tienen nada que
+ * decir sobre cómo se paga, y repetir el recorrido en cada una lo convierte en
+ * ruido donde hay que buscar la línea que importa.
+ */
+async function pagarUnProducto(page, request) {
+  const productos = await abrirLaCarta(page);
+  await productos.nth(0).getByRole("button", { name: /^Agregar/ }).click();
+  await page.getByRole("button", { name: /Ver mi pedido/ }).click();
+  await page.getByText("Nequi", { exact: true }).click();
+  await page.locator("#pagar").click();
+
+  await aprobarElCobro(page, request);
+
+  const codigo = page.locator(".codigo-canje");
+  await expect(codigo).toBeVisible({ timeout: 20_000 });
+  return (await codigo.textContent()).trim();
 }
 
 test.describe("El recorrido del cliente", () => {
@@ -155,6 +180,167 @@ test.describe("El recorrido del cliente", () => {
     await page.getByRole("button", { name: "Mi código" }).click();
     await expect(codigo).toBeVisible();
     await expect(codigo).toHaveText(valor.trim());
+  });
+
+  test("el código sobrevive a recargar la página", async ({ page, request }) => {
+    // Hasta la S16 no sobrevivía: el pedido y su token vivían en variables de
+    // la pestaña, así que una recarga —o un teléfono que bloquea la pantalla y
+    // descarta la página— dejaba a alguien que **ya había pagado** sin el
+    // código con el que recoge. El dinero se había movido; la prueba de que se
+    // había movido, no.
+    const codigo = await pagarUnProducto(page, request);
+
+    await page.reload();
+
+    const billete = page.locator(".codigo-canje");
+    await expect(billete).toBeVisible({ timeout: 20_000 });
+    await expect(billete).toHaveText(codigo);
+
+    // Y se retoma en la pantalla del código, no en la carta: quien recarga
+    // mientras espera su comida quiere ver su comida, no el menú otra vez.
+    await expect(page.locator("#pantalla-resultado")).toHaveClass(/activa/);
+  });
+
+  test("volver desde la pasarela aterriza en el código, no en la portada", async ({
+    page,
+  }) => {
+    // El recorrido tal cual lo hace el público: se paga en la pestaña de la
+    // pasarela y se vuelve con su enlace. Antes ese enlace llevaba a la
+    // portada —otra pestaña es otra memoria, y no sabía que hubiera un
+    // pedido—, así que quien acababa de pagar veía la carta en blanco y daba
+    // su pedido por perdido.
+    const productos = await abrirLaCarta(page);
+    await productos.nth(0).getByRole("button", { name: /^Agregar/ }).click();
+    await page.getByRole("button", { name: /Ver mi pedido/ }).click();
+    await page.getByText("Tarjeta", { exact: true }).click();
+    await page.locator("#pagar").click();
+
+    const enlace = page.locator("#ir-a-pasarela");
+    await expect(enlace).toBeVisible({ timeout: 20_000 });
+    const checkout = await enlace.getAttribute("href");
+
+    // Otra pestaña del mismo contexto, que es lo que abre `target="_blank"`:
+    // comparte origen y almacenamiento, y no comparte ni una variable.
+    const pasarela = await page.context().newPage();
+    await pasarela.goto(checkout);
+    await pasarela.getByRole("button", { name: "Pagar" }).click();
+
+    const volver = pasarela.getByRole("link", { name: "Volver a PideUTB" });
+    await expect(volver).toBeVisible({ timeout: 20_000 });
+    await volver.click();
+
+    // Y acá está lo que se arregló: la pestaña que vuelve enseña el código.
+    const billete = pasarela.locator(".codigo-canje");
+    await expect(billete).toBeVisible({ timeout: 20_000 });
+    await expect(billete).toHaveText(/^[A-Z0-9]{4,}$/);
+
+    await pasarela.close();
+  });
+
+  test("un cobro rechazado lo dice, y deja intentarlo otra vez", async ({
+    page,
+    request,
+  }) => {
+    // Este camino llevaba sin prueba desde que existe, y en la S16 se le puso
+    // una guardia: la referencia del cobro se valida antes de preguntar por
+    // ella. Una guardia sin prueba es exactamente como el siguiente la rompe
+    // sin enterarse —basta con que el patron deje de aceptar las referencias
+    // que la API genera, y entonces esta pantalla no vuelve a salir nunca—.
+    const productos = await abrirLaCarta(page);
+    await productos.nth(0).getByRole("button", { name: /^Agregar/ }).click();
+    await page.getByRole("button", { name: /Ver mi pedido/ }).click();
+    await page.getByText("Nequi", { exact: true }).click();
+    await page.locator("#pagar").click();
+
+    const enlace = page.locator("#ir-a-pasarela");
+    await expect(enlace).toBeVisible({ timeout: 20_000 });
+    const referencia = new URL(await enlace.getAttribute("href"))
+      .searchParams.get("referencia");
+
+    const acuse = await request.post(
+      `${API}/v1/pagos/simulador/${referencia}`,
+      { data: { estado_pago: "rechazado" } }
+    );
+    expect(acuse.status()).toBe(202);
+
+    // El pedido no cambia de estado cuando el cobro se rechaza —sigue en
+    // `pendiente_pago`—, asi que lo unico que puede contarlo es la consulta
+    // al cobro. Si la guardia lo impidiera, esta pantalla se quedaria
+    // esperando para siempre sin decir nada.
+    await expect(page.locator("#titulo-resultado")).toHaveText(
+      "El pago fue rechazado",
+      { timeout: 20_000 }
+    );
+    await expect(
+      page.getByRole("button", { name: /Intentar el pago otra vez/ })
+    ).toBeVisible();
+  });
+
+  test("un identificador manipulado en el almacenamiento no sale a la red", async ({
+    page,
+  }) => {
+    // Guardar el pedido en el navegador para no perderlo trajo una pregunta
+    // que antes no existía: lo guardado lo edita cualquiera desde la consola,
+    // y de ahí sale el identificador con el que se arma la ruta de la
+    // consulta. Sin validarlo, `pedido_id` podía ser cualquier texto y el
+    // sitio pedía la dirección que le escribieran, no la que el código
+    // aparenta pedir.
+    await abrirLaCarta(page);
+
+    await page.evaluate(() => {
+      localStorage.setItem(
+        "pideutb.pedido",
+        JSON.stringify({
+          pedido_id: "1/../../../v1/sesiones",
+          token_consulta: "da-igual",
+          guardado_en: Date.now(),
+        })
+      );
+    });
+
+    const pedidas = [];
+    page.on("request", (peticion) => pedidas.push(peticion.url()));
+
+    await abrirLaCarta(page);
+
+    // El navegador resuelve los `..` antes de enviar, así que de haber salido
+    // habría salido hacia `/v1/sesiones`. No salió.
+    expect(pedidas.filter((u) => u.includes("sesiones"))).toEqual([]);
+
+    // Y lo que no se puede interpretar no se conserva.
+    expect(
+      await page.evaluate(() => localStorage.getItem("pideutb.pedido"))
+    ).toBeNull();
+  });
+
+  test("empezar otro pedido avisa antes de tirar un código pagado", async ({
+    page,
+    request,
+  }) => {
+    const codigo = await pagarUnProducto(page, request);
+
+    const advertencia = page.locator("#advertencia-codigo");
+    await expect(advertencia).toBeHidden();
+
+    await page.getByRole("button", { name: "Hacer otro pedido" }).click();
+
+    // Visible, y con el código dentro: la advertencia no sirve de nada si hay
+    // que cerrarla para ir a copiar lo que pide que copies.
+    await expect(advertencia).toBeVisible();
+    await expect(advertencia).toContainText(codigo);
+    await expect(page.locator(".codigo-canje")).toBeVisible();
+
+    // Echarse atrás deja todo como estaba.
+    await page.getByRole("button", { name: "Seguir viendo mi código" }).click();
+    await expect(advertencia).toBeHidden();
+    await expect(page.locator(".codigo-canje")).toHaveText(codigo);
+
+    // Y confirmar sí empieza de cero.
+    await page.getByRole("button", { name: "Hacer otro pedido" }).click();
+    await page.getByRole("button", { name: /Ya lo anoté/ }).click();
+
+    await expect(page.getByRole("heading", { name: "Carta" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Mi código" })).toBeDisabled();
   });
 });
 
@@ -291,6 +477,53 @@ test.describe("El mostrador", () => {
     await expect(page.locator("#quien")).toContainText(
       `establecimiento ${establecimientoDelSitio}`
     );
+  });
+
+  test("lo que mueve el mostrador se ve en el teléfono de quien pidió", async ({
+    page,
+    request,
+  }) => {
+    // El tercer defecto, y el más fácil de no ver: el estado **sí** estaba en
+    // la pantalla del cliente, pero congelado. Al confirmarse el pago se
+    // paraba el sondeo, así que el teléfono se quedaba en «Pago confirmado»
+    // para siempre mientras el mostrador movía el pedido a «En preparación» y
+    // a «Listo para recoger». Las dos pantallas decían cosas distintas del
+    // mismo pedido, y la que se equivocaba era la de quien había pagado.
+    const codigo = await pagarUnProducto(page, request);
+
+    const estado = page.locator(".billete-estado");
+    await expect(estado).toHaveText("Pagado");
+
+    // El mostrador, por su API y con su sesión: lo que esta prueba quiere ver
+    // es que el teléfono se entere, no cómo se pulsa el botón del panel.
+    const sesion = await request.post(`${API}/v1/sesiones`, {
+      data: { correo: MOSTRADOR.correo, contrasena: MOSTRADOR.contrasena },
+    });
+    expect(sesion.status(), "no se pudo abrir sesión de mostrador").toBe(201);
+    const { token } = await sesion.json();
+
+    const pedidoId = await page.evaluate(() => pedidoActual.pedido_id);
+
+    for (const [siguiente, etiqueta] of [
+      ["en_preparacion", "En preparación"],
+      ["listo_para_recoger", "Listo para recoger"],
+    ]) {
+      const movido = await request.post(
+        `${API}/v1/pedidos/${pedidoId}/estado`,
+        {
+          data: { estado: siguiente },
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      expect(movido.status(), `no se pudo pasar a ${siguiente}`).toBe(200);
+
+      // Sin recargar y sin tocar nada. El margen cubre una vuelta entera del
+      // sondeo de seguimiento (5 s) con sitio para una red lenta.
+      await expect(estado).toHaveText(etiqueta, { timeout: 20_000 });
+
+      // Y el código sigue siendo el mismo: avanzar no lo cambia.
+      await expect(page.locator(".codigo-canje")).toHaveText(codigo);
+    }
   });
 });
 

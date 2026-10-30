@@ -455,7 +455,11 @@ async function cambiarEstado(pedidoId, accion, boton) {
     const cuerpo = { estado: accion.estado };
     if (codigo) cuerpo.codigo_canje = codigo;
 
-    await api(`/v1/pedidos/${pedidoId}/estado`, {
+    // Codificado por lo mismo que en `app.js`: el identificador llega en la
+    // respuesta de la API y de aquí va a parar a una ruta. Nadie lo ha
+    // señalado todavía, y no es motivo para dejar el único sitio del sitio
+    // donde la regla no se cumple.
+    await api(`/v1/pedidos/${encodeURIComponent(pedidoId)}/estado`, {
       method: "POST",
       body: JSON.stringify(cuerpo),
     });

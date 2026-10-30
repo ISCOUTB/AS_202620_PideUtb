@@ -53,6 +53,16 @@ const CONFIG = {
   // Cada cuánto se vuelve a preguntar por el estado del pedido mientras se
   // espera la confirmación del pago.
   MS_ENTRE_CONSULTAS_DE_ESTADO: 3000,
+
+  // Y cada cuánto se pregunta **después** de pagar, mientras el mostrador
+  // prepara el pedido.
+  //
+  // Más lento que el de arriba, y no por ahorrar: son dos esperas distintas.
+  // La confirmación del pago llega de un sistema externo en cualquier instante
+  // y con el teléfono en la mano; el avance en el mostrador lo mueve una
+  // persona, y `panel.js` refresca su cola cada 5000 ms. Preguntar más rápido
+  // que eso no puede enterarse de nada antes de que exista.
+  MS_ENTRE_CONSULTAS_DE_SEGUIMIENTO: 5000,
 };
 
 CONFIG.API = ["localhost", "127.0.0.1", ""].includes(location.hostname)
