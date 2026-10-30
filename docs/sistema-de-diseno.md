@@ -733,7 +733,7 @@ es fondo y no letra—.
 ┌──────────────────────────────────────┐
 │       TU CÓDIGO DE RECOGIDA          │  --carbon-tenue, versalitas
 │  ╭────────────────────────────────╮  │
-│  │        K 7 M 2 Q 9             │  │  fondo --verde-canje
+│  │        K 7 M 2 X 9             │  │  fondo --verde-canje
 │  ╰────────────────────────────────╯  │  blanco encima · 6,10:1
 │          ( ● En preparación )        │  pastilla --crema-hundido
 └──────────────────────────────────────┘
@@ -742,6 +742,38 @@ es fondo y no letra—.
 Los tres datos van en la misma tarjeta porque son la respuesta a una sola
 pregunta —«¿y el mío?»— y se miran juntos: qué es, cuál es, y qué está pasando
 con él. Repartirlos por la pantalla obliga a buscar dos de los tres.
+
+**El alfabeto tiene 31 caracteres, no 36.** Faltan `B`, `G`, `I`, `O` y `Q`.
+Este es el único sitio del sistema donde un carácter viaja **por el ojo de una
+persona**: se lee de la pantalla de un teléfono y se teclea en el panel del
+mostrador. Las cinco se eligieron midiendo la silueta de cada par **en la cara
+con la que el código se pinta** —Young Serif desde la 2.4— y no copiando una
+convención de otro proyecto. En la escala, 0 son siluetas idénticas y 1
+disjuntas:
+
+| Par | Diferencia | |
+|---|---|---|
+| `O` / `Q` | **0,186** | casi la misma silueta: en una serif gruesa la colita de la Q es diminuta al lado del cuenco |
+| `G` / `C` | 0,279 | |
+| `O` / `D` | 0,420 | |
+| `B` / `8` | 0,426 | |
+| `I` / `1` | 0,438 | |
+
+Lo que **no** hizo falta quitar importa tanto como lo que sí: `O`/`0` mide
+0,782, `S`/`5` 0,897 y `Z`/`2` 0,765. Esta cara los separa de sobra, y
+retirarlos por costumbre habría costado espacio de códigos sin ganar ni un
+poco de legibilidad.
+
+Un aviso para quien vuelva a medir esto: **la métrica compara siluetas, no
+legibilidad**. En el alfabeto ya reducido el peor par es `K`/`R` con 0,276, y
+nadie confunde una K con una R leyendo seis caracteres. Ahí no hay nada que
+arreglar.
+
+Cuesta 1,29 bits —de 36⁶ a 31⁶, de 2.176.782.336 combinaciones a 887.503.681—,
+y el contrato sigue declarando `^[A-Z0-9]{6}$` a propósito: es un
+superconjunto, así que los códigos ya emitidos, que sí llevan estas letras,
+siguen siendo válidos. Estrecharlo haría que el contrato mintiera sobre datos
+que existen.
 
 | Parte | Clase | Nota |
 |---|---|---|
@@ -774,7 +806,7 @@ distinguir la caja, así que no cambia lo que se envía.
 ┌──────────────────────────────────────┐
 │ Guardá tu código antes de seguir     │  --ambar, Fraunces
 │ Ya pagaste este pedido y su código   │
-│ es K7M2Q9. Si empezás otro, esta     │  fondo --ambar-niebla
+│ es K7M2X9. Si empezás otro, esta     │  fondo --ambar-niebla
 │ pantalla deja de mostrarlo…          │  borde --ambar
 │                                      │
 │ [ Seguir viendo mi código ]          │  primario: el que no destruye
@@ -1191,7 +1223,7 @@ Lo están preparando
 ┌──────────────────────────────────┐
 │      TU CÓDIGO DE RECOGIDA       │
 │  ╭────────────────────────────╮  │
-│  │      K 7 M 2 Q 9           │  │
+│  │      K 7 M 2 X 9           │  │
 │  ╰────────────────────────────╯  │
 │      ( ● En preparación )        │  ← la palabra del mostrador
 └──────────────────────────────────┘
