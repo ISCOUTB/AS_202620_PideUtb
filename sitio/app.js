@@ -18,9 +18,52 @@ const $ = (id) => document.getElementById(id);
 
 const PANTALLAS = ["arranque", "carta", "pedido", "espera", "resultado"];
 
+/**
+ * Qué pantalla está puesta ahora mismo.
+ *
+ * Existe para distinguir dos cosas que `mostrar()` no distinguía: **cambiar de
+ * pantalla** y **volver a dibujar la que ya está**. La segunda es mucho más
+ * frecuente de lo que parece —el seguimiento del pedido repinta la pantalla
+ * del resultado cada vez que la cocina mueve el estado—, y mientras la
+ * animación de entrada colgaba de `.activa` las dos se trataban igual: la
+ * pantalla entera se desvanecía y subía ocho píxeles cuando lo único que había
+ * cambiado era un renglón, justo encima del código de recogida que es lo que
+ * se está mirando en ese momento.
+ */
+let pantallaPuesta = null;
+
 function mostrar(nombre) {
+  const cambiaDePantalla = nombre !== pantallaPuesta;
+  pantallaPuesta = nombre;
+
   for (const p of PANTALLAS) {
-    $(`pantalla-${p}`).classList.toggle("activa", p === nombre);
+    const seccion = $(`pantalla-${p}`);
+
+    if (p !== nombre) {
+      seccion.classList.remove("activa", "entrando");
+      continue;
+    }
+
+    // `entrando` significa «está entrando ahora mismo», no «entró en algún
+    // momento», y la diferencia importa: hay una regla que apaga la animación
+    // del renglón del estado mientras su pantalla entra, para que los dos
+    // desplazamientos no se sumen. Si la clase se quedara puesta, esa regla
+    // apagaría también todos los cambios de estado posteriores, que son
+    // justamente lo que tiene que animarse.
+    //
+    // Así que se quita en cuanto la animación acaba. El filtro por `target` no
+    // es de adorno: `animationend` burbujea, y dentro de estas pantallas hay
+    // animaciones más cortas —las filas de la carta, el billete— que llegarían
+    // antes y la quitarían a mitad.
+    if (cambiaDePantalla) {
+      seccion.classList.add("entrando");
+      seccion.addEventListener("animationend", function soltar(evento) {
+        if (evento.target !== seccion) return;
+        seccion.classList.remove("entrando");
+        seccion.removeEventListener("animationend", soltar);
+      });
+    }
+    seccion.classList.add("activa");
   }
 
   // La barra de navegación no se esconde nunca: es el caparazón, no contenido.
@@ -179,6 +222,26 @@ let urlDelCheckout = null;
 /** Categoría activa del filtro. `null` = todas. */
 let categoriaActiva = null;
 
+/**
+ * Si la carta ya se pintó una vez.
+ *
+ * La entrada escalonada es para el estreno —el salto de los esqueletos a la
+ * carta de verdad—, no para los filtros. Una categoría se pulsa docenas de
+ * veces y tiene que sentirse instantánea; repetir el escalonado en cada toque
+ * convertiría un filtro en media espera.
+ */
+let cartaEstrenada = false;
+
+/**
+ * El último código que ya se enseñó con su golpe de efecto.
+ *
+ * El cuerpo del resultado se vuelve a dibujar en cada paso de la cocina, así
+ * que sin esto el número grande se destacaría tres veces para el mismo pedido.
+ * A la tercera deja de significar «ya tenés tu código» y pasa a ser un
+ * parpadeo encima de la única cosa de la pantalla que hay que leer bien.
+ */
+let codigoEstrenado = null;
+
 /** La carta completa, para filtrar sin volver a pedirla. */
 let cartaCompleta = [];
 
@@ -261,6 +324,11 @@ function olvidarElPedido() {
   } catch {
     // Ídem.
   }
+
+  // Si este pedido se acabó, el código del siguiente merece su propio estreno.
+  // Sin esta línea, quien hace dos pedidos seguidos en la misma sesión solo ve
+  // aparecer el primero —y en la charla se hacen varios seguidos.
+  codigoEstrenado = null;
 }
 
 /**
@@ -515,6 +583,11 @@ function dibujarCategorias() {
 function dibujarCarta() {
   const lista = $("lista-items");
   lista.replaceChildren();
+
+  // Antes del `return` de la lista vacía a propósito: la clase describe esta
+  // pintada, y una pintada sin ítems también gasta el estreno.
+  lista.classList.toggle("estrena", !cartaEstrenada);
+  cartaEstrenada = true;
 
   const visibles = categoriaActiva === null
     ? cartaCompleta
@@ -1494,6 +1567,13 @@ function mostrarResultado(pedido) {
 function dibujarElBillete(pedido, respuesta) {
   const billete = document.createElement("div");
   billete.className = "billete";
+
+  // El estreno del código: la primera vez que este código llega a la pantalla,
+  // y solo esa.
+  if (pedido.codigo_canje !== codigoEstrenado) {
+    billete.classList.add("estrena");
+    codigoEstrenado = pedido.codigo_canje;
+  }
 
   const rotulo = document.createElement("p");
   rotulo.className = "billete-rotulo";

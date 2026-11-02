@@ -955,7 +955,7 @@ Las mismas situaciones se resuelven siempre igual.
 
 | Situación | Patrón | Ejemplo |
 |---|---|---|
-| **Avanzar en el flujo del cliente** | Una pantalla visible a la vez, `.pantalla.activa`, con una entrada de 0,22 s | Carta → pedido → espera → resultado |
+| **Avanzar en el flujo del cliente** | Una pantalla visible a la vez, `.pantalla.activa`, con una entrada de 0,26 s **solo al cambiar de pantalla** | Carta → pedido → espera → resultado |
 | **Esperar algo que no depende de nosotros** | Estado consultable más sondeo. Nunca una pantalla bloqueada | Esperando la confirmación del pago, cada 3 s |
 | **Enterarse de un cambio ajeno** | Sondeo con intervalo atado a su umbral | La cola del mostrador, cada 5 s; el estado del pedido en el teléfono de quien pidió, también cada 5 s |
 | **Decisión que destruye algo que no se puede recuperar** | Advertencia en el sitio del botón, con lo que se va a perder a la vista, y confirmación explícita | [Hacer otro pedido con un código sin recoger](#c-advertencia) |
@@ -964,6 +964,118 @@ Las mismas situaciones se resuelven siempre igual.
 | **Acción reversible** | Sin confirmación | Volver a la carta, refrescar |
 | **Algo salió mal fuera de nuestro control** | Mensaje que distingue «el servicio respondió que no puede» de «no se pudo contactar» | `503` contra fallo de red |
 | **Dato que tarda** | Rueda con texto, y a los 2,5 s una nota que **no inventa la causa** | Comprobación inicial del servicio |
+
+### Movimiento
+
+Una regla decide todo lo demás: **se anima lo que cambió por su cuenta, no lo
+que acaba de pulsar un dedo.**
+
+Tocar una categoría filtra la lista al instante y sin animar nada, porque quien
+tocó ya sabe lo que hizo y una lista que entra escalonada en cada toque
+convierte un filtro en media espera. Un pedido nuevo en la cola del mostrador sí
+entra animado, porque de ese lado nadie lo pidió y aparecer sin avisar es como
+no aparecer.
+
+#### Dos curvas, tres duraciones
+
+Salen de tokens, por el mismo motivo que hay una escala de espacios: un
+movimiento inventado en cada regla no se lee como un sistema, se lee como varias
+manos.
+
+| Token | Valor | Para qué |
+|---|---|---|
+| `--curva-salida` | `cubic-bezier(0.23, 1, 0.32, 1)` | Lo que aparece o se va. Casi todo |
+| `--curva-vaiven` | `cubic-bezier(0.77, 0, 0.175, 1)` | Lo que se mueve de un sitio a otro sin aparecer ni desaparecer |
+| `--dur-toque` | 120 ms | Respuesta a un dedo |
+| `--dur-breve` | 180 ms | Lo que se ve a diario: avisos, chapas, filas |
+| `--dur-pieza` | 260 ms | Una pantalla o una tarjeta entera |
+
+**Las curvas nativas de CSS son flojas.** `ease-out` sale casi recta, y lo que
+se mueve con ella parece desplazarse en vez de llegar. Estas dos frenan de
+verdad al final, que es donde está la sensación de que algo se asienta.
+
+**Y la que no está: nunca `ease-in` en la interfaz.** Empieza lenta justo en el
+instante en que alguien está mirando si su toque hizo algo. A igual duración,
+una salida suave se *siente* más rápida que una entrada suave.
+
+Las duraciones son un techo y no una sugerencia. Pasados los 300 ms una interfaz
+se siente lenta aunque la animación sea bonita, y acá hay una razón de más: esto
+se usa de pie, en una fila, con hambre. La única animación que pasa de 300 ms es
+el resaltado de la cola, y abajo está por qué.
+
+#### Dónde se mueve algo, y qué cuenta
+
+| Qué | Cuándo | Qué dice |
+|---|---|---|
+| La pantalla | Al **cambiar** de pantalla, nunca al repintar la misma | Que avanzaste en el flujo |
+| Las filas de la carta | Solo en el estreno, y solo las seis que caben en pantalla, cada 35 ms | Que los esqueletos eran esqueletos y esto es la carta |
+| El renglón del estado | Cada vez que la cocina mueve el pedido | Que algo cambió sin que tocaras nada |
+| El billete del código | En cada repintado del resultado | Que la tarjeta de arriba también es nueva |
+| El número del código | **Una sola vez**, cuando el código aparece | Que ya tenés tu código |
+| La chapa del carrito | Al cambiar el número | Que el toque entró |
+| Una fila nueva de la cola | Al aparecer un pedido | Que hay trabajo nuevo |
+| Una fila que cambió de estado | Al moverse un pedido que ya estaba | Cuál de todas se movió |
+
+Tres de esas dependen de clases que pone el JavaScript —`entrando`, `estrena`,
+`entra`— en vez de colgar de las clases de estado que ya existían. **Eso no es
+un rodeo, es la corrección de un defecto.** La animación de entrada colgaba de
+`.pantalla.activa`, y `.activa` no significa «acabo de llegar» sino «estoy
+puesta»: el seguimiento del pedido repinta la pantalla del resultado cada vez
+que la cocina mueve el estado, así que la pantalla entera se desvanecía y subía
+ocho píxeles cuando lo único que había cambiado era un renglón — justo encima
+del código de recogida, que es lo que se está mirando en ese momento.
+
+El número del código es el otro caso del mismo tipo. El cuerpo del resultado se
+vuelve a dibujar en cada paso de la cocina, así que sin la clase el código daría
+su golpe de efecto tres veces, y a la tercera deja de significar «ya tenés tu
+código» para ser un parpadeo encima de lo único que hay que leer bien.
+
+#### El resaltado de la cola, que dura 900 ms
+
+Es la única animación que pasa del techo, y la única que anima un color de fondo
+en vez de `transform`. Las dos cosas por el mismo motivo: **no es una respuesta,
+es un rastro.** Quien pulsó «Preparando» ya sabe lo que pulsó; esto es para
+quien levanta la vista medio segundo después y tiene que poder ver cuál de las
+nueve filas se movió. Novecientos milisegundos es lo que tarda una mirada en
+volver a una pantalla que está en la pared.
+
+Para un destello no hay equivalente en el compositor, y repintar una fila una
+vez no se parece a repintar nueve sesenta veces por segundo.
+
+#### Lo que cuesta, y dónde se paga
+
+Solo se animan `transform` y `opacity`. Las dos se resuelven en el compositor y
+no obligan al navegador a recalcular ni a repintar nada; `width`, `top` o
+`background-position` disparan las tres etapas.
+
+Eso último era un coste real y no una regla de catálogo: el brillo de los
+esqueletos movía `background-position`, que repinta el elemento en cada
+fotograma, y son nueve a la vez —tres filas de foto más dos renglones— justo en
+el instante en que el teléfono también está resolviendo la petición de la carta
+y descargando veinticinco fotos. Ahora el brillo es un `::after` que se
+desplaza. Mismo efecto, una fracción del trabajo, en el peor momento posible.
+
+Y ninguna animación con retraso se rellena hacia delante. `backwards` esconde la
+fila mientras espera su turno, que es lo único que hacía falta; `both` dejaría
+puesto el último fotograma, y una animación rellenada **le gana a cualquier
+declaración normal de la hoja**, así que su `transform: none` se quedaría
+pisando el `scale(0.99)` del `:active` de esos mismos productos. El hundido al
+pulsar moriría exactamente en la primera carta, que es cuando alguien toca un
+producto por primera vez.
+
+#### Menos movimiento no es ninguno
+
+Quien enciende «reducir movimiento» pide que nada se **desplace**, no que la
+interfaz cambie de golpe en seco — que es más difícil de seguir, no menos. El
+sistema operativo no ofrece esa distinción, así que se hace en la hoja: primero
+se apaga todo, incluido lo que esta hoja gane en el futuro y nadie se acuerde de
+revisar; después se recupera, como aparición sin desplazamiento, lo que estaba
+contando algo. Que una pantalla cambió, que llegó un error, que hay un pedido
+nuevo.
+
+Lo que solo adornaba —el salto de la chapa, el golpe del código— no vuelve. Y el
+giro de carga es el caso aparte de siempre: sin él no hay forma de saber que algo
+sigue en marcha, así que se queda, pero más lento.
 
 ### El sondeo es parte del diseño, no un detalle técnico
 

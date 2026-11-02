@@ -193,6 +193,32 @@
      reservar exactamente ese espacio: si no coinciden, el último producto de
      la carta queda debajo de la barra y nadie puede tocarlo. */
   --alto-nav: 68px;
+
+  /* --- Movimiento ------------------------------------------------------
+     Dos curvas y tres duraciones, por el mismo motivo que hay una escala de
+     espacios: un movimiento inventado en cada regla no se lee como un
+     sistema, se lee como varias manos.
+
+     **Las curvas nativas de CSS son flojas.** `ease-out` sale casi recta y lo
+     que se mueve con ella parece desplazarse, no llegar. Estas dos frenan de
+     verdad al final, que es donde está la sensación de que algo se asienta.
+
+     Cuál va dónde: `--curva-salida` para lo que aparece o se va, que es casi
+     todo. `--curva-vaiven` para lo que se mueve de un sitio a otro de la
+     pantalla sin aparecer ni desaparecer.
+
+     Y la que no está: **nunca `ease-in` en la interfaz.** Empieza lenta justo
+     en el instante en que alguien está mirando si su toque hizo algo.
+
+     Las duraciones son un techo y no una sugerencia. Pasados los 300 ms una
+     interfaz se siente lenta aunque la animación sea bonita, y acá hay una
+     razón de más: esto se usa de pie, en una fila, con hambre. */
+  --curva-salida: cubic-bezier(0.23, 1, 0.32, 1);
+  --curva-vaiven: cubic-bezier(0.77, 0, 0.175, 1);
+
+  --dur-toque: 0.12s;   /* Respuesta a un dedo: confirmar, no adornar. */
+  --dur-breve: 0.18s;   /* Lo que se ve a diario: avisos, chapas, filas. */
+  --dur-pieza: 0.26s;   /* Una pantalla o una tarjeta entera. */
 }
 
 /* ===========================================================================
@@ -473,7 +499,20 @@ footer {
    no reciba el foco del tabulador: una pantalla invisible pero tabulable es
    una trampa para quien navega con teclado. */
 .pantalla { display: none; }
-.pantalla.activa { display: block; animation: entrar 0.25s ease-out; }
+.pantalla.activa { display: block; }
+
+/* La animación de entrada la enciende `mostrar()`, y **solo cuando la pantalla
+   cambia de verdad**.
+
+   Colgada de `.activa` se repetía en cada repintado, y eso era un defecto que
+   solo se veía con un pedido en marcha: el seguimiento vuelve a dibujar la
+   pantalla del resultado cada vez que la cocina mueve el estado, así que la
+   pantalla entera se desvanecía y subía ocho píxeles cuando lo único que había
+   cambiado era el renglón del estado. Justo encima del código de recogida, que
+   es lo que alguien está mirando en ese momento. */
+.pantalla.activa.entrando {
+  animation: entrar var(--dur-pieza) var(--curva-salida);
+}
 
 @keyframes entrar {
   from { opacity: 0; transform: translateY(8px); }
@@ -535,7 +574,8 @@ footer {
   font-weight: 500;
   letter-spacing: 0.01em;
   cursor: pointer;
-  transition: color 0.15s ease, background 0.15s ease;
+  transition: color var(--dur-breve) var(--curva-salida),
+    background var(--dur-breve) var(--curva-salida);
 }
 
 .nav-boton[aria-current="page"] { color: var(--azul); }
@@ -578,7 +618,8 @@ footer {
   font-weight: 600;
   cursor: pointer;
   box-shadow: var(--sombra-alta);
-  transition: transform 0.12s ease, background 0.15s ease;
+  transition: transform var(--dur-toque) var(--curva-salida),
+    background var(--dur-breve) var(--curva-salida);
 }
 
 .nav-carrito:active:not(:disabled) { transform: scale(0.96); }
@@ -613,11 +654,17 @@ footer {
 
 /* Un salto cuando el número cambia: confirma que el toque hizo algo sin
    necesidad de un mensaje. */
-.nav-chapa.salta { animation: saltar 0.3s ease-out; }
+.nav-chapa.salta { animation: saltar var(--dur-pieza) var(--curva-salida); }
 
+/* Un salto y no una transición, porque ida y vuelta en un solo gesto es
+   exactamente lo que `@keyframes` sabe hacer y una transición no. El reinicio
+   lo fuerza `app.js` quitando y volviendo a poner la clase.
+
+   El 1,35 de antes era mucho: a ese tamaño la chapa se sale del botón y lo que
+   se ve es el número tapando el icono. 1,24 se nota igual sin desbordar. */
 @keyframes saltar {
   0%   { transform: scale(1); }
-  40%  { transform: scale(1.35); }
+  40%  { transform: scale(1.24); }
   100% { transform: scale(1); }
 }
 
@@ -648,7 +695,9 @@ button,
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.12s ease, border-color 0.15s ease;
+  transition: background var(--dur-breve) var(--curva-salida),
+    transform var(--dur-toque) var(--curva-salida),
+    border-color var(--dur-breve) var(--curva-salida);
 }
 
 button, .boton {
@@ -734,7 +783,8 @@ button.secundario {
   border: 1px solid var(--linea);
   border-radius: var(--radio);
   box-shadow: var(--sombra);
-  transition: box-shadow 0.18s ease, transform 0.18s ease;
+  transition: box-shadow var(--dur-breve) var(--curva-salida),
+    transform var(--dur-breve) var(--curva-salida);
 }
 
 /* --- Agotado ------------------------------------------------------------
@@ -909,17 +959,36 @@ button.secundario {
   border-radius: var(--radio);
 }
 
+/* El brillo va en un `::after` que se desplaza, y no en el `background-position`
+   del propio bloque.
+
+   El motivo es el coste. `background-position` obliga al navegador a volver a
+   pintar el elemento en cada fotograma, y acá hay nueve a la vez —tres filas
+   de foto más dos renglones— justo en el momento en que el teléfono también
+   está resolviendo la petición de la carta y descargando veinticinco fotos.
+   `transform` no repinta nada: se resuelve en el compositor. Es el mismo
+   efecto por una fracción del trabajo, y se nota en el peor instante
+   posible. */
 .esqueleto-foto,
 .esqueleto-linea {
+  position: relative;
+  overflow: hidden;
+  background: var(--crema-hundido);
+  border-radius: var(--radio-chico);
+}
+
+.esqueleto-foto::after,
+.esqueleto-linea::after {
+  content: "";
+  position: absolute;
+  inset: 0;
   background: linear-gradient(
     90deg,
-    var(--crema-hundido) 25%,
-    var(--crema) 50%,
-    var(--crema-hundido) 75%
+    transparent,
+    var(--crema),
+    transparent
   );
-  background-size: 200% 100%;
   animation: brillo 1.4s ease-in-out infinite;
-  border-radius: var(--radio-chico);
 }
 
 .esqueleto-foto { flex: 0 0 auto; width: 72px; height: 72px; }
@@ -929,8 +998,8 @@ button.secundario {
 .esqueleto-linea.media { width: 70%; }
 
 @keyframes brillo {
-  from { background-position: 200% 0; }
-  to   { background-position: -200% 0; }
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
 }
 
 /* ===========================================================================
@@ -1106,6 +1175,11 @@ button.secundario {
   border-radius: var(--radio);
   box-shadow: var(--sombra);
   text-align: center;
+  /* Entra en cada repintado del resultado, que es cada vez que la cocina mueve
+     el pedido. No es de adorno: el billete es lo único de esa pantalla que no
+     cambia de texto, así que sin esto el estado de abajo cambia y la tarjeta
+     parece la misma de antes. */
+  animation: llegar var(--dur-pieza) var(--curva-salida);
 }
 
 .billete-rotulo {
@@ -1212,6 +1286,10 @@ button.secundario {
   border-radius: var(--radio);
   color: var(--error);
   font-weight: 500;
+  /* Aparece al quitarle `.oculto`, y `display` pasa de `none` a bloque: eso
+     arranca una animación aunque no pueda arrancar una transición. Un error
+     que se materializa de golpe al final de la página es fácil de no ver. */
+  animation: entrar var(--dur-breve) var(--curva-salida);
 }
 
 /* ===========================================================================
@@ -1268,7 +1346,8 @@ button.secundario {
   background: var(--papel);
   border: 1.5px solid var(--linea-fuerte);
   border-radius: var(--radio-chico);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--dur-breve) var(--curva-salida),
+    box-shadow var(--dur-breve) var(--curva-salida);
 }
 
 .barra input:focus,
@@ -1529,17 +1608,178 @@ input.codigo-canje {
 .categoria,
 .catalogo .item.producto,
 .metodos label.metodo {
-  transition: transform 0.12s ease-out, background 0.12s ease-out,
-    border-color 0.12s ease-out, box-shadow 0.18s ease-out;
+  transition: transform var(--dur-toque) var(--curva-salida),
+    background var(--dur-toque) var(--curva-salida),
+    border-color var(--dur-toque) var(--curva-salida),
+    box-shadow var(--dur-breve) var(--curva-salida);
 }
 
 /* ===========================================================================
    MOVIMIENTO
    ===========================================================================
 
-   Quien pide menos movimiento recibe menos movimiento. El giro de carga se
-   deja, porque sin él no hay forma de saber que algo sigue en marcha, pero
-   más lento y sin el resto de animaciones. */
+   Qué se mueve en esta interfaz, y por qué.
+
+   La regla que lo ordena: **se anima lo que cambió por su cuenta, no lo que
+   acaba de pulsar un dedo.** Tocar una categoría filtra la lista al instante y
+   sin animar nada, porque quien tocó ya sabe lo que hizo y una lista que entra
+   escalonada en cada toque convierte un filtro en una espera. Un pedido nuevo
+   en la cola del mostrador sí entra animado, porque de ese lado nadie lo pidió
+   y aparecer sin avisar es como no aparecer.
+
+   De ahí salen las tres clases que pone el JavaScript —`entrando`, `estrena`,
+   `entra`— en vez de colgar las animaciones de las clases de estado que ya
+   existían: una animación atada a `.activa` se repite en cada repintado, y la
+   mayoría de los repintados de esta aplicación no son cambios de pantalla.
+
+   Las curvas y las duraciones salen de los tokens del principio de la hoja.
+   Acá no se inventa ninguna. */
+
+/* Las dos formas de aparecer. `entrar` ya estaba, arriba, con las pantallas.
+
+   `llegar` escala además de subir, y se reserva para las tarjetas: una tarjeta
+   que solo se desvanece parece un error de carga, una que crece un 3 % parece
+   que se apoya. Nunca desde `scale(0)` —nada en el mundo aparece de la nada—
+   sino desde 0,97, que es de donde se vuelve sin que se note el tirón.
+
+   `aparecer` no mueve nada y existe para el final del archivo: es lo que
+   queda cuando alguien pide menos movimiento. */
+@keyframes llegar {
+  from { opacity: 0; transform: scale(0.97) translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes aparecer {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* --- El renglón del estado, en la pantalla del resultado ------------------
+
+   Es el único sitio de la aplicación donde el texto cambia sin que nadie haya
+   tocado nada: la cocina mueve el pedido y el teléfono de quien espera se
+   entera por su cuenta. Sin movimiento, «Pago confirmado» se convierte en «En
+   preparación» entre dos parpadeos y quien no estaba mirando esa línea exacta
+   no ve que algo pasó. */
+#cuerpo-resultado .estado-linea {
+  animation: entrar var(--dur-breve) var(--curva-salida);
+}
+
+/* Salvo cuando la pantalla entera está entrando. Ahí el renglón ya viene
+   montado en el movimiento de su pantalla, y animarlo otra vez sumaría los dos
+   desplazamientos —ocho píxeles del padre más ocho del hijo— en el elemento
+   que menos tiene que llamar la atención en ese instante. */
+.pantalla.entrando #cuerpo-resultado .estado-linea { animation: none; }
+
+/* El número grande se destaca **una sola vez**, cuando el código aparece.
+
+   `app.js` pone `.estrena` solo en ese repintado, y eso es deliberado: el
+   cuerpo del resultado se vuelve a dibujar en cada paso de la cocina, así que
+   sin la clase el código daría el mismo golpe de efecto tres veces. A la
+   tercera deja de significar «ya tenés tu código» y pasa a ser un parpadeo.
+
+   Los 80 ms de retraso son la única cosa de esta hoja que existe para que algo
+   se sienta bien y no para que se entienda: el billete llega, y el código cae
+   un instante después, dentro. */
+.billete.estrena .codigo-canje {
+  animation: llegar var(--dur-pieza) var(--curva-salida) 80ms backwards;
+}
+
+/* --- La carta, en su estreno ---------------------------------------------
+
+   El escalonado es para el salto de los tres esqueletos a la carta de verdad,
+   que es el primer movimiento que ve quien abre la aplicación. `app.js` quita
+   `.estrena` después de la primera pintada, así que los filtros de categoría
+   —que se pulsan docenas de veces— no lo repiten.
+
+   35 ms entre filas, y **solo las seis primeras**: las que caben en un
+   teléfono. Las otras treinta y una no se animan en absoluto.
+
+   Dos motivos que apuntan al mismo sitio. Animar lo que está fuera de la
+   pantalla no lo ve nadie, y escalonar las treinta y siete dejaría a la última
+   entrando a los 1,3 s —o apelotonadas contra un techo, que se lee como una
+   persiana—. Pero el que decide es el otro: con `backwards`, una fila espera
+   **escondida** a que le toque, así que su visibilidad depende de que la
+   animación llegue a correr. Para seis filas que se ven y en 175 ms eso es un
+   riesgo aceptable; extenderlo a una lista entera que nadie está mirando, no.
+   Las que quedan fuera conservan su opacidad de siempre y no dependen de
+   nada. */
+/* `backwards` y no `both`, y la diferencia no es de estilo.
+
+   Una animación rellenada hacia delante le gana a cualquier declaración
+   normal de la hoja, así que el `transform: none` del último fotograma se
+   quedaría pisando el `:active { transform: scale(0.99) }` de estos mismos
+   productos. El hundido al pulsar moriría exactamente en la primera carta,
+   que es cuando alguien toca un producto por primera vez.
+
+   `backwards` esconde la fila durante su retraso, que es lo único que hacía
+   falta, y no deja nada puesto al terminar. */
+.catalogo.estrena .item.producto:nth-child(-n + 6) {
+  animation: entrar var(--dur-breve) var(--curva-salida) backwards;
+}
+
+.catalogo.estrena .item.producto:nth-child(2) { animation-delay: 35ms; }
+.catalogo.estrena .item.producto:nth-child(3) { animation-delay: 70ms; }
+.catalogo.estrena .item.producto:nth-child(4) { animation-delay: 105ms; }
+.catalogo.estrena .item.producto:nth-child(5) { animation-delay: 140ms; }
+.catalogo.estrena .item.producto:nth-child(6) { animation-delay: 175ms; }
+
+/* --- La cola del mostrador -----------------------------------------------
+
+   Esta pantalla es la que más gana, porque es la única que se mira sin tocarla
+   y de lejos: en la charla va proyectada, y en una cocina está colgada en la
+   pared mientras alguien tiene las dos manos ocupadas.
+
+   `pintar()` reconstruye la lista entera cuando cualquier pedido se mueve, así
+   que estas clases las pone comparando con lo que había antes. Sin esa
+   comparación, un pedido nuevo entraría a la vez que las ocho filas que
+   siguen igual, y eso no señala: esconde. */
+#cola .pedido.entra {
+  animation: entrar var(--dur-breve) var(--curva-salida) backwards;
+}
+
+#cola .pedido.entra:nth-child(2) { animation-delay: 40ms; }
+#cola .pedido.entra:nth-child(3) { animation-delay: 80ms; }
+#cola .pedido.entra:nth-child(4) { animation-delay: 120ms; }
+#cola .pedido.entra:nth-child(n + 5) { animation-delay: 160ms; }
+
+/* Y una fila que ya estaba pero cambió de estado se tiñe y se apaga.
+
+   Es la única animación de la hoja que pasa de 300 ms, y el motivo es que no
+   es una respuesta sino un rastro: quien pulsó «Preparando» ya lo sabe, pero
+   quien levanta la vista medio segundo después todavía tiene que poder ver
+   cuál se movió. Novecientos milisegundos es lo que tarda una mirada en volver
+   a la pantalla.
+
+   Y es también la única que anima un color de fondo en vez de `transform`.
+   Para un destello no hay equivalente en el compositor, y el coste de repintar
+   una fila una vez no se parece al de repintar nueve sesenta veces por
+   segundo, que es lo que se corrigió en el esqueleto. */
+#cola .pedido.cambia {
+  animation: resaltar 0.9s var(--curva-salida);
+}
+
+@keyframes resaltar {
+  from { background: var(--azul-niebla); }
+  to   { background: var(--papel); }
+}
+
+/* --- Menos movimiento ----------------------------------------------------
+
+   Quien pide menos movimiento no pide **ninguno**: pide que nada se desplace.
+   La diferencia importa, porque una interfaz que cambia de golpe en seco es
+   más difícil de seguir, no menos, y el sistema operativo no ofrece esa
+   distinción. Hay que hacerla acá.
+
+   Lo que se hace, en dos pasos. Primero se apaga todo, incluido lo que esta
+   hoja gane en el futuro y nadie se acuerde de revisar aquí. Después se
+   recupera, como aparición sin desplazamiento, lo que estaba contando algo:
+   que una pantalla cambió, que llegó un error, que hay un pedido nuevo en la
+   cola. Lo que solo adornaba —el salto de la chapa, el golpe del código— no
+   vuelve.
+
+   El giro de carga es el otro caso aparte: sin él no hay forma de saber que
+   algo sigue en marcha, así que se queda, pero más lento. */
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -1547,6 +1787,22 @@ input.codigo-canje {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+
+  .pantalla.activa.entrando,
+  .error,
+  .billete,
+  #cuerpo-resultado .estado-linea,
+  .catalogo.estrena .item.producto:nth-child(-n + 6),
+  #cola .pedido.entra,
+  #cola .pedido.cambia {
+    animation: aparecer var(--dur-breve) ease !important;
+    animation-delay: 0s !important;
+  }
+
+  /* Los pulsados dejan de hundirse; el color sigue respondiendo. */
+  button:active:not(:disabled),
+  .categoria:active,
+  .catalogo .item.producto:active { transform: none; }
 
   .girando {
     animation: girar 2s linear infinite !important;
