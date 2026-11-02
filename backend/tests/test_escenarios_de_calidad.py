@@ -693,6 +693,78 @@ def test_las_imagenes_viajan_en_la_imagen_del_sitio():
         )
 
 
+# ---------------------------------------------------------------------------
+# Que las fotos que la carta pide existan, y que apunten a productos que hay
+# ---------------------------------------------------------------------------
+
+
+def test_las_fotos_que_la_carta_pide_existen():
+    """La misma guardia que la portada, para las miniaturas del catálogo.
+
+    El fallo es igual de silencioso y cabe en veinticinco sitios en vez de en
+    uno: `app.js` mete `item.imagen` en un `<img>` con `alt=""` —decorativa a
+    propósito, porque el nombre del producto ya está al lado—, así que una ruta
+    que no existe no rompe nada, no deja ningún error que alguien vaya a mirar
+    y pinta un hueco del color del fondo. Son rutas escritas a mano en una
+    migración; nadie las repasa una por una.
+    """
+    sql = "\n".join(
+        archivo.read_text(encoding="utf-8")
+        for archivo in sorted(MIGRACIONES.glob("*.sql"))
+    )
+    rutas = set(re.findall(r"'(fotos/[^']+\.(?:webp|png|jpg))'", sql))
+
+    assert rutas, (
+        "Ninguna migración le da foto a un producto. Si se quitaron a "
+        "propósito esta prueba sobra; si no, el catálogo volvió a los "
+        "marcadores con la inicial sin que nada se quejara."
+    )
+
+    faltan = [ruta for ruta in sorted(rutas) if not (SITIO / ruta).is_file()]
+    assert not faltan, (
+        f"La carta pide {faltan} y esos archivos no están en sitio/. El "
+        "producto sale con un hueco en vez de foto, y como el `alt` va vacío "
+        "no queda ni el nombre del archivo a la vista."
+    )
+
+
+def test_cada_foto_de_la_carta_apunta_a_un_producto_que_existe():
+    """Un identificador equivocado no falla: actualiza cero filas.
+
+    `UPDATE ... WHERE id = 105` sobre un identificador que nadie insertó es
+    SQL perfectamente válido que no toca nada. La migración se aplica, no se
+    queja, y el producto se queda sin foto — con el agravante de que la foto
+    sí está en el repositorio, así que el archivo existe y la prueba de arriba
+    pasa. Lo único que se ve es un plato sin imagen entre otros que sí la
+    tienen.
+    """
+    sql = "\n".join(
+        archivo.read_text(encoding="utf-8")
+        for archivo in sorted(MIGRACIONES.glob("*.sql"))
+    )
+
+    # Los identificadores a los que una migración les asigna foto.
+    con_foto = {
+        int(ident)
+        for ident, _ in re.findall(r"\((\d+),\s*'(fotos/[^']+)'\)", sql)
+    }
+    # Y los que alguna migración inserta de verdad en `menu_items`.
+    insertados = {
+        int(ident)
+        for ident in re.findall(r"^\s*\(\s*(\d+)\s*,\s*\d+\s*,\s*'",
+                                sql, re.MULTILINE)
+    }
+
+    assert con_foto, "Ninguna migración asigna fotos a productos."
+
+    huerfanos = sorted(con_foto - insertados)
+    assert not huerfanos, (
+        f"Las migraciones le dan foto a los productos {huerfanos} y ninguna "
+        "los inserta en `menu_items`. El UPDATE actualiza cero filas sin "
+        "fallar, y esos platos salen sin imagen aunque el archivo esté."
+    )
+
+
 def test_todo_lo_que_se_mete_en_una_ruta_va_codificado():
     """Un valor interpolado en una ruta sin codificar deja de ser un valor.
 
