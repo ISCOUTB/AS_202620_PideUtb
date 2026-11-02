@@ -70,6 +70,16 @@ let sesion = null;   // { token, usuario }
 // un «Cancelar» pulsado por accidente.
 let huellaPintada = null;
 
+/**
+ * Qué pedidos había en la última pintada, y en qué estado.
+ *
+ * `pintar()` reconstruye la lista entera cuando cualquier pedido se mueve, así
+ * que sin esta comparación no hay forma de animar solo lo que cambió: un
+ * pedido nuevo entraría a la vez que las ocho filas que siguen igual, y eso en
+ * una pantalla proyectada o colgada en la pared no señala nada, esconde.
+ */
+let estadoPintado = new Map();
+
 // --------------------------------------------------------------------------
 // Qué botones ofrece cada estado.
 //
@@ -206,6 +216,9 @@ function mostrarPantalla() {
     $("cola-vacia").classList.add("oculto");
     $("ultima-carga").textContent = "";
     huellaPintada = null;
+    // Y lo que se recuerda de lo pintado, que si no haría que el turno
+    // siguiente entrara sin animación por parecerse al anterior.
+    estadoPintado = new Map();
     clearInterval(temporizador);
   }
 }
@@ -288,6 +301,12 @@ function pintar(pedidos) {
   if (huella === huellaPintada) return;
   huellaPintada = huella;
 
+  // Lo de antes, antes de pisarlo. En la primera pintada está vacío, así que
+  // todos los pedidos cuentan como nuevos — que es exactamente lo que son para
+  // quien acaba de entrar.
+  const antes = estadoPintado;
+  estadoPintado = new Map(pedidos.map((p) => [p.pedido_id, p.estado]));
+
   const cola = $("cola");
   cola.innerHTML = "";
   $("cola-vacia").classList.toggle("oculto", pedidos.length > 0);
@@ -295,6 +314,16 @@ function pintar(pedidos) {
   for (const pedido of pedidos) {
     const fila = document.createElement("li");
     fila.className = "item pedido";
+
+    if (!antes.has(pedido.pedido_id)) {
+      // Nuevo: entra.
+      fila.classList.add("entra");
+    } else if (antes.get(pedido.pedido_id) !== pedido.estado) {
+      // Ya estaba, pero se movió: se tiñe y se apaga, que es un rastro y no
+      // una respuesta. Quien pulsó el botón ya lo sabe; esto es para quien
+      // levanta la vista medio segundo después.
+      fila.classList.add("cambia");
+    }
 
     const datos = document.createElement("div");
     datos.className = "item-datos";
