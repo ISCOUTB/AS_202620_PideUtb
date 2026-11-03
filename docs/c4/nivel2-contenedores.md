@@ -47,7 +47,7 @@ La misma información del diagrama, en forma consultable. La última columna es 
 | 1 | Usuario / Personal / Admin → Frontend Web | HTTPS | HTML + JSON | Síncrono | *(interfaz de usuario)* | No hay producto |
 | 2 | Frontend Web → API PideUTB | HTTPS | JSON (REST) | Síncrono | [`openapi.yaml`](../api/openapi.yaml) | El usuario no puede operar; se acepta porque sin API no hay sistema |
 | 3 | API PideUTB → Base de datos | TCP (red interna) | PostgreSQL sobre un **pool reutilizado** | Síncrono | `app/base_de_datos.py`, `app/*/repository.py` | La operación falla y se responde un error explícito; `/health` devuelve `503` y la plataforma marca el contenedor enfermo. **Eso incluye no poder iniciar sesión**: las credenciales viven ahí |
-| 4 | API PideUTB → Wompi Sandbox | HTTPS | JSON | Síncrono | API externa de la pasarela | Error inmediato; **el pedido se conserva** y se puede reintentar |
+| 4 | Frontend Web → Pasarela (Wompi Sandbox o la de pruebas) | HTTPS | HTML | Síncrono, **lo navega el usuario** | URL de checkout que arma `app/pagos/service.py` | El usuario no llega a pagar; **el pedido se conserva** en `pendiente_pago` y se puede reintentar |
 | 5 | Wompi Sandbox → API PideUTB | HTTPS | JSON + firma HMAC (`X-Firma-Evento`) | **Asíncrono** | [`asyncapi.yaml`](../api/asyncapi.yaml) · canal `eventos-de-pago` | El pedido queda en `pendiente_pago`, consultable por el frontend |
 
 ### Por qué la flecha 5 va en sentido contrario

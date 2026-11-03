@@ -4,6 +4,24 @@
 
 Aceptada — 12/10/2026
 
+> ### Revisión — semana 12
+>
+> El commit `32abc9d`, del 12/10/2026, añadió a este ADR **ya aceptado** la
+> sección «Puesta en producción: dos pasos manuales, y por qué»: la migración y
+> el alta de la primera cuenta, sin las cuales desplegar la API 2.0.0 deja al
+> mostrador sin forma de entrar.
+>
+> **La decisión no cambió.** No se tocaron el contexto, las alternativas, la
+> elección ni las consecuencias; se añadió el procedimiento de despliegue que
+> faltaba, que es información operativa derivada de la decisión y no la
+> decisión misma.
+>
+> Queda declarado aquí porque un ADR aceptado es un documento histórico, y
+> quien lo citó antes de esa fecha leyó una versión más corta. Vale la misma
+> regla que [ADR-0002](0002-propiedad-datos-establecimiento.md) dejó sentada
+> tras la revisión docente de la semana 9. Lo señaló la auditoría de la
+> semana 12.
+
 ## Contexto
 
 Hasta la semana 10, el panel del mostrador no exigía nada. Cualquiera que

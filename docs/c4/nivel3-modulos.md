@@ -24,7 +24,7 @@ a ritmos distintos:
 | `esquemas_api.py` | HTTP, fuera del sistema | Clientes que no controlamos | La ceremonia de [`politica-versionado.md`](../api/politica-versionado.md) |
 
 > **Actualización S7 (ver [ADR-0003](../adr/0003-estrategia-integracion.md)).** Tres cambios, sin añadir módulos de dominio:
-> 1. El módulo `pagos` deja de estar vacío: implementa el inicio síncrono del cobro y la recepción asíncrona del evento de la pasarela.
+> 1. El módulo `pagos` deja de estar vacío: arma la URL de checkout con la que el navegador va a la pasarela —no hace ninguna llamada saliente— y recibe de forma asíncrona el evento de vuelta.
 > 2. Aparece `app/eventos.py`, un bus en proceso que **no es un módulo de dominio**: no tiene contexto ni datos propios, solo transporta. Por eso queda fuera de la regla de dependencia y no aparece en la tabla de propiedad de datos.
 > 3. El **código de canje pertenece a Pedidos**, no a Pagos. Lo genera `pedidos.service.confirmar_pago` porque es un atributo del `Pedido`, cuyo único escritor es Pedidos (ADR-0002). Pagos *solicita* la transición; no la ejecuta.
 >
