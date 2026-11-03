@@ -444,7 +444,7 @@ y dos resultaron más precisos de lo que el informe decía.
 
 | Criterio | Auditoría | Hoy | Dónde |
 |---|---|---|---|
-| Dos operaciones verificadas contra implementación | No cumple | 🔄 En curso | Confirmado y detallado abajo en §8.6; el arreglo va en su propio PR porque toca la transacción del mostrador |
+| Dos operaciones verificadas contra implementación | No cumple | ✅ Corregido | §8.6 · `app/pedidos/repository.py` (`guardar`) · `app/pedidos/service.py` (`avanzar_estado`) |
 | ADR de la decisión de datos más costosa de revertir | No cumple | ✅ | [ADR-0011](docs/adr/0011-un-solo-esquema-para-los-cuatro-contextos.md) |
 | Razón y costo de reversión | No cumple | ✅ | [ADR-0011 § El costo de la reversión](docs/adr/0011-un-solo-esquema-para-los-cuatro-contextos.md#el-costo-de-la-reversión-en-orden) |
 | ADR aceptados no reescritos | No cumple | ✅ Declarado | Notas de revisión en [ADR-0007](docs/adr/0007-autenticacion-del-panel.md) y [ADR-0008](docs/adr/0008-despliegue-en-el-servidor-del-laboratorio.md) |
@@ -559,11 +559,26 @@ pedido: A lee `pagado`, B lo lleva a `en_preparacion` y luego a `listo`, y
 entonces aterriza la escritura de A y el pedido vuelve a `en_preparacion`. Nada
 falla, nada avisa.
 
-El arreglo lleva la condición dentro del `UPDATE`, igual que `marcar_pagado`, y
-convierte la carrera perdida en el `409` **que el contrato ya declara** para esa
-ruta. No cambia el contrato ni pide migración. Va en un PR aparte, con una
-prueba que ejecuta la carrera contra PostgreSQL en CI — que es exactamente lo
-que el informe dice no haber podido hacer: *«No se ejecutó una carrera»*.
+**El arreglo** lleva la condición dentro del `UPDATE`, igual que
+`marcar_pagado`, y convierte la carrera perdida en el `409` **que el contrato ya
+declara** para esa ruta. No cambia el contrato ni pide migración.
+
+Van con él tres pruebas, y dos ejecutan la carrera **contra PostgreSQL en CI**
+—que es exactamente lo que el informe dice no haber podido hacer: *«No se
+ejecutó una carrera»*—:
+
+| Prueba | Qué hace |
+|---|---|
+| `test_guardar_no_pisa_un_pedido_que_ya_se_movio` | Dos escrituras desde la **misma** lectura; la segunda pierde y el estado final es el de la primera |
+| `test_si_otra_persona_mueve_el_pedido_en_la_ventana_responde_409` | Mete a la segunda persona justo entre la lectura del servicio y su escritura, y exige `409` |
+| `test_guardar_un_pedido_inexistente_sigue_siendo_un_error` | Que `None` siga significando «se movió» y no «no existe»: son 409 y 404 |
+
+Las dos primeras **se comprobaron por sabotaje**: quitando la condición, las dos
+fallan. Conviene decir el límite de esa comprobación, porque se descubrió
+haciéndola — al sabotear solo la rama SQL, la suite local pasó entera: el camino
+de PostgreSQL **se salta sin base de datos**. La condición del `UPDATE` la
+verifica CI, que sí levanta PostgreSQL 16.4; en local solo se verifica la del
+almacenamiento en memoria.
 
 ---
 

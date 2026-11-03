@@ -177,6 +177,49 @@ def test_un_pedido_inexistente_da_404_y_no_409():
     assert client.post("/v1/pedidos/9999/estado", json={"estado": "en_preparacion"}).status_code == 404
 
 
+def test_si_otra_persona_mueve_el_pedido_en_la_ventana_responde_409(monkeypatch):
+    """La carrera entre la lectura y la escritura, vista desde fuera.
+
+    `avanzar_estado` lee el pedido, valida la transición y escribe. Entre lo
+    primero y lo último hay una ventana, y en un mostrador esa ventana tiene
+    dos personas dentro. Esta prueba mete a la segunda persona **exactamente
+    ahí**: el `buscar_por_id` del servicio devuelve lo que devolvía, y acto
+    seguido alguien avanza el mismo pedido por otro camino.
+
+    Lo que no puede pasar es que la petición responda `200` y el pedido quede
+    como lo dejó la escritura tardía. Eso es un retroceso silencioso, y es lo
+    que hacía antes de llevar la condición dentro del `UPDATE`.
+
+    El `409` no se inventa para esto: el contrato ya lo declara para esta ruta.
+    """
+    pedido_id = _pedido_pagado()
+    leer_de_verdad = repository.buscar_por_id
+
+    def leer_y_que_otro_se_adelante(ident):
+        leido = leer_de_verdad(ident)
+        if leido is not None and leido.estado is EstadoPedido.PAGADO:
+            repository.guardar(
+                leido.model_copy(update={"estado": EstadoPedido.LISTO_PARA_RECOGER}),
+                estado_esperado=EstadoPedido.PAGADO,
+            )
+        return leido
+
+    monkeypatch.setattr(repository, "buscar_por_id", leer_y_que_otro_se_adelante)
+
+    respuesta = client.post(
+        f"/v1/pedidos/{pedido_id}/estado", json={"estado": "en_preparacion"}
+    )
+
+    assert respuesta.status_code == 409, (
+        "La escritura salió de una lectura que ya estaba vieja. Un 200 aquí "
+        "significa que el pedido retrocedió de listo_para_recoger a "
+        "en_preparacion sin que nadie se enterara."
+    )
+
+    monkeypatch.undo()
+    assert repository.buscar_por_id(pedido_id).estado is EstadoPedido.LISTO_PARA_RECOGER
+
+
 # ---------------------------------------------------------------------------
 # El recorrido completo
 # ---------------------------------------------------------------------------
