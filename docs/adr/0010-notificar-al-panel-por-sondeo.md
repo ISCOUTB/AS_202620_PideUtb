@@ -4,6 +4,30 @@
 
 Aceptada — 18/10/2026
 
+> ### Revisión — semana 14: el intervalo bajó a 5 segundos
+>
+> Este ADR se escribió con el sondeo en **8000 ms**, y con esa cifra hizo sus
+> cuentas. En la semana 14 se midió la cadena completa y no cabía:
+>
+> ```
+> 8000 ms de espera + 301,6 de red + 18,7 de servidor = 8320 ms
+> ```
+>
+> contra los **10 000 ms** que concede [ESC-03](../arc42/arc42.md#esc-03), y de
+> los 1680 ms restantes tiene que salir el tiempo de una persona que mira la
+> pantalla y pulsa. El intervalo pasó a **5000 ms** (`sitio/panel.js:40`), que
+> deja 4,68 s: cuatro para la persona y 0,68 de holgura.
+>
+> **La decisión no cambió**: sigue siendo sondeo y no eventos, y los motivos de
+> abajo siguen en pie. Lo que cambió es la constante, que este mismo ADR
+> convirtió en «una decisión con umbral» en vez de un número suelto — y bajarla
+> al medirla es exactamente lo que se esperaba que pasara.
+>
+> Por eso **no se reescribe el argumento**. Las menciones a 8 s en las
+> alternativas son lo que se comparó el 18/10 y así se quedan; lo que se corrige
+> abajo son las frases que describían el sistema **en presente**. Un ADR
+> aceptado se anota, no se maquilla. Lo señaló la auditoría de la semana 12.
+
 ## Contexto
 
 [ADR-0003](0003-estrategia-integracion.md) decidió, el 20/09/2026, que la
@@ -21,7 +45,7 @@ Y lo que hace es esto:
 | Lo que el contrato describe | Lo que corre |
 |---|---|
 | Un canal que publica `pedido.pagado` a quien se suscriba | `publicar()` se invoca y **no hay ningún suscriptor** |
-| El panel se enteraría por ese evento | El panel **pregunta cada 8 segundos** por `GET /v1/pedidos` |
+| El panel se enteraría por ese evento | El panel **pregunta cada 5 segundos** por `GET /v1/pedidos` (8 cuando se escribió esto; ver la revisión de arriba) |
 
 No es un defecto de implementación: es una pieza a medias que nadie declaró como
 tal. `app/eventos.py` funciona, está probado y entrega a quien escuche; lo que
@@ -41,8 +65,10 @@ decidió y con razón— sino la que la evidencia obliga a hacer:
 paga hasta que el encargado lo ha visualizado y cambiado de estado, *sin
 recargar la página*.
 
-El sondeo está fijado en **8000 ms** (`sitio/panel.js`). Eso deja **2 segundos**
-para que una persona vea el pedido nuevo y pulse.
+El sondeo estaba fijado en **8000 ms** (`sitio/panel.js`) cuando se escribió
+esto, y eso dejaba **2 segundos** para que una persona viera el pedido nuevo y
+pulsara. Hoy está en **5000 ms** y deja 4,68 s; el razonamiento que sigue es el
+que llevó a medirlo.
 
 **El margen de ESC-03 está agotado**, y no lo estaba escrito en ninguna parte. La
 constante que lo consume no mencionaba el umbral que sostiene: subirla a 12 000
@@ -139,7 +165,7 @@ que faltaba:
 
 | Pieza | Qué es hoy |
 |---|---|
-| Sondeo de 8 s del panel | **El mecanismo de notificación real.** Pasa a ser una decisión con umbral, no una constante |
+| Sondeo del panel (8 s entonces, **5 s hoy**) | **El mecanismo de notificación real.** Pasa a ser una decisión con umbral, no una constante — y al medirlo contra ese umbral en la S14, bajó |
 | Canal `pideutb.pedidos.pagados` | **Una costura con contrato y sin suscriptores.** No notifica a nadie, y no pretende hacerlo |
 
 La relación entre las dos se escribe aquí porque es lo que no estaba en ningún

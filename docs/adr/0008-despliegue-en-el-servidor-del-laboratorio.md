@@ -5,6 +5,25 @@
 Aceptada — 13/10/2026. **Reemplaza la elección de plataforma de
 [ADR-0004](0004-plataforma-de-despliegue.md)**, cuya premisa dejó de ser cierta.
 
+> ### Revisión de título — semana 12
+>
+> **Título original:** «Desplegar en el servidor del laboratorio, con la base de
+> datos dentro del despliegue y bajo un solo origen».
+>
+> Lo reescribió el commit `59ec90c`, del 18/10/2026, cambiando «bajo un solo
+> origen» por «la API en un host aparte».
+>
+> **Y esta revisión no es cosmética**, a diferencia de la de
+> [ADR-0002](0002-propiedad-datos-establecimiento.md): el título enunciaba una
+> decisión —servir sitio y API bajo el mismo origen— que **se revirtió**. La
+> plataforma no admitía esa forma, la API pasó a su propio host y con ella
+> volvió el CORS que el origen único evitaba. Quien leyó este ADR antes del
+> 18/10 leyó una decisión distinta de la que corre.
+>
+> Se deja anotado y no se disimula, porque un ADR aceptado es un documento
+> histórico y porque la reversión de una decisión es justo lo que un lector
+> futuro necesita encontrar. Lo señaló la auditoría de la semana 12.
+
 ## Contexto
 
 [ADR-0004](0004-plataforma-de-despliegue.md) eligió Render bajo una condición

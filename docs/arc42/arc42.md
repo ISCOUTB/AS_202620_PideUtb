@@ -369,7 +369,7 @@ desde el principio al mantener `pagos` como módulo aislable (ver 4.4).
 | [ESC-02](#esc-02) | *Rendimiento* — reducir la sobrecarga computacional y controlar la demanda de recursos | Comunicación intra-proceso entre módulos (sin salto de red); acceso a datos concentrado en `repository.py` para poder introducir caché de menú sin tocar la lógica de negocio | Base implementada; caché pendiente |
 | [ESC-03](#esc-03) | *Modificabilidad/Rendimiento* — encapsular y mantener un único dueño de los datos | El estado del pedido solo se transiciona dentro de `pedidos.service`; ningún otro módulo escribe esa tabla | Implementada (S9) y verificada en CI. **El umbral de 10 s no se cumple con el servicio frío**: ver [`aspectos.md`](../aspectos.md) |
 | [ESC-04](#esc-04) | *Seguridad* — verificar la integridad y limitar el acceso; *Confiabilidad* — detectar la reutilización | Código de un solo uso generado con `secrets` al confirmar el pago, y **exigido en la transición a `entregado`**, comparado con `compare_digest`. La reutilización se rechaza sin código propio que la detecte: `entregado` es un estado final, así que el segundo intento falla por la transición | Implementada (S10) y verificada en CI |
-| [ESC-05](#esc-05) | *Disponibilidad* — detección de fallos y reintento sin pérdida de estado | El pedido se persiste antes de invocar la pasarela, de modo que un rechazo de Wompi no destruye el carrito | Implementada (S7) y verificada en CI |
+| [ESC-05](#esc-05) | *Disponibilidad* — detección de fallos y reintento sin pérdida de estado | El pedido se persiste antes de mandar a nadie a la pasarela, de modo que un rechazo de Wompi no destruye el carrito | Implementada (S7) y verificada en CI |
 
 La trazabilidad de estas tácticas hasta el código y las pruebas está en
 [`docs/aspectos.md`](../aspectos.md).
@@ -1764,7 +1764,8 @@ arquitectura sin abrir nada.
 | [ADR-0007](../adr/0007-autenticacion-del-panel.md) | Autenticar el panel con sesiones propias en lugar de Supabase Auth | [ESC-04](#esc-04) | Aceptada |
 | [ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md) | Desplegar en el servidor del laboratorio, con la base de datos dentro del despliegue y la API en un host aparte | [ESC-03](#esc-03) | Aceptada — reemplaza a ADR-0004 |
 | [ADR-0009](../adr/0009-no-extraer-un-servicio.md) | No extraer ningún módulo a un servicio independiente, y dejar escrito qué lo cambiaría | [ESC-02](#esc-02) | Aceptada |
-| [ADR-0010](../adr/0010-notificar-al-panel-por-sondeo.md) | Notificar al panel por sondeo, y conservar el canal de eventos como costura sin suscriptores | [ESC-03](#esc-03) | Aceptada — revisa ADR-0003 con evidencia de producción |
+| [ADR-0010](../adr/0010-notificar-al-panel-por-sondeo.md) | Notificar al panel por sondeo, y conservar el canal de eventos como costura sin suscriptores | [ESC-03](#esc-03) | Aceptada — revisa ADR-0003 con evidencia de producción; el intervalo bajó a 5 s en la S14 |
+| [ADR-0011](../adr/0011-un-solo-esquema-para-los-cuatro-contextos.md) | Guardar los cuatro contextos en un solo esquema con integridad referencial cruzada, que es la decisión de datos más cara de deshacer | [ESC-02](#esc-02) | Aceptada — pone precio a la reversión que ADR-0009 deja abierta |
 
 *(Este índice se amplía en cada entrega a medida que surgen nuevas
 decisiones. Dos de las de arriba **revisan** a otras en vez de añadirse: ADR-0008

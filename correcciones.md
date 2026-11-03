@@ -433,7 +433,141 @@ ejecuciones —todas en verde— está en la
 [pestaña Actions](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/workflows/ci.yml).
 
 
-## 8. Resumen
+## 8. Auditoría de la semana 12 — respuesta punto por punto
+
+**La auditoría es preliminar** y tiene su corte en el commit `2395d781`
+(18/10/2026). Esta respuesta se escribe el **03/11/2026**, y entre una cosa y
+otra `master` avanzó **53 commits y 110 archivos**, con trece PR fusionados
+(#28 a #40). Por eso cada criterio se **reverificó contra el estado de hoy**
+antes de contestarlo: algunos hallazgos seguían vivos, uno ya no se reproduce,
+y dos resultaron más precisos de lo que el informe decía.
+
+| Criterio | Auditoría | Hoy | Dónde |
+|---|---|---|---|
+| Dos operaciones verificadas contra implementación | No cumple | 🔄 En curso | Confirmado y detallado abajo en §8.6; el arreglo va en su propio PR porque toca la transacción del mostrador |
+| ADR de la decisión de datos más costosa de revertir | No cumple | ✅ | [ADR-0011](docs/adr/0011-un-solo-esquema-para-los-cuatro-contextos.md) |
+| Razón y costo de reversión | No cumple | ✅ | [ADR-0011 § El costo de la reversión](docs/adr/0011-un-solo-esquema-para-los-cuatro-contextos.md#el-costo-de-la-reversión-en-orden) |
+| ADR aceptados no reescritos | No cumple | ✅ Declarado | Notas de revisión en [ADR-0007](docs/adr/0007-autenticacion-del-panel.md) y [ADR-0008](docs/adr/0008-despliegue-en-el-servidor-del-laboratorio.md) |
+| Bitácora IA vigente | No cumple | ✅ Con huecos marcados | [`docs/ia.md`](docs/ia.md) — S10 a S14 y el tramo posterior |
+| Pipeline, Sonar y Quality Gate públicos | No verificado | ✅ **El 403 ya no se reproduce** | Abajo, §8.1 |
+| Sin credenciales actuales ni históricas | No cumple | ⚠️ Rotada; el historial no se purga | Abajo, §8.2 |
+| Contribución de todos | No verificado | ⬜ **Pendiente del equipo** | Abajo, §8.4 |
+
+### 8.1 El Quality Gate sí responde en público
+
+El informe reporta `HTTP 403` en la consulta pública. **Hoy no se reproduce.**
+Comprobado el 03/11/2026 sin sesión y sin credenciales:
+
+| Consulta | Resultado |
+|---|---|
+| `GET /api/qualitygates/project_status?projectKey=ISCOUTB_AS_202620_PideUtb` | `200` · `"status":"OK"` |
+| `GET /api/measures/component?...&metricKeys=...` | `200` · **0 bugs · 0 vulnerabilidades · 0 security hotspots** · 37 code smells |
+| `GET /dashboard?id=ISCOUTB_AS_202620_PideUtb` | `200` |
+| `GET /api/project_badges/measure?...&metric=alert_status` | `200` · SVG |
+
+Las cuatro son consultables por cualquiera. El proyecto está en la organización
+`isco-utb` con visibilidad `public`, como ya declaraba la cabecera de este
+documento.
+
+### 8.2 La credencial histórica: rotada, y el historial no se purga
+
+El informe lo plantea con precisión: *«La rotación declarada reduce el riesgo
+actual, pero no demuestra ausencia histórica»*. Es exacto, y conviene decir qué
+se verificó.
+
+**Lo comprobado.** El commit `dd1c4ffc`, en el historial de `master`, conserva un
+valor por defecto para `PIDEUTB_SECRETO_PASARELA`. No se reproduce aquí, ni su
+valor ni ninguna parte de él. El código vigente
+(`backend/app/pagos/service.py`) ya no tiene valor por defecto y **falla en
+cerrado**: sin la variable, toda firma se rechaza. Está documentado desde la S9
+y registrado como [V-11](docs/violaciones.md).
+
+**Por qué no se purga el historial.** Es la única acción que satisfaría
+«ni históricas» al pie de la letra, y cuesta más de lo que arregla:
+
+- Reescribe **todos los hashes desde septiembre**, y este repositorio se
+  documenta por hash. Se romperían las citas de este documento, de
+  `docs/evidencia-s7.md` a `docs/evidencia-s14.md`, y de `docs/ia.md`.
+- Entre los hashes invalidados está **`2395d781`, el commit de corte sobre el
+  que se calculó esta misma auditoría**. La trazabilidad de la nota dejaría de
+  poder comprobarse.
+- El riesgo vivo que elimina es **cero**: la credencial está rotada y el código
+  no la acepta por defecto.
+
+Es una decisión con fecha de caducidad, no una negativa: cuando el curso cierre
+y nadie dependa de los hashes, purgar es trivial y no cuesta nada.
+
+### 8.3 Las dos divergencias del «Overall»
+
+Las dos eran ciertas y las dos están corregidas. En ambos casos **el desfasado
+era el documento, no el código**.
+
+| Qué decía | Qué corre | Corregido en |
+|---|---|---|
+| ADR-0010: el panel sondea cada **8 s** | **5000 ms** desde la S14, al medir que 8000 + 301,6 de red + 18,7 de servidor = 8320 ms no cabía en los 10 s de ESC-03 | Nota de revisión en [ADR-0010](docs/adr/0010-notificar-al-panel-por-sondeo.md), conservando el argumento original |
+| C4 nivel 2, flecha 4: `API PideUTB → Wompi Sandbox · Síncrono · API externa de la pasarela` | La API **arma una URL de checkout** y no llama a nadie; quien navega a la pasarela es el navegador | [nivel2](docs/c4/nivel2-contenedores.md), [nivel3](docs/c4/nivel3-modulos.md) y [arc42 ESC-05](docs/arc42/arc42.md) |
+
+La flecha 5 —el webhook entrante— **no se tocó**: esa integración sí existe.
+
+Sobre el **bus sin suscriptores**: el informe lo da por documentado y así sigue.
+ADR-0010 lo declara como costura con contrato y sin uso, y
+`test_el_evento_se_pierde_si_no_hay_nadie_escuchando` lo vigila.
+
+### 8.4 Contribución de todos: lo que el repositorio puede decir, y lo que no
+
+`git shortlog -sne master` da tres firmas:
+
+| Firma | Commits |
+|---|---|
+| `Santiago-C0 <sjcm082005@gmail.com>` | 89 |
+| `daniarriet <162816064+daniarriet@users.noreply.github.com>` | 65 |
+| `ruddy2000utb-droid <ruddy2000utb@gmail.com>` | 46 |
+
+Eso es lo que el repositorio acredita: **qué firmas aparecen y con qué volumen**.
+El emparejamiento de cada firma con un integrante de la nómina no está en el
+código y **lo completa el equipo**, no se deduce aquí.
+
+> ⬜ **Pendiente del equipo:** correspondencia firma → integrante.
+
+### 8.5 Dos precisiones al informe
+
+Ninguna cambia el veredicto; se anotan para que la siguiente revisión no tropiece.
+
+- **Ruta.** El informe cita `backend/pagos/service.py:27-43`. El archivo es
+  `backend/app/pagos/service.py`.
+- **El camino del pago ya era correcto.** Sobre el criterio de las dos
+  operaciones, el informe señala que el avance de estado «guarda actualizando
+  solo por id». Es cierto, y era el defecto. Conviene añadir que
+  `marcar_pagado` —la transición `pendiente_pago → pagado`, que es la que
+  recibe entregas repetidas del webhook— **sí llevaba la condición dentro del
+  `UPDATE`** desde su implementación, con el comentario que explica por qué.
+  El patrón correcto ya estaba en el repositorio; lo que faltaba era aplicarlo
+  también al mostrador.
+
+### 8.6 El avance de estado: confirmado, y qué se hace
+
+Es el hallazgo más serio del informe y se confirma entero.
+`avanzar_estado` lee el pedido, valida la transición contra el estado leído, y
+llama a `repository.guardar`, que hasta ahora hacía `UPDATE ... WHERE id = %s`.
+Entre la lectura y la escritura no hay nada que sostenga lo que
+[arc42](docs/arc42/arc42.md) promete en su tabla de consistencia:
+`UPDATE ... WHERE estado = <el esperado>`.
+
+**La consecuencia no es teórica.** Dos personas con la misma cola en pantalla
+—que es la situación normal en un mostrador— pueden hacer **retroceder** un
+pedido: A lee `pagado`, B lo lleva a `en_preparacion` y luego a `listo`, y
+entonces aterriza la escritura de A y el pedido vuelve a `en_preparacion`. Nada
+falla, nada avisa.
+
+El arreglo lleva la condición dentro del `UPDATE`, igual que `marcar_pagado`, y
+convierte la carrera perdida en el `409` **que el contrato ya declara** para esa
+ruta. No cambia el contrato ni pide migración. Va en un PR aparte, con una
+prueba que ejecuta la carrera contra PostgreSQL en CI — que es exactamente lo
+que el informe dice no haber podido hacer: *«No se ejecutó una carrera»*.
+
+---
+
+## 9. Resumen de la S7
 
 La **entrega S7 está completa** en lo que depende del repositorio:
 
