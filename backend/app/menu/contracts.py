@@ -49,3 +49,7 @@ class ItemDisponible(BaseModel):
     #: hay ninguna. Es texto y no `time` porque su único uso es escribirlo en la
     #: pantalla.
     promocion_hasta: str | None = None
+
+    #: Si hoy se sugiere este producto. No dice si se puede pedir: para eso está
+    #: `disponible`, y la carta solo enseña los sugeridos que se puedan pedir.
+    sugerido: bool = False

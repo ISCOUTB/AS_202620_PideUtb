@@ -94,6 +94,7 @@ PARES = [
     ("azul", "crema", 4.5, "es tinta: enlaces, precios en promoción, el título"),
     ("azul", "papel", 4.5, "la misma tinta sobre tarjeta"),
     ("verde-canje", "crema", 4.5, "el verde como tinta"),
+    ("codigo-tinta", "codigo-fondo", 7.0, "el código de recogida, lo que se lee desde lejos"),
     ("ambar", "ambar-niebla", 4.5, "la etiqueta de la franja de promoción"),
     ("ambar", "ambar-niebla", 4.5, "y el título de la advertencia del código"),
     ("carbon", "ambar-niebla", 7.0, "el cuerpo de esa misma advertencia"),
@@ -107,7 +108,6 @@ PARES = [
 SOBRE_COLOR = [
     ("azul", 4.5, "los botones primarios y el botón central de la barra"),
     ("azul-hundido", 4.5, "esos mismos botones, pulsados"),
-    ("verde-canje", 4.5, "el billete del código de canje"),
     ("ambar", 4.5, "cualquier etiqueta con tinta blanca"),
     ("carbon", 4.5, "la chapa con la cantidad del carrito"),
     ("carbon-medio", 4.5, "la etiqueta «Agotado», que es lo único que hay que leer ahí"),

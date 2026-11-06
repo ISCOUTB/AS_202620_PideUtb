@@ -51,7 +51,10 @@ def listar_items(
     except service.EstablecimientoNoEncontradoError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+    apertura, cierre = service.horario_de_atencion(establecimiento_id)
     return ListaItemsMenuResponse(
         establecimiento_id=establecimiento_id,
         items=[ItemMenuResponse.desde_contrato(item) for item in items],
+        hora_apertura=apertura,
+        hora_cierre=cierre,
     )

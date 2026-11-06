@@ -122,9 +122,19 @@
   /* --- Verde, que es la seña de «ya podés recoger» ---------------------
      Sobrevive al cambio de paleta porque es semántica, no decoración: es el
      color del momento en que la comida está lista. Oscurecido respecto al
-     anterior porque el fondo dejó de ser blanco: 5,68:1 sobre crema, y 6,10:1
-     con blanco encima, que es como se usa en el billete del código. */
+     anterior porque el fondo dejó de ser blanco: 5,68:1 sobre crema. */
   --verde-canje: #356f1a;
+
+  /* --- El código de recogida -------------------------------------------
+     Azul de la UTB llevado a casi noche, con la cifra en ámbar: 10,68:1.
+
+     Dejó de ser verde porque el verde significa «ya podés recoger», y el código
+     aparece en cuanto se paga, cuando la comida ni se ha empezado a preparar: un
+     bloque verde enorme decía lo contrario del renglón de abajo. Y no es el azul
+     de la marca, que es un botón: con ese fondo el código parecía algo que se
+     puede pulsar. Este se distingue de los dos desde la última fila. */
+  --codigo-fondo: #0a1f5c;
+  --codigo-tinta: #ffd166;
 
   /* --- El velo de la portada -------------------------------------------
      Cuánto negro hay, como mínimo, entre la foto de la parrilla y el texto
@@ -857,7 +867,8 @@ button.secundario {
 
 .item-descripcion {
   color: var(--carbon-tenue);
-  font-size: 0.875rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
   margin-top: 2px;
 }
 
@@ -1003,6 +1014,84 @@ button.secundario {
 }
 
 /* ===========================================================================
+   SUGERIDOS DEL DÍA
+   ===========================================================================
+
+   Una fila que se desplaza de lado, para no empujar la carta hacia abajo. Se ven
+   dos y media a propósito: la que queda cortada es lo que dice que hay más. */
+
+.sugeridos { margin: var(--e4) 0 var(--e2); }
+
+.sugeridos-fila {
+  display: flex;
+  gap: var(--e3);
+  margin: var(--e3) 0 0;
+  padding: 0 0 var(--e2);
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.sugeridos-fila::-webkit-scrollbar { display: none; }
+
+.sugerido {
+  flex: 0 0 142px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--e1);
+  padding: var(--e3);
+  background: var(--papel);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+  text-align: center;
+  scroll-snap-align: start;
+}
+
+/* El plato del microondas: una vuelta cada 12 s, a velocidad constante.
+
+   `transform` y nada más, así que lo mueve el compositor sin repintar la foto ni
+   recalcular nada, y no le quita fotogramas al desplazamiento. No lleva
+   `will-change`: el navegador ya sube a su propia capa lo que se está animando, y
+   pedirlo aparte solo gastaría memoria mientras la pantalla está oculta.
+
+   Quien pide menos movimiento lo ve quieto: el bloque del final de esta hoja apaga
+   toda animación que no recupere a propósito, y esta no se recupera. Es adorno. */
+.plato {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--papel);
+  box-shadow: var(--sombra);
+  animation: girar 12s linear infinite;
+}
+
+.plato img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sugerido-nombre {
+  margin-top: var(--e1);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.sugerido .item-precio { margin-top: 0; }
+
+/* Empuja el control al fondo de la tarjeta, para que todos queden a la misma altura
+   aunque un nombre ocupe más líneas que otro. */
+.sugerido-control { margin-top: auto; padding-top: var(--e2); }
+
+#aviso-alergias { margin-top: var(--e4); }
+
+/* ===========================================================================
    TU PEDIDO
    =========================================================================== */
 
@@ -1057,6 +1146,14 @@ button.secundario {
   grid-template-columns: repeat(3, 1fr);
   gap: var(--e2);
 }
+
+/* Las mismas pastillas que los métodos de pago, que aquí son dos. */
+.recogida .metodos-opciones { grid-template-columns: repeat(2, 1fr); }
+.recogida .campo { margin-top: var(--e3); }
+.recogida .nota { margin: var(--e1) 0 0; }
+
+.datos-cliente { display: grid; gap: var(--e3); }
+.datos-cliente .nota { margin: 0; }
 
 .metodos input[type="radio"] {
   position: absolute;
@@ -1167,6 +1264,16 @@ button.secundario {
    —«¿y el mío?»— y se miran juntos, así que van en la misma tarjeta en vez de
    repartidos por la pantalla. */
 
+.billete-recogida {
+  margin: var(--e3) 0 0;
+  color: var(--carbon);
+  font-weight: 600;
+}
+
+.aviso-listo { margin: var(--e4) 0; }
+.aviso-listo .nota { margin: var(--e2) 0 0; }
+.aviso-listo .nota:empty { display: none; }
+
 .billete {
   margin: var(--e4) 0;
   padding: var(--e4);
@@ -1215,8 +1322,8 @@ button.secundario {
 .codigo-canje {
   margin: var(--e4) 0;
   padding: var(--e5) var(--e4);
-  background: var(--verde-canje);
-  color: #fff;
+  background: var(--codigo-fondo);
+  color: var(--codigo-tinta);
   border-radius: var(--radio);
   text-align: center;
   font-family: var(--fuente-titulo);
@@ -1366,6 +1473,35 @@ button.secundario {
 
 /* El código con el que se entregó un pedido. Monoespaciado y espaciado como el
    billete del cliente, pero pequeño y gris: es un registro, no una llave. */
+/* La hora es lo que se mira al organizar la cocina, así que se destaca cuando la
+   hay. «Lo antes posible» es el caso normal y no compite con ella. */
+.pedido-recogida {
+  margin-top: var(--e1);
+  color: var(--carbon-tenue);
+  font-size: 0.875rem;
+}
+
+.pedido-recogida.programada {
+  color: var(--azul);
+  font-weight: 700;
+}
+
+.orden {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+}
+
+.barra select {
+  font: inherit;
+  min-height: 48px;
+  padding: var(--e2) var(--e3);
+  color: var(--carbon);
+  background: var(--papel);
+  border: 1.5px solid var(--linea-fuerte);
+  border-radius: var(--radio-chico);
+}
+
 .codigo-entregado {
   margin-top: var(--e2);
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;

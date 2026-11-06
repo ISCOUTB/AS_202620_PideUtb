@@ -71,6 +71,11 @@ operaciones:
       # para tachar el precio anterior y decir hasta cuándo.
       - items[].precio_antes_centavos
       - items[].promocion_hasta
+      # Desde la 4.1.0: la sección de sugeridos, y entre qué horas se ofrece
+      # programar la recogida.
+      - items[].sugerido
+      - hora_apertura
+      - hora_cierre
     codigos_manejados: ["200", "404"]
 
   crearPedido:
@@ -78,12 +83,13 @@ operaciones:
     # Desde la 3.0.0 se envía una lista de líneas. Es el cambio que motiva el
     # salto de MAYOR: `item_id` y `cantidad` dejaron de estar en el nivel de
     # arriba de la petición.
-    campos_enviados: [lineas]
+    campos_enviados: [lineas, hora_recogida, nombre_cliente, correo_cliente]
     campos_leidos:
       - pedido_id
       - lineas
       - total_centavos
       - estado
+      - hora_recogida
       # Desde la 4.0.0. Se entrega una sola vez, aqui, y es con lo que el
       # cliente consulta despues su propio pedido.
       - token_consulta
@@ -108,13 +114,30 @@ operaciones:
       Averiguar en qué quedó el pago al volver de la pasarela. Es la operación
       que existe porque la confirmación llega por un canal asíncrono: sin ella
       el usuario se quedaría mirando una pantalla que nunca cambia.
-    campos_leidos: [pedido_id, estado, codigo_canje, total_centavos, lineas]
+    campos_leidos: [pedido_id, estado, codigo_canje, total_centavos, lineas, hora_recogida]
     # Desde la 4.0.0 hay que mandar el token que devolvio `crearPedido`. Es el
     # salto de MAYOR: antes esta consulta no pedia nada, y como los
     # identificadores son secuenciales cualquiera podia recorrerlos y cosechar
     # los codigos de canje.
     cabeceras_enviadas: ["X-Token-Pedido"]
     codigos_manejados: ["200", "404"]
+
+  # --- El aviso de que el pedido está listo (contrato 4.1.0) -------------------
+  obtenerClavePublicaDeAvisos:
+    proposito: >
+      Saber si este despliegue manda avisos, y con qué clave suscribirse. El `404`
+      no es un error: el sitio no ofrece el botón y todo lo demás sigue igual.
+    campos_leidos: [clave_publica]
+    codigos_manejados: ["200", "404"]
+
+  registrarAvisoPush:
+    proposito: >
+      Pedir que se avise a este navegador cuando el pedido esté listo. Si falla,
+      se le dice a la persona y su pantalla sigue enterándose por sondeo.
+    campos_enviados: [endpoint]
+    campos_leidos: []
+    cabeceras_enviadas: ["X-Token-Pedido"]
+    codigos_manejados: ["204", "404", "409", "422"]
 
   # --- Sesiones del panel (contrato 2.0.0) ------------------------------------
   iniciarSesion:
@@ -153,6 +176,8 @@ operaciones:
       - pedidos[].total_centavos
       - pedidos[].estado
       - pedidos[].codigo_canje
+      # Desde la 4.1.0: se pinta en cada fila y se puede ordenar por ella.
+      - pedidos[].hora_recogida
     # El `401` se maneja como «la sesión caducó»: vuelve a la pantalla de
     # ingreso en vez de mostrar una cola vacía, que es lo que haría creer al
     # mostrador que no hay pedidos. El `403` no debería ocurrirle a este

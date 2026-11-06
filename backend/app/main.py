@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app import base_de_datos, salud
+from app import avisos, base_de_datos, comprobante, salud
 from app.demo import router as demo_router
 from app.esquemas_comunes import EstadoServicio, Metricas, ServicioNoDisponible
 from app.menu.router import router as menu_router
@@ -64,7 +64,7 @@ async def ciclo_de_vida(_: FastAPI):
 app = FastAPI(
     lifespan=ciclo_de_vida,
     title="PideUTB API",
-    version="4.0.0",
+    version="4.1.0",
     description=(
         "Pedidos de comida dentro del campus universitario. El contrato "
         "versionado que esta aplicación implementa está en "
@@ -121,6 +121,13 @@ app.include_router(menu_router)
 app.include_router(pedidos_router)
 app.include_router(pagos_router)
 app.include_router(sesiones_router)
+app.include_router(avisos.router)
+
+# Lo que le pasa al cliente cuando su pedido avanza. Se conecta acá, en la raíz de
+# composición, para que Pedidos no sepa que existen el correo ni los avisos: publica
+# un hecho y sigue. Ver ADR-0012.
+comprobante.suscribir()
+avisos.suscribir()
 
 # Se monta siempre y no responde casi nunca: sin `PIDEUTB_TOKEN_REINICIO_DEMO`
 # todas sus rutas dan 404. Montarlo condicionalmente dejaría la decisión en el

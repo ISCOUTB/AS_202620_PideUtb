@@ -14,7 +14,7 @@ openapi: 3.1.0
 
 info:
   title: PideUTB API
-  version: 4.0.0
+  version: 4.1.0
   summary: Pedidos de comida dentro del campus universitario.
   description: |
     Superficie **síncrona** de PideUTB: consulta de menú, creación y consulta
@@ -80,6 +80,10 @@ tags:
       Contexto Cuentas — abrir y cerrar la sesión con la que se opera el panel
       del mostrador. Nuevo en la 2.0.0, y la razón del salto de MAYOR: las dos
       operaciones del panel pasaron a exigir la credencial que se obtiene aquí.
+  - name: avisos
+    description: |
+      Lo que el navegador necesita para que se le avise cuando el pedido esté
+      listo. Nuevo en la 4.1.0. Ver [ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md).
 
 paths:
   /health:
@@ -274,6 +278,10 @@ paths:
         producir un error. Esa decisión es deliberada y forma parte del
         contrato: un cliente que siga enviando `establecimiento_id` por
         costumbre no se rompe, pero tampoco consigue influir en el resultado.
+
+        Desde la 4.1.0 se puede programar la hora de recogida. Una hora que ya
+        pasó, o que cae fuera del horario del establecimiento, responde `409`:
+        la petición está bien formada, lo que no encaja es la hora.
       requestBody:
         required: true
         content:
@@ -434,6 +442,64 @@ paths:
                 $ref: "#/components/schemas/ErrorDeNegocio"
         "422":
           $ref: "#/components/responses/ErrorDeValidacion"
+
+  /v1/pedidos/{pedido_id}/aviso-push:
+    post:
+      operationId: registrarAvisoPush
+      tags: [pedidos]
+      summary: Pide que se avise a este navegador cuando el pedido esté listo.
+      description: |
+        Guarda la dirección que le dio el servicio de notificaciones del
+        navegador, y la API le manda un aviso **una sola vez**, cuando el
+        mostrador marca el pedido como listo. Después la borra.
+
+        Solo se aceptan direcciones de los servicios de push conocidos, y se
+        responde `422` a cualquier otra: es nuestro servidor quien hace la
+        petición, y sin esa lista se le podría hacer llamar a cualquier sitio.
+      parameters:
+        - name: X-Token-Pedido
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 16
+          description: |
+            El `token_consulta` que devolvió `crearPedido`. Sin él, o con uno
+            equivocado, la respuesta es `404`, igual que en `obtenerPedido`.
+        - $ref: "#/components/parameters/PedidoId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AvisoPushRequest"
+      responses:
+        "204":
+          description: Anotado. Se avisará cuando el pedido esté listo.
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "409":
+          $ref: "#/components/responses/Conflicto"
+        "422":
+          $ref: "#/components/responses/ErrorDeValidacion"
+
+  /v1/avisos/clave-publica:
+    get:
+      operationId: obtenerClavePublicaDeAvisos
+      tags: [avisos]
+      summary: La clave con la que el navegador se suscribe a los avisos.
+      description: |
+        `404` si este despliegue no manda avisos, y entonces el sitio no ofrece
+        el botón. Es la clave **pública** de VAPID (RFC 8292): no es un secreto.
+      responses:
+        "200":
+          description: Este despliegue manda avisos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClavePublicaDeAvisos"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
 
   /v1/pedidos/{pedido_id}:
     get:
@@ -790,6 +856,7 @@ components:
         - descripcion
         - precio_antes_centavos
         - promocion_hasta
+        - sugerido
       properties:
         item_id:
           type: integer
@@ -859,6 +926,11 @@ components:
             Es hora de Bogotá, que es lo que anuncia el cartel del mostrador, y
             no UTC. Va como texto y no como hora porque su único uso es
             escribirlo en la pantalla.
+        sugerido:
+          type: boolean
+          description: |
+            Si hoy se sugiere este producto. No dice si se puede pedir: para eso
+            está `disponible`. Desde la 4.1.0.
       examples:
         - item_id: 101
           establecimiento_id: 5
@@ -870,6 +942,7 @@ components:
           descripcion: null
           precio_antes_centavos: null
           promocion_hasta: null
+          sugerido: false
         # El mismo producto, consultado dentro y fuera de su franja.
         - item_id: 120
           establecimiento_id: 5
@@ -881,6 +954,7 @@ components:
           descripcion: null
           precio_antes_centavos: 2420000
           promocion_hasta: "15:30"
+          sugerido: false
         - item_id: 120
           establecimiento_id: 5
           nombre: Combo hamburguesa pollo
@@ -891,10 +965,11 @@ components:
           descripcion: null
           precio_antes_centavos: null
           promocion_hasta: null
+          sugerido: false
 
     ListaItemsMenu:
       type: object
-      required: [establecimiento_id, items]
+      required: [establecimiento_id, items, hora_apertura, hora_cierre]
       properties:
         establecimiento_id:
           type: integer
@@ -904,6 +979,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ItemMenu"
+        hora_apertura:
+          type: [string, "null"]
+          pattern: '^[0-9]{2}:[0-9]{2}$'
+          description: |
+            Desde qué hora se puede programar una recogida, `HH:MM` de Bogotá.
+            `null` si el establecimiento no publica su horario, y entonces no se
+            puede programar. Desde la 4.1.0.
+        hora_cierre:
+          type: [string, "null"]
+          pattern: '^[0-9]{2}:[0-9]{2}$'
+          description: Hasta qué hora, sin incluirla. `null` en el mismo caso.
 
     LineaPedidoRequest:
       type: object
@@ -941,12 +1027,57 @@ components:
             El tope de 30 es lo que cabe en una bandeja de mostrador. Un
             carrito sin tope es una forma barata de pedirle al servidor que
             valide mil productos de una vez.
+        hora_recogida:
+          type: [string, "null"]
+          pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+          description: |
+            A qué hora de **hoy** se quiere recoger, `HH:MM` de Bogotá. Sin este
+            campo, el pedido se prepara de inmediato. Desde la 4.1.0.
+        nombre_cliente:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 80
+          description: Para el comprobante. Opcional. Desde la 4.1.0.
+        correo_cliente:
+          type: [string, "null"]
+          maxLength: 254
+          pattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+          description: |
+            A dónde mandar el comprobante cuando se confirme el pago. Opcional:
+            sin él no se manda nada y el pedido funciona igual. **Es un dato
+            personal y no lo devuelve ninguna operación** (arc42 §8.8). Desde la
+            4.1.0.
       examples:
         - lineas:
             - item_id: 1
               cantidad: 2
             - item_id: 2
               cantidad: 1
+        - lineas:
+            - item_id: 101
+              cantidad: 1
+          hora_recogida: "14:30"
+          nombre_cliente: Ana
+          correo_cliente: ana@example.com
+
+    AvisoPushRequest:
+      type: object
+      required: [endpoint]
+      properties:
+        endpoint:
+          type: string
+          minLength: 1
+          maxLength: 1024
+          description: La propiedad `endpoint` de la suscripción del navegador.
+
+    ClavePublicaDeAvisos:
+      type: object
+      required: [clave_publica]
+      properties:
+        clave_publica:
+          type: string
+          minLength: 1
+          description: Clave pública de VAPID en base64url.
 
     EstadoPedido:
       type: string
@@ -1137,6 +1268,7 @@ components:
         - estado
         - codigo_canje
         - token_consulta
+        - hora_recogida
       properties:
         pedido_id:
           type: integer
@@ -1181,9 +1313,14 @@ components:
 
             Existe porque no hay cuentas de cliente, y eso es una decisión y no
             una carencia (arc42 §8.8): pedir comida no debería exigir
-            registrarse, y no registrar es lo que hace que no haya datos
-            personales que proteger. Un pedido necesita entonces algo que lo
-            identifique sin identificar a nadie.
+            registrarse. Un pedido necesita entonces algo que lo identifique sin
+            identificar a nadie.
+        hora_recogida:
+          type: [string, "null"]
+          format: date-time
+          description: |
+            Cuándo se quiere recoger, en ISO 8601 con la zona de Bogotá. `null` =
+            lo antes posible. Desde la 4.1.0.
         codigo_canje:
           type: [string, "null"]
           pattern: "^[A-Z0-9]{6}$"

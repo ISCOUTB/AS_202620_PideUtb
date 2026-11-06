@@ -5,7 +5,7 @@ El router es el único que traduce excepciones de dominio a códigos HTTP
 """
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
 
 from app.autenticacion import establecimiento_que_puede_ver, personal_de_establecimiento
 
@@ -14,6 +14,7 @@ from app.pedidos import service
 from app.pedidos.contracts import EstadoPedido
 from app.usuarios.contracts import UsuarioAutenticado
 from app.pedidos.esquemas_api import (
+    AvisoPushRequest,
     CambiarEstadoRequest,
     CrearPedidoRequest,
     ListaDePedidosResponse,
@@ -31,7 +32,12 @@ router = APIRouter(prefix="/v1/pedidos", tags=["pedidos"])
 )
 def crear_pedido(datos: CrearPedidoRequest) -> PedidoResponse:
     try:
-        pedido = service.crear_pedido([(l.item_id, l.cantidad) for l in datos.lineas])
+        pedido = service.crear_pedido(
+            [(l.item_id, l.cantidad) for l in datos.lineas],
+            hora_recogida=datos.hora_recogida,
+            nombre_cliente=datos.nombre_cliente,
+            correo_cliente=datos.correo_cliente,
+        )
     except service.ItemNoEncontradoError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except service.ItemNoDisponibleError as e:
@@ -43,6 +49,10 @@ def crear_pedido(datos: CrearPedidoRequest) -> PedidoResponse:
         # estado del sistema que impida la operación.
         raise HTTPException(status_code=422, detail=str(e))
     except service.EstablecimientoInactivoError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except service.HoraDeRecogidaInvalidaError as e:
+        # 409 y no 422: la petición está bien formada, lo que no encaja es la
+        # hora con el reloj y con el horario del establecimiento.
         raise HTTPException(status_code=409, detail=str(e))
 
     return PedidoResponse.desde_contrato(pedido)
@@ -83,6 +93,43 @@ def obtener_pedido(
     if pedido is None:
         raise HTTPException(status_code=404, detail=f"El pedido {pedido_id} no existe")
     return PedidoResponse.desde_contrato(pedido)
+
+
+@router.post(
+    "/{pedido_id}/aviso-push",
+    status_code=204,
+    responses={
+        404: {"model": ErrorDeNegocio},
+        409: {"model": ErrorDeNegocio},
+        422: {"model": ErrorDeValidacion},
+    },
+    summary="Pide que se avise a este navegador cuando el pedido esté listo.",
+)
+def registrar_aviso_push(
+    pedido_id: int,
+    datos: AvisoPushRequest,
+    x_token_pedido: Annotated[
+        str | None,
+        Header(
+            alias="X-Token-Pedido",
+            description="El `token_consulta` que devolvió `crearPedido`.",
+        ),
+    ] = None,
+) -> Response:
+    """Exige el mismo token que consultar el pedido, y responde igual sin él."""
+    if x_token_pedido is None:
+        raise HTTPException(status_code=404, detail=f"El pedido {pedido_id} no existe")
+
+    try:
+        registrado = service.registrar_aviso_push(pedido_id, x_token_pedido, datos.endpoint)
+    except service.ServicioDePushDesconocidoError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except service.AvisoFueraDeTiempoError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+    if not registrado:
+        raise HTTPException(status_code=404, detail=f"El pedido {pedido_id} no existe")
+    return Response(status_code=204)
 
 
 @router.get(

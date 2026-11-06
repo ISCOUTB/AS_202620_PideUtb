@@ -124,6 +124,8 @@ async function api(ruta, opciones = {}) {
     headers: { "Content-Type": "application/json", ...headers },
   });
 
+  // Un 204 no trae cuerpo, y leerlo como JSON lanzaría una excepción.
+  if (respuesta.status === 204) return null;
   if (respuesta.ok) return respuesta.json();
 
   // El cuerpo de error del contrato es {detail: string} en los 4xx de negocio.
@@ -245,6 +247,29 @@ let codigoEstrenado = null;
 /** La carta completa, para filtrar sin volver a pedirla. */
 let cartaCompleta = [];
 
+/** Entre qué horas se ofrece programar la recogida. Lo valida la API, no esto. */
+let horarioDeAtencion = { apertura: null, cierre: null };
+
+/**
+ * El hueco del control de cantidad de cada sugerido, por producto.
+ *
+ * `dibujarCarta` repinta toda la carta en cada toque de «+», y hacer lo mismo aquí
+ * crearía la imagen otra vez y el plato volvería a empezar su giro. Se cambia solo
+ * el control.
+ */
+const huecosDeSugeridos = new Map();
+
+/** Si este pedido ya pidió que se le avise cuando esté listo. */
+let avisoActivado = false;
+
+/**
+ * El estado del pedido la última vez que se miró.
+ *
+ * Para distinguir «acaba de quedar listo» de «ya estaba listo cuando abrí la
+ * página»: solo lo primero merece una vibración.
+ */
+let ultimoEstadoVisto = null;
+
 // --------------------------------------------------------------------------
 // El pedido en curso, fuera de la memoria de la pestaña
 //
@@ -310,6 +335,7 @@ function guardarElPedido() {
       token_consulta: tokenDelPedido,
       referencia_pago: referenciaDelCobro,
       url_checkout: urlDelCheckout,
+      aviso_activado: avisoActivado,
       guardado_en: Date.now(),
     }));
   } catch {
@@ -382,7 +408,7 @@ function leerElPedidoGuardado() {
     return null;
   }
 
-  // Se devuelven los cuatro campos que alguien usa, uno por uno, y no lo leído
+  // Se devuelven los campos que alguien usa, uno por uno, y no lo leído
   // tal cual. Así lo que sale de esta función es lo que esta función promete,
   // y no cualquier cosa que apareciera escrita en el almacenamiento.
   return {
@@ -390,6 +416,7 @@ function leerElPedidoGuardado() {
     token_consulta: guardado.token_consulta,
     referencia_pago: guardado.referencia_pago,
     url_checkout: guardado.url_checkout,
+    aviso_activado: guardado.aviso_activado === true,
   };
 }
 
@@ -514,6 +541,8 @@ async function cargarCarta() {
     );
 
     cartaCompleta = carta.items;
+    horarioDeAtencion = { apertura: carta.hora_apertura, cierre: carta.hora_cierre };
+    dibujarSugeridos();
     dibujarCategorias();
     dibujarCarta();
     mostrar("carta");
@@ -589,6 +618,12 @@ function dibujarCarta() {
   lista.classList.toggle("estrena", !cartaEstrenada);
   cartaEstrenada = true;
 
+  $("sugeridos").classList.toggle(
+    "oculto",
+    categoriaActiva !== null || huecosDeSugeridos.size === 0
+  );
+  actualizarControlesDeSugeridos();
+
   const visibles = categoriaActiva === null
     ? cartaCompleta
     : cartaCompleta.filter((i) => i.categoria === categoriaActiva);
@@ -607,6 +642,52 @@ function dibujarCarta() {
 
   for (const item of visibles) {
     lista.append(dibujarItem(item));
+  }
+}
+
+/**
+ * Los sugeridos del día: los que la API marca, si se pueden pedir y tienen foto.
+ *
+ * La foto es condición porque la gracia es el plato girando, y un marcador con una
+ * inicial dando vueltas no se le parece. Qué se sugiere lo decide la API
+ * (`PIDEUTB_SUGERIDOS_DEL_DIA`).
+ */
+function dibujarSugeridos() {
+  const lista = $("lista-sugeridos");
+  lista.replaceChildren();
+  huecosDeSugeridos.clear();
+
+  for (const item of cartaCompleta) {
+    if (!item.sugerido || !item.disponible || !item.imagen) continue;
+
+    const fila = document.createElement("li");
+    fila.className = "sugerido";
+
+    // El giro va en el contenedor y lo hace el CSS: solo `transform`, que resuelve
+    // el compositor sin repintar nada. Ver `.plato` en `estilos.css`.
+    const plato = document.createElement("div");
+    plato.className = "plato";
+    const img = document.createElement("img");
+    img.src = item.imagen;
+    img.alt = "";              // decorativa: el nombre ya está en el texto
+    plato.append(img);
+
+    const nombre = document.createElement("div");
+    nombre.className = "sugerido-nombre";
+    nombre.textContent = item.nombre;
+
+    const hueco = document.createElement("div");
+    hueco.className = "sugerido-control";
+    huecosDeSugeridos.set(item.item_id, { item, hueco });
+
+    fila.append(plato, nombre, dibujarPrecio(item), hueco);
+    lista.append(fila);
+  }
+}
+
+function actualizarControlesDeSugeridos() {
+  for (const { item, hueco } of huecosDeSugeridos.values()) {
+    hueco.replaceChildren(controlDeCantidad(item));
   }
 }
 
@@ -893,8 +974,67 @@ function verPedido() {
   metodoElegido = null;
   dibujarLineasDelCarrito();
   dibujarResumenDelCarrito();
+  dibujarDatosDelPedido();
   dibujarMetodos();
   mostrar("pedido");
+}
+
+/** Si ya hay un pedido creado esperando su cobro: reintentar no crea otro. */
+function hayUnPedidoPorCobrar() {
+  return pedidoActual !== null && pedidoActual.estado === "pendiente_pago";
+}
+
+/** La hora de Bogotá en `HH:MM`, sea cual sea la zona del teléfono. */
+function horaDeBogota() {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Bogota",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date());
+}
+
+/**
+ * Pone al día la hora de recogida y los datos para el comprobante.
+ *
+ * El mínimo y el máximo solo orientan: el reloj del teléfono no es de fiar y quien
+ * decide es la API. Sin horario publicado, o pasada la hora de cierre, no se ofrece
+ * programar: `HH:MM` compara bien como texto porque siempre lleva dos cifras.
+ */
+function dibujarDatosDelPedido() {
+  $("datos-del-pedido").classList.toggle("oculto", hayUnPedidoPorCobrar());
+
+  const { apertura, cierre } = horarioDeAtencion;
+  const ahora = horaDeBogota();
+  const sePuede = Boolean(apertura && cierre) && ahora < cierre;
+
+  $("recogida").classList.toggle("oculto", !sePuede);
+  if (!sePuede) {
+    $("recogida-ya").checked = true;
+    $("campo-hora").classList.add("oculto");
+    return;
+  }
+
+  const hora = $("hora-recogida");
+  hora.min = ahora > apertura ? ahora : apertura;
+  hora.max = cierre;
+  $("nota-horario").textContent = `Atendemos hasta las ${cierre}.`;
+  $("campo-hora").classList.toggle("oculto", !$("recogida-hora").checked);
+}
+
+/**
+ * Lo que el navegador puede rechazar sin molestar a la API.
+ *
+ * `reportValidity` enseña el aviso nativo, en el campo que hay que corregir.
+ */
+function datosDelPedidoEnOrden() {
+  if (hayUnPedidoPorCobrar()) return true;
+
+  const hora = $("hora-recogida");
+  hora.required = $("recogida-hora").checked;
+  if (hora.required && !hora.reportValidity()) return false;
+
+  return $("correo-cliente").reportValidity();
 }
 
 function dibujarLineasDelCarrito() {
@@ -1004,6 +1144,7 @@ function volverALaCarta() {
  */
 async function pagarCarrito() {
   if (metodoElegido === null || carrito.size === 0) return;
+  if (!datosDelPedidoEnOrden()) return;
 
   limpiarError();
   const boton = $("pagar");
@@ -1029,10 +1170,20 @@ async function pagarCarrito() {
   referenciaDelCobro = null;
   urlDelCheckout = null;
 
+  // Solo lo que alguien escribió. Sin hora, se prepara de inmediato; sin correo, no
+  // hay comprobante. Pedir sin dejar ningún dato sigue siendo pedir.
+  const cuerpo = { lineas };
+  const hora = $("hora-recogida").value;
+  if ($("recogida-hora").checked && hora) cuerpo.hora_recogida = hora;
+  const correo = $("correo-cliente").value.trim();
+  if (correo) cuerpo.correo_cliente = correo;
+  const nombre = $("nombre-cliente").value.trim();
+  if (nombre) cuerpo.nombre_cliente = nombre;
+
   try {
     pedidoActual = await api("/v1/pedidos", {
       method: "POST",
-      body: JSON.stringify({ lineas }),
+      body: JSON.stringify(cuerpo),
     });
     tokenDelPedido = pedidoActual.token_consulta;
 
@@ -1043,8 +1194,8 @@ async function pagarCarrito() {
   } catch (e) {
     const mensajes = {
       404: "Uno de los productos ya no existe en la carta.",
-      409: e.message, // agotado, repetido o establecimiento cerrado: la API dice cuál
-      422: "El pedido no es válido. Revisá las cantidades.",
+      409: e.message, // agotado, repetido, cerrado o una hora que no vale: la API dice cuál
+      422: "El pedido no es válido. Revisá las cantidades, la hora y el correo.",
     };
     fallar(mensajes[e.status] || "No se pudo crear el pedido: " + e.message);
     dibujarMetodos();
@@ -1250,6 +1401,7 @@ function mostrarCobroRechazado() {
   // con el último pintado se daría por ya dibujado y el rechazo se quedaría en
   // pantalla encima de un pedido que ya avanzó.
   huellaDelResultado = null;
+  $("bloque-aviso").classList.add("oculto");
 
   $("titulo-resultado").textContent = "El pago fue rechazado";
 
@@ -1281,6 +1433,7 @@ function mostrarCobroRechazado() {
     metodoElegido = null;
     dibujarLineasDelCarrito();
     dibujarResumenDelCarrito();
+    dibujarDatosDelPedido();
     dibujarMetodos();
     mostrar("pedido");
   });
@@ -1471,6 +1624,16 @@ let huellaDelResultado = null;
 function mostrarResultado(pedido) {
   const respuesta = RESPUESTA_POR_ESTADO[pedido.estado];
 
+  // Antes de la huella, que devuelve el control si no hay nada que repintar.
+  if (
+    pedido.estado === "listo_para_recoger" &&
+    ultimoEstadoVisto !== null &&
+    ultimoEstadoVisto !== pedido.estado
+  ) {
+    lanzar(avisarQueEstaListo());
+  }
+  ultimoEstadoVisto = pedido.estado;
+
   // Cuando el pedido deja de estar pendiente, el carrito ya no representa
   // nada: su contenido se convirtió en este pedido.
   //
@@ -1545,7 +1708,164 @@ function mostrarResultado(pedido) {
   // uno cuyo cobro todavía no ha confirmado la pasarela—. La fila «Total» del
   // resumen dice la cifra sin afirmar que haya cambiado de manos.
   cuerpo.append(dibujarResumen(pedido));
+  lanzar(dibujarAviso(pedido));
   mostrar("resultado");
+}
+
+// --------------------------------------------------------------------------
+// Que el teléfono avise cuando el pedido esté listo
+//
+// Dos caminos, y hacen falta los dos porque no cubren lo mismo:
+//
+//   · **Con la página abierta**, el sondeo de siempre se entera y el teléfono
+//     vibra. `navigator.vibrate` solo existe en Android: ni Safari ni Firefox lo
+//     tienen, así que ahí no pasa nada y la pantalla sigue diciendo lo correcto.
+//   · **Con la pantalla apagada**, hace falta Web Push: la API avisa a un servicio
+//     del fabricante, y este despierta a `sw.js`. Exige permiso, y en iPhone
+//     además que la aplicación esté instalada en la pantalla de inicio.
+// --------------------------------------------------------------------------
+
+/** Tres pulsos, el último más largo: se distingue de un mensaje cualquiera. */
+const PATRON_DE_VIBRACION = [200, 100, 200, 100, 400];
+
+function soportaAvisos() {
+  return (
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    "Notification" in window
+  );
+}
+
+/** Un iPhone en el navegador: ahí el aviso existe, pero solo instalándola. */
+function esIphoneSinInstalar() {
+  const esIos =
+    /iP(hone|ad|od)/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  return esIos && !soportaAvisos();
+}
+
+//: La clave pública, pedida una sola vez. `null` si este despliegue no avisa.
+let clavePublicaPedida = null;
+
+function clavePublicaDeAvisos() {
+  if (clavePublicaPedida === null) {
+    clavePublicaPedida = api("/v1/avisos/clave-publica")
+      .then((respuesta) => respuesta.clave_publica)
+      .catch(() => null);
+  }
+  return clavePublicaPedida;
+}
+
+/** Lo que dice y ofrece el bloque del aviso según lo que este teléfono pueda hacer. */
+async function dibujarAviso(pedido) {
+  const bloque = $("bloque-aviso");
+  const boton = $("activar-aviso");
+  const texto = $("texto-aviso");
+
+  const decir = (mensaje, conBoton = false) => {
+    texto.textContent = mensaje;
+    boton.classList.toggle("oculto", !conBoton);
+    bloque.classList.remove("oculto");
+  };
+
+  const queda = pedido.estado === "pagado" || pedido.estado === "en_preparacion";
+  const clave = queda ? await clavePublicaDeAvisos() : null;
+
+  if (!clave) {
+    bloque.classList.add("oculto");
+  } else if (avisoActivado) {
+    decir("Te avisamos en este teléfono cuando esté listo.");
+  } else if (esIphoneSinInstalar()) {
+    decir(
+      "En iPhone, el aviso solo funciona con PideUTB en la pantalla de inicio: " +
+        "tocá Compartir, «Agregar a inicio», y hacé tu próximo pedido desde ahí."
+    );
+  } else if (!soportaAvisos()) {
+    bloque.classList.add("oculto");
+  } else if (Notification.permission === "denied") {
+    decir(
+      "Las notificaciones de este sitio están bloqueadas en tu navegador. Dejá " +
+        "esta pantalla abierta: acá vas a ver cuándo está listo."
+    );
+  } else {
+    decir("", true);
+  }
+}
+
+/** La clave de VAPID en el formato que pide `pushManager.subscribe`. */
+function claveEnBytes(base64url) {
+  const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
+  const relleno = "=".repeat((4 - (base64.length % 4)) % 4);
+  return Uint8Array.from(atob(base64 + relleno), (c) => c.charCodeAt(0));
+}
+
+async function activarAviso() {
+  const boton = $("activar-aviso");
+  const pedido = pedidoActual;
+  boton.disabled = true;
+
+  try {
+    // Lo primero, y dentro del toque: iPhone rechaza el permiso si antes se esperó
+    // por otra cosa.
+    const permiso = await Notification.requestPermission();
+    if (permiso !== "granted") {
+      await dibujarAviso(pedido);
+      return;
+    }
+
+    const clave = await clavePublicaDeAvisos();
+    const registro = await navigator.serviceWorker.register("sw.js");
+    await navigator.serviceWorker.ready;
+
+    let suscripcion = await registro.pushManager.getSubscription();
+    if (suscripcion === null) {
+      suscripcion = await registro.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: claveEnBytes(clave),
+      });
+    }
+
+    await api(`/v1/pedidos/${encodeURIComponent(pedido.pedido_id)}/aviso-push`, {
+      method: "POST",
+      headers: { "X-Token-Pedido": tokenDelPedido },
+      body: JSON.stringify({ endpoint: suscripcion.endpoint }),
+    });
+
+    avisoActivado = true;
+    guardarElPedido();
+    await dibujarAviso(pedido);
+  } catch {
+    // No se pierde nada: el pedido sigue, y esta pantalla se sigue actualizando.
+    $("texto-aviso").textContent =
+      "No pudimos activar el aviso. Dejá esta pantalla abierta: acá vas a ver " +
+      "cuándo está listo.";
+  } finally {
+    boton.disabled = false;
+  }
+}
+
+/**
+ * El pedido acaba de quedar listo y esta página se enteró.
+ *
+ * La notificación solo si la página no se está mirando, y con la misma etiqueta que
+ * la de `sw.js`: si también llega la de Web Push, una reemplaza a la otra en vez de
+ * salir dos. Va por el registro porque en Android `new Notification` no existe.
+ */
+async function avisarQueEstaListo() {
+  if ("vibrate" in navigator) navigator.vibrate(PATRON_DE_VIBRACION);
+
+  if (!document.hidden || !soportaAvisos()) return;
+  if (Notification.permission !== "granted") return;
+
+  const registro = await navigator.serviceWorker.getRegistration();
+  if (registro) {
+    await registro.showNotification("Tu pedido está listo", {
+      body: "Pasá por el mostrador con tu código.",
+      icon: "iconos/icono-192.png",
+      tag: "pedido-listo",
+      vibrate: PATRON_DE_VIBRACION,
+    });
+  }
 }
 
 /**
@@ -1592,6 +1912,15 @@ function dibujarElBillete(pedido, respuesta) {
   estado.append(punto, texto);
 
   billete.append(rotulo, codigo, estado);
+
+  // Sin hora programada no se dice nada: lo antes posible es lo normal.
+  if (pedido.hora_recogida) {
+    const recogida = document.createElement("p");
+    recogida.className = "billete-recogida";
+    recogida.textContent = "Recogida programada: " + pedido.hora_recogida.slice(11, 16);
+    billete.append(recogida);
+  }
+
   return billete;
 }
 
@@ -1653,6 +1982,11 @@ function empezarOtroPedido() {
   referenciaDelCobro = null;
   urlDelCheckout = null;
   huellaDelResultado = null;
+  avisoActivado = false;
+  ultimoEstadoVisto = null;
+  $("bloque-aviso").classList.add("oculto");
+  $("recogida-ya").checked = true;
+  $("hora-recogida").value = "";
 
   // El carrito se vacía: sin esto el pedido siguiente empezaría con lo que la
   // persona acaba de pagar y recoger.
@@ -1699,6 +2033,7 @@ async function retomarElPedidoGuardado() {
   tokenDelPedido = guardado.token_consulta;
   referenciaDelCobro = guardado.referencia_pago || null;
   urlDelCheckout = guardado.url_checkout || null;
+  avisoActivado = guardado.aviso_activado;
 
   if (pedido.estado !== "pendiente_pago") {
     mostrarResultado(pedido);
@@ -1735,6 +2070,12 @@ for (const radio of document.querySelectorAll('input[name="metodo-de-pago"]')) {
     dibujarMetodos();
   });
 }
+
+for (const radio of document.querySelectorAll('input[name="cuando-recoger"]')) {
+  radio.addEventListener("change", dibujarDatosDelPedido);
+}
+
+$("activar-aviso").addEventListener("click", () => lanzar(activarAviso()));
 
 $("pagar").addEventListener("click", () => lanzar(pagarCarrito()));
 

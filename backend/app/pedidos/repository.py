@@ -23,18 +23,22 @@ verían «pendiente» y se generarían dos códigos de canje.
 Cuando `PIDEUTB_DATABASE_URL` no está configurada se usa el almacenamiento en
 memoria, que reproduce la misma semántica.
 """
+from datetime import datetime, timezone
+
 from app import base_de_datos
 from app.pedidos.contracts import EstadoPedido
 from app.pedidos.models import LineaPedido, Pedido
 
 _PEDIDOS: dict[int, Pedido] = {}
 _contador = 0
+_contador_comprobantes = 0
 
 #: Las columnas del pedido. Las de línea viven en `pedido_lineas` desde la
 #: migración 004; las que quedaron en `pedidos` son histórico y no se leen.
 _COLUMNAS = (
     "id, establecimiento_id, total_centavos, estado, codigo_canje, "
-    "token_consulta"
+    "token_consulta, hora_recogida, nombre_cliente, correo_cliente, "
+    "numero_comprobante, pagado_en, aviso_push_endpoint"
 )
 
 _COLUMNAS_LINEA = (
@@ -77,6 +81,12 @@ def _desde_fila(fila, lineas: list[LineaPedido]) -> Pedido:
         estado=EstadoPedido(fila[3]),
         codigo_canje=fila[4],
         token_consulta=fila[5],
+        hora_recogida=fila[6],
+        nombre_cliente=fila[7],
+        correo_cliente=fila[8],
+        numero_comprobante=fila[9],
+        pagado_en=fila[10],
+        aviso_push_endpoint=fila[11],
     )
 
 
@@ -86,6 +96,9 @@ def crear(
     lineas: list[LineaPedido],
     total_centavos: int,
     token_consulta: str,
+    hora_recogida: datetime | None = None,
+    nombre_cliente: str | None = None,
+    correo_cliente: str | None = None,
 ) -> Pedido:
     """Inserta un pedido con sus líneas y devuelve el que quedó guardado.
 
@@ -112,6 +125,9 @@ def crear(
             total_centavos=total_centavos,
             estado=EstadoPedido.PENDIENTE_PAGO,
             token_consulta=token_consulta,
+            hora_recogida=hora_recogida,
+            nombre_cliente=nombre_cliente,
+            correo_cliente=correo_cliente,
         )
         _PEDIDOS[pedido.id] = pedido
         return pedido
@@ -119,9 +135,16 @@ def crear(
     with base_de_datos.conexion() as conn, conn.cursor() as cur:
         cur.execute(
             "INSERT INTO pedidos (establecimiento_id, total_centavos, "
-            "token_consulta) "
-            f"VALUES (%s, %s, %s) RETURNING {_COLUMNAS}",
-            (establecimiento_id, total_centavos, token_consulta),
+            "token_consulta, hora_recogida, nombre_cliente, correo_cliente) "
+            f"VALUES (%s, %s, %s, %s, %s, %s) RETURNING {_COLUMNAS}",
+            (
+                establecimiento_id,
+                total_centavos,
+                token_consulta,
+                hora_recogida,
+                nombre_cliente,
+                correo_cliente,
+            ),
         )
         fila = cur.fetchone()
         pedido_id = fila[0]
@@ -221,8 +244,15 @@ def marcar_pagado(pedido_id: int, codigo_canje: str) -> Pedido | None:
         pedido = _PEDIDOS.get(pedido_id)
         if pedido is None or pedido.estado is not EstadoPedido.PENDIENTE_PAGO:
             return None
+        global _contador_comprobantes
+        _contador_comprobantes += 1
         actualizado = pedido.model_copy(
-            update={"estado": EstadoPedido.PAGADO, "codigo_canje": codigo_canje}
+            update={
+                "estado": EstadoPedido.PAGADO,
+                "codigo_canje": codigo_canje,
+                "numero_comprobante": _contador_comprobantes,
+                "pagado_en": datetime.now(timezone.utc),
+            }
         )
         _PEDIDOS[pedido_id] = actualizado
         return actualizado
@@ -230,7 +260,8 @@ def marcar_pagado(pedido_id: int, codigo_canje: str) -> Pedido | None:
     with base_de_datos.conexion() as conn, conn.cursor() as cur:
         cur.execute(
             "UPDATE pedidos SET estado = 'pagado', codigo_canje = %s, "
-            "actualizado_en = now() "
+            "numero_comprobante = nextval('comprobantes_consecutivo'), "
+            "pagado_en = now(), actualizado_en = now() "
             "WHERE id = %s AND estado = 'pendiente_pago' "
             f"RETURNING {_COLUMNAS}",
             (codigo_canje, pedido_id),
@@ -239,6 +270,50 @@ def marcar_pagado(pedido_id: int, codigo_canje: str) -> Pedido | None:
         lineas = _lineas_de(cur, pedido_id) if fila is not None else []
 
     return None if fila is None else _desde_fila(fila, lineas)
+
+
+def guardar_aviso_push(pedido_id: int, endpoint: str) -> None:
+    """Deja anotado a dónde avisar cuando el pedido esté listo."""
+    if not base_de_datos.hay_base_de_datos():
+        _PEDIDOS[pedido_id] = _PEDIDOS[pedido_id].model_copy(
+            update={"aviso_push_endpoint": endpoint}
+        )
+        return
+
+    with base_de_datos.conexion() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE pedidos SET aviso_push_endpoint = %s WHERE id = %s",
+            (endpoint, pedido_id),
+        )
+
+
+def tomar_aviso_push(pedido_id: int) -> str | None:
+    """Devuelve la dirección del aviso **y la borra**, en una sola instrucción.
+
+    En una sola para que dos llamadas simultáneas no puedan llevarse la misma
+    dirección: el aviso se manda una vez. Y se borra porque ya no le sirve a
+    nadie, y un dato que no se guarda no se puede filtrar.
+    """
+    if not base_de_datos.hay_base_de_datos():
+        pedido = _PEDIDOS.get(pedido_id)
+        if pedido is None or pedido.aviso_push_endpoint is None:
+            return None
+        _PEDIDOS[pedido_id] = pedido.model_copy(update={"aviso_push_endpoint": None})
+        return pedido.aviso_push_endpoint
+
+    with base_de_datos.conexion() as conn, conn.cursor() as cur:
+        cur.execute(
+            "WITH previo AS ("
+            "  SELECT id, aviso_push_endpoint FROM pedidos "
+            "  WHERE id = %s AND aviso_push_endpoint IS NOT NULL FOR UPDATE"
+            ") "
+            "UPDATE pedidos SET aviso_push_endpoint = NULL FROM previo "
+            "WHERE pedidos.id = previo.id RETURNING previo.aviso_push_endpoint",
+            (pedido_id,),
+        )
+        fila = cur.fetchone()
+
+    return None if fila is None else fila[0]
 
 
 def buscar_por_id(pedido_id: int) -> Pedido | None:

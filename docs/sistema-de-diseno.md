@@ -24,7 +24,7 @@ Esta guía fija la apariencia y el comportamiento de las dos superficies de
 PideUTB: la del cliente y la del mostrador. Cada pantalla que se desarrolle debe
 ajustarse a ella.
 
-**Versión** 2.4 · 30/10/2026 · **Fundamentos** fondo cálido, marca azul de la
+**Versión** 2.5 · 04/11/2026 · **Fundamentos** fondo cálido, marca azul de la
 UTB y portada fotográfica, con cada contraste medido y **verificado en cada
 construcción** por [`test_contraste.py`](../backend/tests/test_contraste.py) ·
 tokens vigentes en [`sitio/estilos.css`](../sitio/estilos.css) · **Alcance** las
@@ -272,7 +272,8 @@ acción**: solo señala que algo salió mal.
 | Token | Valor | Fondo | Contraste sobre su fondo | Uso |
 |---|---|---|---|---|
 | `--ambar` | `#92400A` | `--ambar-niebla` `#FDF0DC` | **6,31:1** | Franja de promoción, esperando |
-| `--verde-canje` | `#356F1A` | `--crema` | **5,68:1** | «Listo para recoger» · el billete del código |
+| `--verde-canje` | `#356F1A` | `--crema` | **5,68:1** | «Listo para recoger» |
+| `--codigo-tinta` | `#FFD166` | `--codigo-fondo` `#0A1F5C` | **10,68:1** | El código de recogida |
 | `--error` | `#B3261E` | `--error-fondo` `#FDECEA` | **5,72:1** | Pago rechazado, fallo de red |
 
 El ámbar de marca habitual (`#FFB020`) no aparece: con 1,9:1 sobre blanco no
@@ -362,7 +363,7 @@ lo fue. Son los valores reales, leídos de `sitio/estilos.css`.
 | Título de bloque (`h3`) | Titular | 1,1rem / 1,15 | 400 | Diálogos, paneles |
 | Nombre de ítem | Cuerpo | 1rem / 1,3 | 600 | Tarjetas |
 | Cuerpo | Cuerpo | 16px / 1,55 · cifras tabulares | 400 | Textos y campos |
-| Descripción de ítem | Cuerpo | 0,875rem · `--carbon-tenue` | 400 | Debajo del nombre |
+| Descripción de ítem | Cuerpo | 0,8rem · `--carbon-tenue` | 400 | Debajo del nombre |
 | Rótulo del billete | Cuerpo | 0,78rem · versalitas · espaciado 0,08 em | 600 | «Tu código de recogida» |
 | Código de canje | Titular | `clamp(2.25rem, 13vw, 3.5rem)` · espaciado 0,14 em | 400 | Solo el código |
 
@@ -726,15 +727,21 @@ rellenar la pantalla le dice a quien espera que falta más de lo que falta.
 ### Código de canje
 
 El momento alto de la aplicación: lo que el cliente enseña para recoger. Se trata
-como un **billete**, y es el único sitio donde el verde se usa entero —porque ahí
-es fondo y no letra—.
+como un **billete**, con su propio par de colores: el azul de la UTB llevado a casi
+noche y la cifra en ámbar.
+
+**Dejó de ser verde** porque el verde significa «ya podés recoger», y el código aparece
+en cuanto se paga, cuando la comida ni se ha empezado a preparar. **Y no es el azul de
+la marca** porque ese es un botón, y el código parecía algo que se puede pulsar. Con
+10,68:1 se lee desde la última fila, y 15,40:1 contra la tarjeta blanca lo despega de
+ella.
 
 ```
 ┌──────────────────────────────────────┐
 │       TU CÓDIGO DE RECOGIDA          │  --carbon-tenue, versalitas
 │  ╭────────────────────────────────╮  │
-│  │        K 7 M 2 X 9             │  │  fondo --verde-canje
-│  ╰────────────────────────────────╯  │  blanco encima · 6,10:1
+│  │        K 7 M 2 X 9             │  │  fondo --codigo-fondo
+│  ╰────────────────────────────────╯  │  --codigo-tinta encima · 10,68:1
 │          ( ● En preparación )        │  pastilla --crema-hundido
 └──────────────────────────────────────┘
 ```
@@ -827,6 +834,58 @@ decisión con consecuencia, que es para lo que `--ambar` existe.
 | No se cierra sola | Vive fuera del cuerpo de la pantalla, que se repinta cuando el mostrador mueve el pedido. Si viviera dentro, desaparecería bajo el dedo de quien la está leyendo |
 
 <a id="c-estados"></a>
+
+### Sugeridos del día
+
+Una fila que se desplaza de lado, encima del filtro, con los platos que la API marca
+como `sugerido`. Se aparta al elegir una categoría: quien filtró ya sabe qué busca.
+
+| Parte | Clase | Nota |
+|---|---|---|
+| La tarjeta | `.sugerido` | 142 px, para que se vean dos y media: la cortada dice que hay más |
+| El plato | `.plato` | 88 px y redondo. **Gira como el plato de un microondas**: una vuelta cada 12 s, constante |
+| El control | `.sugerido-control` | El mismo «+» de la carta, y siempre abajo aunque el nombre ocupe más líneas |
+
+El giro solo usa `transform`, así que lo resuelve el compositor sin repintar la foto.
+Quien pide menos movimiento ve el plato quieto. Y añadir al carrito **no vuelve a crear
+la imagen**, porque el giro empezaría de cero: se cambia solo el control.
+
+Solo salen los que tienen foto y se pueden pedir: un marcador con una inicial dando
+vueltas no se parece a un plato. Se cambian con `PIDEUTB_SUGERIDOS_DEL_DIA`, sin tocar
+el código.
+
+### Hora de recogida y comprobante
+
+Las dos cosas son opcionales, y por eso no estorban: **quien no toca nada pide
+exactamente como siempre**, para ya y sin dejar ningún dato.
+
+- La hora usa las pastillas de los métodos de pago: «Lo antes posible» viene marcado.
+  Solo se ofrece dentro del horario publicado; pasado el cierre desaparece.
+- En el billete, «Recogida programada: 14:30». Sin hora no se dice nada.
+- En el mostrador, «Recoger a las 14:30» en `--azul` y negrita, y «Lo antes posible» en
+  `--carbon-tenue`: la hora es lo que se mira, y solo destaca cuando la hay. Se puede
+  ordenar por ella: primero lo que es para ya y después lo programado, del más próximo
+  al más lejano.
+- El correo dice para qué es («solo para enviarte el comprobante») y se pide antes que
+  el nombre, porque es el que hace falta.
+
+### Aviso de pedido listo
+
+Un botón secundario debajo del resumen, **«Avisarme cuando esté listo»**. El permiso
+se pide al pulsarlo y nunca antes: iPhone solo lo acepta así, y pedirlo al abrir la
+página es la forma segura de que digan que no.
+
+| Lo que pasa en ese teléfono | Lo que se ve |
+|---|---|
+| Ya lo pidió | «Te avisamos en este teléfono cuando esté listo.» |
+| iPhone en el navegador | Cómo instalarla, porque ahí es la única forma |
+| Notificaciones bloqueadas | Que lo están, y que esta pantalla sigue actualizándose |
+| El despliegue no manda avisos, o el navegador no puede | Nada |
+
+La notificación dice «Tu pedido está listo» y **nunca el código**, porque se vería en la
+pantalla de bloqueo. Con la página abierta, el teléfono además vibra tres pulsos, el
+último más largo, donde el navegador lo permite (ver
+[ADR-0012](adr/0012-avisos-y-comprobante-prescindibles.md)).
 
 ### Estados y etiquetas
 

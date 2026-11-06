@@ -219,7 +219,8 @@ exigir su token). En las dos, lo viejo no era anterior: era la puerta abierta.
 | **3.0.0** | `/v1` | Soportada | [`historial/openapi-3.0.0.yaml`](historial/openapi-3.0.0.yaml) | **Incompatible.** Carrito: un pedido pasa de un producto a varios. Ver abajo. |
 | **3.1.0** | `/v1` | Soportada | [`historial/openapi-3.1.0.yaml`](historial/openapi-3.1.0.yaml) | Compatible. Promociones por franja horaria: `precio_antes_centavos` y `promocion_hasta` en `ItemMenu`. |
 | **3.2.0** | `/v1` | Soportada | [`historial/openapi-3.2.0.yaml`](historial/openapi-3.2.0.yaml) | Compatible. Nueva operación `obtenerIntentoDePago`, para distinguir un pago rechazado de uno que aún no ha confirmado ([R-11](../arc42/arc42.md#riesgos)). |
-| **4.0.0** | `/v1` | **Vigente** | [`historial/openapi-4.0.0.yaml`](historial/openapi-4.0.0.yaml) | **Incompatible.** `obtenerPedido` exige `X-Token-Pedido`: era público y los identificadores son secuenciales, así que cualquiera podía cosechar códigos de canje ([V-13](../violaciones.md#v-13)). El prefijo no cambió, por §5 bis. |
+| **4.0.0** | `/v1` | Anterior | [`historial/openapi-4.0.0.yaml`](historial/openapi-4.0.0.yaml) | **Incompatible.** `obtenerPedido` exige `X-Token-Pedido`: era público y los identificadores son secuenciales, así que cualquiera podía cosechar códigos de canje ([V-13](../violaciones.md#v-13)). El prefijo no cambió, por §5 bis. |
+| **4.1.0** | `/v1` | **Vigente** | [`historial/openapi-4.1.0.yaml`](historial/openapi-4.1.0.yaml) | Compatible. Hora de recogida y datos para el comprobante, opcionales, en `crearPedido`; `hora_recogida` en `Pedido`; `sugerido` en `ItemMenu` y el horario en `ListaItemsMenu`; `registrarAvisoPush` y `obtenerClavePublicaDeAvisos` ([ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md)). |
 
 ### El caso 3.0.0: por qué el carrito obliga a subir MAYOR
 

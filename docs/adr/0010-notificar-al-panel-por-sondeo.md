@@ -28,6 +28,14 @@ Aceptada — 18/10/2026
 > abajo son las frases que describían el sistema **en presente**. Un ADR
 > aceptado se anota, no se maquilla. Lo señaló la auditoría de la semana 12.
 
+> ### Revisión — el canal ya tiene un suscriptor
+>
+> Esta decisión conserva el canal «como costura sin suscriptores». Desde el 04/11/2026
+> lo escucha el comprobante por correo
+> ([ADR-0012](0012-avisos-y-comprobante-prescindibles.md)). **El panel se sigue
+> enterando por sondeo**, que es lo que aquí se decidió; lo que dejó de ser cierto es
+> que `publicar()` sea una operación nula.
+
 ## Contexto
 
 [ADR-0003](0003-estrategia-integracion.md) decidió, el 20/09/2026, que la

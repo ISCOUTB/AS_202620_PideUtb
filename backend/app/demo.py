@@ -127,6 +127,7 @@ def reiniciar(
             cursor.execute("SELECT count(*) FROM pedidos")
             if cursor.fetchone()[0] == 0:
                 cursor.execute("ALTER SEQUENCE pedidos_id_seq RESTART WITH 1")
+                cursor.execute("ALTER SEQUENCE comprobantes_consecutivo RESTART WITH 1")
 
     _LOG.warning("demo_reiniciada", extra={"borrados": borrados})
     return ReinicioResponse(borrados=borrados)
