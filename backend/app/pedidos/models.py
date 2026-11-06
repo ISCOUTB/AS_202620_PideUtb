@@ -19,6 +19,8 @@ redondeo.
 
 Ver `docs/ddd-contextos.md` §3 y §4 (hallazgo H-1).
 """
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 from app.pedidos.contracts import EstadoPedido
@@ -66,3 +68,18 @@ class Pedido(BaseModel):
     #: Lo entrega la API una sola vez, al crear el pedido. Va en el modelo y no
     #: solo en la respuesta porque hay que compararlo contra el almacenado.
     token_consulta: str = Field(min_length=16)
+
+    #: Cuándo quiere recogerlo. Nulo = lo antes posible, que es lo de siempre.
+    hora_recogida: datetime | None = None
+
+    #: Solo para mandar el comprobante. **Son datos de una persona** y ninguna
+    #: respuesta de la API los publica (arc42 §8.8).
+    nombre_cliente: str | None = None
+    correo_cliente: str | None = None
+
+    #: Los pone el mismo `UPDATE` que marca el pago.
+    numero_comprobante: int | None = None
+    pagado_en: datetime | None = None
+
+    #: A dónde avisar cuando esté listo. Se borra al usarlo.
+    aviso_push_endpoint: str | None = None

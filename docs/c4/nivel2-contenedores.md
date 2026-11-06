@@ -23,6 +23,8 @@ C4Container
     }
 
     System_Ext(wompi, "Wompi Sandbox", "Procesamiento de pagos de prueba.")
+    System_Ext(smtp, "Servidor de correo", "Entrega el comprobante al cliente.")
+    System_Ext(push, "Servicios de push", "De Google, Apple, Mozilla y Microsoft: despiertan al teléfono.")
 
     Rel(usuario, frontend, "Consulta menús, pide, paga y recoge", "HTTPS · HTML/JSON · síncrono")
     Rel(establecimiento, frontend, "Gestiona productos y estados de pedido", "HTTPS · HTML/JSON · síncrono")
@@ -30,11 +32,13 @@ C4Container
 
     Rel(frontend, api, "Consume la API v1", "HTTPS · JSON (REST) · síncrono")
     Rel(api, db, "Lee/escribe datos, incluidas credenciales y sesiones", "PostgreSQL sobre un pool reutilizado · síncrono · ~1 ms")
-    Rel(api, wompi, "Abre el intento de cobro", "HTTPS · JSON · síncrono")
+    Rel(frontend, wompi, "Lleva al usuario a pagar, con la URL que arma la API", "HTTPS · HTML · lo navega el usuario")
     Rel_Back(api, wompi, "Confirma la transacción (webhook firmado)", "HTTPS · JSON + HMAC · ASÍNCRONO")
+    Rel(api, smtp, "Manda el comprobante, si hay correo", "SMTP · en otro hilo · sin reintentos")
+    Rel(api, push, "Avisa de que el pedido está listo", "HTTPS · firmado con VAPID · en otro hilo · sin reintentos")
 
     UpdateRelStyle(frontend, api, $offsetY="-30")
-    UpdateRelStyle(api, wompi, $offsetX="-90", $offsetY="-40")
+    UpdateRelStyle(frontend, wompi, $offsetX="-90", $offsetY="-40")
     UpdateRelStyle(api, db, $offsetX="-60", $offsetY="-20")
 ```
 
@@ -49,10 +53,12 @@ La misma información del diagrama, en forma consultable. La última columna es 
 | 3 | API PideUTB → Base de datos | TCP (red interna) | PostgreSQL sobre un **pool reutilizado** | Síncrono | `app/base_de_datos.py`, `app/*/repository.py` | La operación falla y se responde un error explícito; `/health` devuelve `503` y la plataforma marca el contenedor enfermo. **Eso incluye no poder iniciar sesión**: las credenciales viven ahí |
 | 4 | Frontend Web → Pasarela (Wompi Sandbox o la de pruebas) | HTTPS | HTML | Síncrono, **lo navega el usuario** | URL de checkout que arma `app/pagos/service.py` | El usuario no llega a pagar; **el pedido se conserva** en `pendiente_pago` y se puede reintentar |
 | 5 | Wompi Sandbox → API PideUTB | HTTPS | JSON + firma HMAC (`X-Firma-Evento`) | **Asíncrono** | [`asyncapi.yaml`](../api/asyncapi.yaml) · canal `eventos-de-pago` | El pedido queda en `pendiente_pago`, consultable por el frontend |
+| 6 | API PideUTB → Servidor de correo | SMTP | Correo HTML y texto | **Asíncrono**: en otro hilo, sin reintentos | `app/correo.py` | El comprobante no sale y se registra. **El pedido no se entera** ([ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md)) |
+| 7 | API PideUTB → Servicios de push | HTTPS | Sin contenido, firmado con VAPID | **Asíncrono**: en otro hilo, sin reintentos | RFC 8030 y 8292 · `app/avisos.py` | El aviso no llega y se registra. La pantalla del cliente se entera igual por sondeo |
 
 ### Por qué la flecha 5 va en sentido contrario
 
-Es la única relación en la que **un sistema externo inicia la conversación**, y por eso se dibuja hacia dentro. Un webhook no es «la respuesta» de la llamada 4: es una petición nueva, que llega minutos después, por una conexión distinta, y que puede llegar **varias veces o ninguna**.
+Es la única relación en la que **un sistema externo inicia la conversación**, y por eso se dibuja hacia dentro. Un webhook no es «la respuesta» de la flecha 4: es una petición nueva, que llega minutos después, por una conexión distinta, y que puede llegar **varias veces o ninguna**.
 
 Dibujarla como retorno de la flecha 4 sugeriría que hay una petición esperando al otro lado, que es justo lo que no ocurre y lo que hace que esta integración sea asíncrona.
 

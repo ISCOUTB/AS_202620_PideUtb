@@ -121,6 +121,31 @@ def buscar_pendientes_de_pedidos(pedido_ids: list[int]) -> list[IntentoPago]:
         return [_desde_fila(fila) for fila in cur.fetchall()]
 
 
+def buscar_no_rechazado_de_pedido(pedido_id: int) -> IntentoPago | None:
+    """El intento con el que se pagó el pedido, o con el que se está pagando.
+
+    Un pedido puede acumular intentos rechazados antes del bueno, y el que cuenta
+    es el último de los otros. Puede seguir `pendiente` todavía: el pedido se
+    marca pagado antes que su intento (`pagos.service.conciliar`).
+    """
+    if not base_de_datos.hay_base_de_datos():
+        for intento in reversed(list(_INTENTOS.values())):
+            if intento.pedido_id == pedido_id and intento.estado_pago is not EstadoPago.RECHAZADO:
+                return intento
+        return None
+
+    with base_de_datos.conexion() as conn, conn.cursor() as cur:
+        cur.execute(
+            f"SELECT {_COLUMNAS} FROM pagos_intentos "
+            "WHERE pedido_id = %s AND estado_pago <> 'rechazado' "
+            "ORDER BY creado_en DESC LIMIT 1",
+            (pedido_id,),
+        )
+        fila = cur.fetchone()
+
+    return None if fila is None else _desde_fila(fila)
+
+
 def buscar_pendiente_de_pedido(pedido_id: int) -> IntentoPago | None:
     """Intento aún sin resolver para un pedido, si lo hay.
 

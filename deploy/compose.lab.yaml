@@ -76,6 +76,19 @@ services:
       # desaparece. Ver `backend/app/demo.py`.
       PIDEUTB_TOKEN_REINICIO_DEMO: ${PIDEUTB_TOKEN_REINICIO_DEMO:-}
 
+      # Las salidas prescindibles (ADR-0012). Todas opcionales: sin ellas no se
+      # manda correo ni aviso, y el pedido funciona igual. Se escriben en el panel.
+      PIDEUTB_SMTP_HOST: ${PIDEUTB_SMTP_HOST:-}
+      PIDEUTB_SMTP_PUERTO: ${PIDEUTB_SMTP_PUERTO:-587}
+      PIDEUTB_SMTP_USUARIO: ${PIDEUTB_SMTP_USUARIO:-}
+      PIDEUTB_SMTP_CONTRASENA: ${PIDEUTB_SMTP_CONTRASENA:-}
+      PIDEUTB_SMTP_REMITENTE: ${PIDEUTB_SMTP_REMITENTE:-}
+      PIDEUTB_VAPID_CLAVE_PRIVADA: ${PIDEUTB_VAPID_CLAVE_PRIVADA:-}
+      PIDEUTB_VAPID_CONTACTO: ${PIDEUTB_VAPID_CONTACTO:-}
+
+      # Cambia los platos que giran en la carta sin tocar el código.
+      PIDEUTB_SUGERIDOS_DEL_DIA: ${PIDEUTB_SUGERIDOS_DEL_DIA:-}
+
       # El sitio vive en otro host, así que **toda** llamada del panel es una
       # petición entre orígenes y esta lista es la que decide si pasa. No es
       # decorativa: una lista equivocada deja el panel roto en el navegador con

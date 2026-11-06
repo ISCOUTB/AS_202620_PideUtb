@@ -527,6 +527,235 @@ test.describe("El mostrador", () => {
   });
 });
 
+test.describe("La carta", () => {
+  test("los sugeridos giran, y añadir uno no les reinicia el giro", async ({ page }) => {
+    await abrirLaCarta(page);
+
+    const plato = page.locator(".plato").first();
+    await expect(plato).toBeVisible();
+    const giro = await plato.evaluate((el) => {
+      const animacion = el.getAnimations()[0];
+      return {
+        nombre: animacion.animationName,
+        estado: animacion.playState,
+        tiempo: animacion.currentTime,
+      };
+    });
+    expect(giro.nombre).toBe("girar");
+    expect(giro.estado).toBe("running");
+
+    await page.locator(".sugerido").first().getByRole("button", { name: /^Agregar/ }).click();
+    await expect(page.locator("#carrito-chapa")).toHaveText("1");
+
+    // `plato` sigue apuntando al mismo elemento. Si `dibujarCarta` lo hubiera vuelto
+    // a crear, el giro habría vuelto a cero.
+    const despues = await plato.evaluate((el) => el.getAnimations()[0].currentTime);
+    expect(despues).toBeGreaterThan(giro.tiempo);
+  });
+
+  test("con menos movimiento, los platos se quedan quietos", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await abrirLaCarta(page);
+
+    const plato = page.locator(".plato").first();
+    await expect(plato).toBeVisible();
+    await expect
+      .poll(() => plato.evaluate((el) => el.getAnimations().filter((a) => a.playState === "running").length))
+      .toBe(0);
+  });
+
+  test("filtrar aparta los sugeridos, y las gaseosas están", async ({ page }) => {
+    await abrirLaCarta(page);
+    await expect(page.locator("#sugeridos")).toBeVisible();
+
+    await page.getByRole("button", { name: "Bebidas", exact: true }).click();
+
+    await expect(page.locator("#sugeridos")).toBeHidden();
+    const nombres = page.locator("#lista-items .item-nombre");
+    await expect(nombres.filter({ hasText: "Coca-Cola" })).toHaveCount(2);
+    await expect(nombres.filter({ hasText: "Postobón Manzana" })).toHaveCount(2);
+  });
+
+  test("cada producto lleva su descripción en letra pequeña", async ({ page }) => {
+    const productos = await abrirLaCarta(page);
+
+    const total = await productos.count();
+    await expect(page.locator("#lista-items .item-descripcion")).toHaveCount(total);
+
+    const descripcion = page.locator("#lista-items .item-descripcion").first();
+    const nombre = page.locator("#lista-items .item-nombre").first();
+    const tamano = (l) => l.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    expect(await tamano(descripcion)).toBeLessThan(await tamano(nombre));
+  });
+});
+
+test.describe("La hora de recogida", () => {
+  test("se puede programar, y sale en el billete", async ({ page, request }) => {
+    // Depende del reloj de verdad, porque de verdad lo valida la API. Fuera del
+    // horario la opción no se ofrece, y eso ya es el comportamiento correcto.
+    const carta = await (await request.get(`${API}/v1/menu/establecimientos/5/items`)).json();
+    const enBogota = (ms) =>
+      new Intl.DateTimeFormat("en-GB", {
+        timeZone: "America/Bogota",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      }).format(ms);
+    const hora = enBogota(Date.now() + 15 * 60_000);
+    test.skip(
+      hora < carta.hora_apertura || hora >= carta.hora_cierre || enBogota(Date.now()) > hora,
+      "Fuera del horario de atención"
+    );
+
+    const productos = await abrirLaCarta(page);
+    await productos.nth(0).getByRole("button", { name: /^Agregar/ }).click();
+    await page.getByRole("button", { name: /Ver mi pedido/ }).click();
+
+    await page.getByText("A una hora", { exact: true }).click();
+    await page.locator("#hora-recogida").fill(hora);
+    await page.getByText("Nequi", { exact: true }).click();
+    await page.locator("#pagar").click();
+
+    await aprobarElCobro(page, request);
+
+    await expect(page.locator(".billete-recogida")).toHaveText(
+      `Recogida programada: ${hora}`,
+      { timeout: 20_000 }
+    );
+  });
+
+  test("sin elegir nada, el pedido es para ya", async ({ page, request }) => {
+    await pagarUnProducto(page, request);
+
+    await expect(page.locator(".billete-recogida")).toHaveCount(0);
+    expect(await page.evaluate(() => pedidoActual.hora_recogida)).toBeNull();
+  });
+});
+
+test.describe("El aviso de que está listo", () => {
+  // El camino completo está en `aviso-push.spec.js`, que necesita otro navegador.
+  test("sin clave en el despliegue no se ofrece nada", async ({ page, request }) => {
+    await page.route("**/v1/avisos/clave-publica", (ruta) =>
+      ruta.fulfill({ status: 404, contentType: "application/json", body: '{"detail":"no"}' })
+    );
+
+    await pagarUnProducto(page, request);
+
+    await expect(page.locator("#bloque-aviso")).toBeHidden();
+  });
+
+  test("el service worker no se interpone en las peticiones", async ({ page }) => {
+    await abrirLaCarta(page);
+
+    const manejaFetch = await page.evaluate(async () => {
+      const registro = await navigator.serviceWorker.register("sw.js");
+      await navigator.serviceWorker.ready;
+      const texto = await (await fetch(registro.active.scriptURL)).text();
+      return texto.includes('addEventListener("fetch"');
+    });
+
+    expect(manejaFetch).toBe(false);
+  });
+});
+
+test.describe("El mostrador y la hora", () => {
+  test.skip(
+    !MOSTRADOR.correo || !MOSTRADOR.contrasena,
+    "Sin PIDEUTB_MOSTRADOR_CORREO y PIDEUTB_MOSTRADOR_CONTRASENA"
+  );
+
+  test("el teléfono vibra una vez cuando el pedido queda listo", async ({ page, request }) => {
+    await page.addInitScript(() => {
+      window.vibraciones = [];
+      navigator.vibrate = (patron) => {
+        window.vibraciones.push(patron);
+        return true;
+      };
+    });
+
+    await pagarUnProducto(page, request);
+    const pedidoId = await page.evaluate(() => pedidoActual.pedido_id);
+
+    const sesion = await request.post(`${API}/v1/sesiones`, {
+      data: { correo: MOSTRADOR.correo, contrasena: MOSTRADOR.contrasena },
+    });
+    const { token } = await sesion.json();
+    const headers = { Authorization: `Bearer ${token}` };
+
+    await request.post(`${API}/v1/pedidos/${pedidoId}/estado`, {
+      data: { estado: "en_preparacion" },
+      headers,
+    });
+    await expect(page.locator(".billete-estado")).toHaveText("En preparación", { timeout: 20_000 });
+    expect(await page.evaluate(() => window.vibraciones)).toEqual([]);
+
+    await request.post(`${API}/v1/pedidos/${pedidoId}/estado`, {
+      data: { estado: "listo_para_recoger" },
+      headers,
+    });
+    await expect(page.locator(".billete-estado")).toHaveText("Listo para recoger", { timeout: 20_000 });
+
+    expect(await page.evaluate(() => window.vibraciones)).toEqual([[200, 100, 200, 100, 400]]);
+  });
+
+  test("ve la hora en cada fila y puede ordenar por ella", async ({ page, request }) => {
+    const carta = await (await request.get(`${API}/v1/menu/establecimientos/5/items`)).json();
+    const enBogota = (ms) =>
+      new Intl.DateTimeFormat("en-GB", {
+        timeZone: "America/Bogota",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      }).format(ms);
+    const hora = enBogota(Date.now() + 15 * 60_000);
+    test.skip(
+      hora < carta.hora_apertura || hora >= carta.hora_cierre || enBogota(Date.now()) > hora,
+      "Fuera del horario de atención"
+    );
+
+    // Uno programado y, después, uno para ya: por llegada sale primero el segundo
+    // porque es el más reciente, y por hora también, porque es para ya. Para que el
+    // orden se note, el programado se crea el último.
+    const crear = async (extra) => {
+      const creado = await (
+        await request.post(`${API}/v1/pedidos`, {
+          data: { lineas: [{ item_id: 124, cantidad: 1 }], ...extra },
+        })
+      ).json();
+      const intento = await (
+        await request.post(`${API}/v1/pagos/intentos`, {
+          data: { pedido_id: creado.pedido_id, metodo: "pse" },
+        })
+      ).json();
+      await request.post(`${API}/v1/pagos/simulador/${intento.referencia_pago}`, {
+        data: { estado_pago: "aprobado" },
+      });
+      return creado.pedido_id;
+    };
+    const paraYa = await crear({});
+    const programado = await crear({ hora_recogida: hora });
+
+    await page.goto("/panel.html");
+    await page.locator("#correo").fill(MOSTRADOR.correo);
+    await page.locator("#contrasena").fill(MOSTRADOR.contrasena);
+    await page.getByRole("button", { name: /Entrar|Ingresar/ }).click();
+
+    const fila = (id) => page.locator("#cola .pedido").filter({ hasText: `#${id}` });
+    await expect(fila(programado).locator(".pedido-recogida")).toHaveText(`Recoger a las ${hora}`);
+    await expect(fila(paraYa).locator(".pedido-recogida")).toHaveText("Lo antes posible");
+
+    const ids = () =>
+      page.locator("#cola .pedido .item-nombre").evaluateAll((n) => n.map((x) => x.textContent));
+    const posicion = async (id) => (await ids()).indexOf(`#${id}`);
+
+    expect(await posicion(programado)).toBeLessThan(await posicion(paraYa));
+
+    await page.locator("#orden-cola").selectOption("recogida");
+
+    await expect.poll(async () => (await posicion(paraYa)) < (await posicion(programado))).toBe(true);
+  });
+});
+
 // Deja la base como estaba, si se le dio con qué.
 test.afterAll(async ({ }, info) => {
   if (!TOKEN_DEMO) return;

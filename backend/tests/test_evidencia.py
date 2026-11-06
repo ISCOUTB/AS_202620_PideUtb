@@ -26,29 +26,29 @@ DOSSIER = RAIZ / "docs" / "evidencia-s7.md"
 #: cambiar las dos: la del código y la del documento.
 CITAS = [
     # §1 — Correspondencia contrato ↔ código: prefijos de los routers
-    ("backend/app/main.py", 133, '"/health"'),
-    ("backend/app/main.py", 174, '"/metricas"'),
+    ("backend/app/main.py", 140, '"/health"'),
+    ("backend/app/main.py", 181, '"/metricas"'),
     ("backend/app/menu/router.py", 20, 'prefix="/v1/menu"'),
     ("backend/app/menu/router.py", 24, '"/items/{item_id}"'),
     ("backend/app/menu/router.py", 36, '"/establecimientos/{establecimiento_id}/items"'),
-    ("backend/app/pedidos/router.py", 23, 'prefix="/v1/pedidos"'),
-    ("backend/app/pedidos/router.py", 52, '"/{pedido_id}"'),
-    ("backend/app/pedidos/router.py", 127, '"/{pedido_id}/estado"'),
+    ("backend/app/pedidos/router.py", 24, 'prefix="/v1/pedidos"'),
+    ("backend/app/pedidos/router.py", 62, '"/{pedido_id}"'),
+    ("backend/app/pedidos/router.py", 174, '"/{pedido_id}/estado"'),
     ("backend/app/usuarios/router.py", 16, 'prefix="/v1/sesiones"'),
     ("backend/app/pagos/router.py", 21, 'prefix="/v1/pagos"'),
     ("backend/app/pagos/router.py", 25, '"/intentos"'),
     ("backend/app/pagos/router.py", 64, '"/eventos"'),
 
     # §1 — Los paths del contrato
-    ("docs/api/openapi.yaml", 85, "/health:"),
-    ("docs/api/openapi.yaml", 144, "/v1/menu/items/{item_id}:"),
-    ("docs/api/openapi.yaml", 168, "/v1/menu/establecimientos/{establecimiento_id}/items:"),
-    ("docs/api/openapi.yaml", 202, "/v1/sesiones:"),
-    ("docs/api/openapi.yaml", 262, "/v1/pedidos:"),
-    ("docs/api/openapi.yaml", 354, "/v1/pedidos/{pedido_id}/estado:"),
-    ("docs/api/openapi.yaml", 438, "/v1/pedidos/{pedido_id}:"),
-    ("docs/api/openapi.yaml", 475, "/v1/pagos/intentos:"),
-    ("docs/api/openapi.yaml", 551, "/v1/pagos/eventos:"),
+    ("docs/api/openapi.yaml", 89, "/health:"),
+    ("docs/api/openapi.yaml", 148, "/v1/menu/items/{item_id}:"),
+    ("docs/api/openapi.yaml", 172, "/v1/menu/establecimientos/{establecimiento_id}/items:"),
+    ("docs/api/openapi.yaml", 206, "/v1/sesiones:"),
+    ("docs/api/openapi.yaml", 266, "/v1/pedidos:"),
+    ("docs/api/openapi.yaml", 362, "/v1/pedidos/{pedido_id}/estado:"),
+    ("docs/api/openapi.yaml", 504, "/v1/pedidos/{pedido_id}:"),
+    ("docs/api/openapi.yaml", 541, "/v1/pagos/intentos:"),
+    ("docs/api/openapi.yaml", 617, "/v1/pagos/eventos:"),
 
     # §2 — El pipeline ejecuta la prueba de contrato
     (".github/workflows/ci.yml", 109, "Ejecutar pruebas"),
@@ -69,19 +69,19 @@ CITAS = [
     (".github/workflows/ci.yml", 293, "sonarqube-quality-gate-action@7a5fffe8"),
 
     # §5 — C4 nivel 2: cada flecha con protocolo, formato y modo
-    ("docs/c4/nivel2-contenedores.md", 31, "HTTPS · JSON (REST) · síncrono"),
-    ("docs/c4/nivel2-contenedores.md", 32, "PostgreSQL sobre un pool reutilizado · síncrono · ~1 ms"),
-    ("docs/c4/nivel2-contenedores.md", 33, "HTTPS · JSON · síncrono"),
-    ("docs/c4/nivel2-contenedores.md", 34, "HTTPS · JSON + HMAC · ASÍNCRONO"),
+    ("docs/c4/nivel2-contenedores.md", 33, "HTTPS · JSON (REST) · síncrono"),
+    ("docs/c4/nivel2-contenedores.md", 34, "PostgreSQL sobre un pool reutilizado · síncrono · ~1 ms"),
+    ("docs/c4/nivel2-contenedores.md", 35, "HTTPS · HTML · lo navega el usuario"),
+    ("docs/c4/nivel2-contenedores.md", 36, "HTTPS · JSON + HMAC · ASÍNCRONO"),
 
     # §4 — arc42 sección 6
-    ("docs/arc42/arc42.md", 453, "## 6. Vista de tiempo de ejecución"),
-    ("docs/arc42/arc42.md", 468, "### 6.1 Resumen de los flujos"),
-    ("docs/arc42/arc42.md", 489, "### 6.2 Crear un pedido"),
-    ("docs/arc42/arc42.md", 554, "### 6.3 Pagar un pedido"),
-    ("docs/arc42/arc42.md", 636, "### 6.4 Consultar el estado"),
-    ("docs/arc42/arc42.md", 669, "### 6.5 Modos de fallo"),
-    ("docs/arc42/arc42.md", 837, "### 6.6 Deuda conocida"),
+    ("docs/arc42/arc42.md", 454, "## 6. Vista de tiempo de ejecución"),
+    ("docs/arc42/arc42.md", 469, "### 6.1 Resumen de los flujos"),
+    ("docs/arc42/arc42.md", 490, "### 6.2 Crear un pedido"),
+    ("docs/arc42/arc42.md", 555, "### 6.3 Pagar un pedido"),
+    ("docs/arc42/arc42.md", 637, "### 6.4 Consultar el estado"),
+    ("docs/arc42/arc42.md", 670, "### 6.5 Modos de fallo"),
+    ("docs/arc42/arc42.md", 843, "### 6.6 Deuda conocida"),
 ]
 
 

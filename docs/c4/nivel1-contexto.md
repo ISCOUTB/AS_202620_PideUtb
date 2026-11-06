@@ -15,11 +15,16 @@ C4Context
     System(pideutb, "PideUTB", "Sistema web para realizar pedidos de comida dentro del campus")
 
     System_Ext(wompi, "Wompi (Sandbox)", "Pasarela de pagos utilizada para transacciones de prueba")
+    System_Ext(smtp, "Servidor de correo", "Entrega el comprobante de pago al cliente")
+    System_Ext(push, "Servicios de push", "De Google, Apple, Mozilla y Microsoft: avisan al teléfono del cliente")
 
     Rel(usuario, pideutb, "Consulta menús, realiza pedidos, paga y recibe código")
     Rel(establecimiento, pideutb, "Gestiona productos y pedidos")
     Rel(admin, pideutb, "Administra la plataforma")
-    Rel(pideutb, wompi, "Envía solicitudes de pago y recibe estados de transacción", "HTTPS/API")
+    Rel(usuario, wompi, "Paga en la pasarela, con la dirección que le da PideUTB", "HTTPS")
+    Rel(wompi, pideutb, "Confirma la transacción", "HTTPS · webhook firmado")
+    Rel(pideutb, smtp, "Manda el comprobante", "SMTP")
+    Rel(pideutb, push, "Avisa de que el pedido está listo", "HTTPS")
 ```
 
 **Leyenda del diagrama**
@@ -28,7 +33,7 @@ C4Context
 |-------------|------------------------|------------------------------------------------------------------------------------------------------------------|
 | Azul oscuro | `Person(...)`          | Personas que se conectan al sistema: usuario (estudiante o profesor), personal del establecimiento, administrador. |
 | Azul claro  | `System(...)`          | El software que estamos construyendo: PideUTB.                                                                    |
-| Gris        | `System_Ext(...)`      | Servicios externos de los que depende nuestro software. Queda **uno solo**: Wompi.                                 |
+| Gris        | `System_Ext(...)`      | Servicios externos de los que depende nuestro software. Son tres: Wompi, el servidor de correo y los servicios de push.                                 |
 
 ### Por qué ya no aparece la base de datos
 

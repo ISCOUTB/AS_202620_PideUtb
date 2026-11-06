@@ -4,6 +4,15 @@
 
 Aceptada — 18/10/2026
 
+> ### Revisión — aparecieron dos integraciones salientes
+>
+> Abajo se dice que hoy no existe ninguna integración saliente, y que su aparición
+> es una de las cosas que cambiarían esta decisión. El 04/11/2026 aparecieron dos: el
+> correo del comprobante y el aviso al teléfono. Se volvió a hacer la cuenta en
+> [ADR-0012](0012-avisos-y-comprobante-prescindibles.md) y **la decisión se sostiene**:
+> son prescindibles, sin reintentos, y caben en dos hilos. El texto de abajo se deja
+> como se escribió.
+
 ## Contexto
 
 [ADR-0001](0001-estilo-arquitectonico.md) eligió un **monolito modular**: cuatro

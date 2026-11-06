@@ -305,9 +305,10 @@ Las principales interacciones externas son:
 
   **(ninguna más)**                   Desde S11 la base de datos es un
                                       contenedor del propio despliegue y
-                                      no una interfaz externa. Wompi es
-                                      el único sistema que no
-                                      controlamos.
+                                      no una interfaz externa. Wompi, el
+                                      servidor de correo y los servicios
+                                      de push son los únicos sistemas
+                                      que no controlamos.
   -----------------------------------------------------------------------
 
 ------------------------------------------------------------------------
@@ -729,6 +730,11 @@ integración saliente a la que aplicar reintentos con backoff**. Implementarlos
 exigiría primero inventar la llamada. Queda dicho aquí porque la alternativa
 —una sección sobre backoff que no se aplica a nada— sería peor que su ausencia.
 
+Desde el 04/11/2026 sí hay dos salidas: el correo del comprobante y el aviso al
+teléfono. **Tampoco llevan reintentos, y es a propósito**: nada depende de ellas y su
+contenido ya está en la pantalla del cliente
+([ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md)).
+
 #### La tabla
 
 | # | Fallo parcial | Qué queda roto | Mitigación | Qué lo hace visible |
@@ -810,14 +816,14 @@ Un desajuste que nadie puede enumerar es indistinguible de no tenerlo.
 #### Por qué no hay outbox
 
 El canal `pedidos-pagados` está declarado en
-[`asyncapi.yaml`](../api/asyncapi.yaml), se publica desde `pedidos.service` y
-**no tiene ningún suscriptor en producción**. Los únicos `suscribir()` del
-repositorio están en las pruebas.
+[`asyncapi.yaml`](../api/asyncapi.yaml), se publica desde `pedidos.service` y su
+**único suscriptor es el comprobante por correo**, que es prescindible.
 
-Un mecanismo para no perder mensajes que nadie recibe resolvería un problema que
-no se tiene. La decisión queda atada a una prueba —
-`test_el_evento_se_pierde_si_no_hay_nadie_escuchando`— que **falla el día que
-aparezca un suscriptor**, y obliga entonces a revisar esto en vez de heredarlo.
+Un mecanismo para no perder mensajes que se pueden perder resolvería un problema que
+no se tiene. La decisión está en
+[ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md) y atada a una prueba
+—`test_quien_escucha_los_pagos_es_prescindible`— que **falla el día que se suscriba
+algo más**, y obliga entonces a revisar esto en vez de heredarlo.
 
 #### La frontera que las pruebas no cubren
 
@@ -1648,11 +1654,14 @@ arquitectura y no una casualidad:
 | `usuarios` | `correo` del personal | En claro. Es el identificador de acceso |
 | `usuarios` | Contraseña | **Nunca**: solo su derivación scrypt con sal propia |
 | `sesiones` | Token | **Nunca**: solo su hash |
-| `pedidos` | — | **Nada.** Ni nombre, ni teléfono, ni correo, ni identificador de dispositivo |
+| `pedidos` | `correo_cliente`, `nombre_cliente` | **Solo si los dejan, y son opcionales.** Sirven para mandar el comprobante. No los devuelve ninguna respuesta de la API |
+| `pedidos` | `aviso_push_endpoint` | La dirección a la que avisar a ese teléfono. **Se borra al usarla** |
 
-La fila que importa es la última. **Un cliente de PideUTB no es un registro: es
-quien tiene un código de canje.** Pide sin cuenta, sin dejar datos y sin que el
-sistema pueda relacionar dos de sus pedidos entre sí.
+**Un cliente de PideUTB sigue sin ser un registro: es quien tiene un código de
+canje.** Pide sin cuenta y, si quiere, sin dejar ningún dato. Hasta el 04/11/2026 esta
+tabla decía que `pedidos` no guardaba nada de una persona; el comprobante por correo
+cambió eso para quien lo pida, y se decidió en
+[ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md).
 
 Eso no se decidió como política de privacidad; salió de
 [ADR-0002](../adr/0002-propiedad-datos-establecimiento.md) y del alcance del
@@ -1670,11 +1679,11 @@ Por eso se genera con `secrets`, es único en la tabla, y se exige al entregar.
 |---|---|---|
 | `sesiones` vigentes | 8 horas (`HORAS_DE_SESION`), para cubrir un turno | Caducan solas; la consulta de sesión las descarta |
 | `sesiones` caducadas | **Para siempre** | `borrar_sesiones_caducadas()` existe y **no la llama nadie** |
-| `pedidos` | **Para siempre** | Nadie |
+| `pedidos`, **incluidos el correo y el nombre de quien los dejó** | **Para siempre** | Nadie. Es la deuda de esta tabla: con clientes reales hay que fijar un plazo y una política de tratamiento (Ley 1581 de 2012) |
 | `usuarios` | Hasta que se desactiven | Nadie; `activo = false` en vez de borrado |
 
-Las dos filas de «para siempre» son honestas y no urgentes, por el motivo de
-arriba: lo que se acumula no contiene datos de clientes. Una sesión caducada es
+La de sesiones caducadas es honesta y no urgente: lo que se acumula no contiene
+datos de clientes. Una sesión caducada es
 un hash inútil —`buscar_usuario_de_sesion` la descarta por `expira_en`— así que
 es **higiene y no seguridad**, y su función lo dice en el propio docstring en vez
 de dar a entender que alguien la ejecuta.
@@ -1765,6 +1774,7 @@ arquitectura sin abrir nada.
 | [ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md) | Desplegar en el servidor del laboratorio, con la base de datos dentro del despliegue y la API en un host aparte | [ESC-03](#esc-03) | Aceptada — reemplaza a ADR-0004 |
 | [ADR-0009](../adr/0009-no-extraer-un-servicio.md) | No extraer ningún módulo a un servicio independiente, y dejar escrito qué lo cambiaría | [ESC-02](#esc-02) | Aceptada |
 | [ADR-0010](../adr/0010-notificar-al-panel-por-sondeo.md) | Notificar al panel por sondeo, y conservar el canal de eventos como costura sin suscriptores | [ESC-03](#esc-03) | Aceptada — revisa ADR-0003 con evidencia de producción; el intervalo bajó a 5 s en la S14 |
+| [ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md) | Avisar al cliente y mandarle el comprobante como salidas prescindibles, sin cola ni reintentos | [ESC-05](#esc-05) | Aceptada — revisa ADR-0009 y ADR-0010 |
 | [ADR-0011](../adr/0011-un-solo-esquema-para-los-cuatro-contextos.md) | Guardar los cuatro contextos en un solo esquema con integridad referencial cruzada, que es la decisión de datos más cara de deshacer | [ESC-02](#esc-02) | Aceptada — pone precio a la reversión que ADR-0009 deja abierta |
 
 *(Este índice se amplía en cada entrega a medida que surgen nuevas
@@ -2267,7 +2277,7 @@ que hay que resolver con un número delante.
 | ID | Deuda | Qué cuesta | Qué la pagaría |
 |---|---|---|---|
 | **D-01** | **No se puede ejecutar el despliegue en local**: no hay Docker en la máquina de desarrollo | Cinco defectos de configuración llegaron a producción invisibles para 282 pruebas ([§7.6](#despliegue-deuda)) | Instalar Docker y correr `deploy/compose.lab.yaml`. Los cinco se habrían visto en treinta segundos |
-| **D-02** | **El canal de eventos no tiene suscriptores.** `publicar()` es una operación nula | Quien lea `publicar(...)` asume que algo pasa después | Evaluado en [ADR-0010](../adr/0010-notificar-al-panel-por-sondeo.md): se conserva como costura, y la trampa se desactiva nombrándola |
+| **D-02** | **El canal de eventos solo tiene suscriptores prescindibles** (correo y aviso, [ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md)) | Quien lea `publicar(...)` puede creer que algo depende de eso | Evaluado en [ADR-0010](../adr/0010-notificar-al-panel-por-sondeo.md): se conserva como costura, y la trampa se desactiva nombrándola |
 | **D-03** | **ESC-03 no se ha vuelto a medir en la plataforma nueva.** La medición de ~0,7 s en caliente es de Render | No se sabe si el escenario se cumple hoy, solo que debería | Remedir en la S14, que es donde toca |
 | **D-04** | **No hay forma de restablecer una contraseña en producción.** La cuenta inicial se siembra una vez | Una contraseña perdida deja el panel inaccesible sin tocar la base | Se analiza en la S13 |
 

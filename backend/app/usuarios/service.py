@@ -17,6 +17,9 @@ def obtener_establecimiento(establecimiento_id: int) -> EstablecimientoPublico |
         establecimiento_id=establecimiento.id,
         nombre=establecimiento.nombre,
         activo=establecimiento.activo,
+        ubicacion=establecimiento.ubicacion,
+        hora_apertura=establecimiento.hora_apertura,
+        hora_cierre=establecimiento.hora_cierre,
     )
 
 

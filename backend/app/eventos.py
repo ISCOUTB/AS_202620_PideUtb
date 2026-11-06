@@ -20,7 +20,8 @@ La tercera es la razón de que exista este archivo en vez de llamar directamente
 a la función del suscriptor: sin aislamiento de fallos volvería el acoplamiento
 temporal por la puerta de atrás.
 
-Cuando el panel se convierta en un desplegable aparte, cambia la implementación
+Hoy los suscriptores son el comprobante por correo y el aviso al teléfono, los dos
+prescindibles (ADR-0012). Cuando el panel se convierta en un desplegable aparte, cambia la implementación
 de `publicar`; los mensajes y sus garantías no cambian, porque están en el
 contrato y no aquí.
 """
@@ -28,6 +29,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 _LOG = logging.getLogger(__name__)
@@ -37,7 +39,15 @@ Manejador = Callable[[dict[str, Any]], None]
 #: Canal declarado en asyncapi.yaml → `channels.pedidos-pagados.address`.
 CANAL_PEDIDO_PAGADO = "pideutb.pedidos.pagados"
 
+#: Canal declarado en asyncapi.yaml → `channels.pedidos-listos.address`.
+CANAL_PEDIDO_LISTO = "pideutb.pedidos.listos"
+
 _suscriptores: dict[str, list[Manejador]] = {}
+
+#: Dos hilos para lo que sale hacia fuera: el correo y los avisos. `publicar` corre
+#: dentro de la petición, y un suscriptor que hablara con otro sistema ahí mismo
+#: haría esperar a quien publica, que es el acoplamiento que este archivo evita.
+_HILOS = ThreadPoolExecutor(max_workers=2, thread_name_prefix="salidas")
 
 
 def suscribir(canal: str, manejador: Manejador) -> None:
@@ -68,6 +78,22 @@ def publicar(canal: str, mensaje: dict[str, Any]) -> int:
             entregados += 1
 
     return entregados
+
+
+def en_segundo_plano(funcion: Callable[..., None], *argumentos: Any) -> None:
+    """Ejecuta algo sin hacer esperar a quien llama, y sin que su fallo le llegue.
+
+    **Si el proceso muere con trabajo pendiente, ese trabajo se pierde.** Está
+    bien para lo que corre aquí, que es prescindible (ADR-0012). Lo que no pueda
+    perderse no debe venir a este hilo: necesitaría una cola que sobreviva.
+    """
+    def protegida() -> None:
+        try:
+            funcion(*argumentos)
+        except Exception:  # noqa: BLE001 — aquí no hay nadie a quien avisar
+            _LOG.exception("Falló un trabajo en segundo plano.")
+
+    _HILOS.submit(protegida)
 
 
 def limpiar() -> None:

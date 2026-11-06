@@ -26,3 +26,7 @@ pytest>=8.0,<9.0
 # `pool` es el pool de conexiones: es la pieza concreta por la que ADR-0004
 # eligió un contenedor con proceso persistente sobre una función sin servidor.
 psycopg[binary,pool]>=3.2,<4.0
+
+# La firma de los avisos Web Push (ES256, `app/avisos.py`). La biblioteca estándar
+# no trae curvas elípticas, y una firma no es algo que se escriba a mano.
+cryptography>=46,<51

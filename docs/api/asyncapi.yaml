@@ -12,9 +12,9 @@ asyncapi: 3.0.0
 
 info:
   title: PideUTB — Canales de eventos
-  version: 1.0.0
+  version: 1.1.0
   description: |
-    Dos canales, con roles opuestos y por motivos distintos.
+    Tres canales, con roles distintos y por motivos distintos.
 
     **`eventos-de-pago`** — PideUTB *recibe*. No es una elección del equipo: la
     pasarela decide cuándo confirma un cobro y avisa por su cuenta. Aquí la
@@ -24,7 +24,13 @@ info:
     **`pedidos-pagados`** — PideUTB *publica*. Aquí sí es una elección, y es la
     que justifica [ADR-0003](../adr/0003-estrategia-integracion.md): el panel
     del establecimiento se entera de que hay un pedido que preparar sin que el
-    cobro dependa de que el panel esté abierto.
+    cobro dependa de que el panel esté abierto. Hoy lo escucha el comprobante por
+    correo ([ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md)).
+
+    **`pedidos-listos`** — PideUTB *publica*. El mostrador marcó un pedido como
+    listo, y el aviso al teléfono de quien lo pidió sale de aquí. Es prescindible
+    igual que el anterior: si se pierde, la pantalla del cliente se entera en su
+    siguiente consulta.
 
     ### Sobre el transporte del canal interno
 
@@ -98,6 +104,19 @@ channels:
       pedidoPagado:
         $ref: "#/components/messages/PedidoPagado"
 
+  pedidos-listos:
+    address: pideutb.pedidos.listos
+    title: Pedidos listos para recoger
+    servers:
+      - $ref: "#/servers/interno"
+    description: |
+      Canal de salida. Se publica **después** de que el pedido haya quedado
+      persistido como `listo_para_recoger`, por el mismo motivo que el canal
+      anterior.
+    messages:
+      pedidoListo:
+        $ref: "#/components/messages/PedidoListo"
+
 operations:
   recibirTransaccionActualizada:
     action: receive
@@ -142,6 +161,18 @@ operations:
       hacerlo depender de que el panel funcione recrearía el acoplamiento
       temporal que esta decisión evita.
 
+  publicarPedidoListo:
+    action: send
+    title: Anunciar que un pedido se puede recoger.
+    channel:
+      $ref: "#/channels/pedidos-listos"
+    messages:
+      - $ref: "#/channels/pedidos-listos/messages/pedidoListo"
+    description: |
+      Se publica cada vez que el mostrador lleva un pedido a
+      `listo_para_recoger`, y esa transición solo ocurre una vez: la condición
+      va dentro del `UPDATE`. Un suscriptor que falle no afecta al pedido.
+
 components:
   messages:
     TransaccionActualizada:
@@ -180,7 +211,30 @@ components:
             establecimiento_id: 1
             codigo_canje: 7KQ2ZP
 
+    PedidoListo:
+      name: pedido.listo
+      title: Un pedido se puede recoger.
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/PedidoListo"
+      examples:
+        - name: listo
+          payload:
+            pedido_id: 1
+            establecimiento_id: 1
+
   schemas:
+    PedidoListo:
+      type: object
+      required: [pedido_id, establecimiento_id]
+      properties:
+        pedido_id:
+          type: integer
+          minimum: 1
+        establecimiento_id:
+          type: integer
+          minimum: 1
+
     EstadoPago:
       type: string
       enum: [pendiente, aprobado, rechazado]

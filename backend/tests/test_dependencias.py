@@ -6,8 +6,8 @@ llevaba dentro **ocho paquetes que ningún código de la aplicación importa**:
 `pytest<=9.0.2`, con una vulnerabilidad conocida (GHSA-6w46-j5rx-g56g) que
 nunca se podría explotar porque ese código no se ejecuta allí.
 
-La corrección fue derivar `requirements-prod.txt` con los 22 paquetes
-alcanzables desde `fastapi`, `uvicorn` y `psycopg`. Estas pruebas vigilan la
+La corrección fue derivar `requirements-prod.txt` con los paquetes alcanzables
+desde `fastapi`, `uvicorn` y `psycopg` —hoy también `cryptography`—. Estas pruebas vigilan la
 deriva en las **dos direcciones**, que es lo que hace que la corrección no se
 deshaga sola:
 

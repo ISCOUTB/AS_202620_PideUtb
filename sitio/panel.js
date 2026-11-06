@@ -80,6 +80,44 @@ let huellaPintada = null;
  */
 let estadoPintado = new Map();
 
+/** La última cola recibida, para reordenarla sin volver a pedirla. */
+let ultimaCola = [];
+
+const LLAVE_DEL_ORDEN = "pideutb.panel.orden";
+
+/** Cómo prefiere ver la cola este mostrador. Si no se puede guardar, no pasa nada. */
+let ordenDeLaCola = "llegada";
+try {
+  if (localStorage.getItem(LLAVE_DEL_ORDEN) === "recogida") ordenDeLaCola = "recogida";
+} catch {
+  // Sin almacenamiento, se ordena por llegada en cada visita.
+}
+
+/** Estados en los que el mostrador no tiene nada que hacer: van al final. */
+const SIN_NADA_QUE_HACER = new Set(["pendiente_pago", "entregado", "cancelado"]);
+
+/**
+ * La cola en el orden elegido. «Por llegada» es el orden en que la entrega la API.
+ *
+ * Por hora de recogida van primero los pedidos sin hora, porque esos son para ya, y
+ * después los programados del más próximo al más lejano. Las fechas se pueden
+ * comparar como texto porque todas llevan la misma zona.
+ */
+function ordenarCola(pedidos) {
+  if (ordenDeLaCola !== "recogida") return pedidos;
+
+  const grupo = (p) => {
+    if (SIN_NADA_QUE_HACER.has(p.estado)) return 2;
+    return p.hora_recogida ? 1 : 0;
+  };
+  return [...pedidos].sort(
+    (a, b) =>
+      grupo(a) - grupo(b) ||
+      (a.hora_recogida || "").localeCompare(b.hora_recogida || "") ||
+      a.pedido_id - b.pedido_id
+  );
+}
+
 // --------------------------------------------------------------------------
 // Qué botones ofrece cada estado.
 //
@@ -284,7 +322,10 @@ function caducar() {
 // Pintar la cola
 // --------------------------------------------------------------------------
 
-function pintar(pedidos) {
+function pintar(recibidos) {
+  ultimaCola = recibidos;
+  const pedidos = ordenarCola(recibidos);
+
   // Solo lo que se muestra entra en la huella: si el servidor añadiera un
   // campo que esta pantalla no usa, no tiene por qué provocar un repintado.
   const huella = JSON.stringify(
@@ -296,6 +337,7 @@ function pintar(pedidos) {
       p.lineas.map((l) => l.cantidad + "x" + l.item_id).join(","),
       p.total_centavos,
       p.codigo_canje,
+      p.hora_recogida,
     ])
   );
   if (huella === huellaPintada) return;
@@ -353,6 +395,17 @@ function pintar(pedidos) {
     texto.className = "item-precio";
     estado.appendChild(texto);
     datos.appendChild(estado);
+
+    // A qué hora lo quieren. La hora es lo que se mira, así que se destaca solo
+    // cuando la hay: «lo antes posible» es el caso normal.
+    const recogida = document.createElement("div");
+    recogida.className = pedido.hora_recogida
+      ? "pedido-recogida programada"
+      : "pedido-recogida";
+    recogida.textContent = pedido.hora_recogida
+      ? `Recoger a las ${pedido.hora_recogida.slice(11, 16)}`
+      : "Lo antes posible";
+    datos.appendChild(recogida);
 
     // El código **no** se muestra mientras el pedido esté por entregar, desde
     // la 2.0.0 del contrato.
@@ -565,6 +618,16 @@ function reiniciarRefresco() {
 $("formulario-ingreso").addEventListener("submit", (e) => lanzar(ingresar(e)));
 $("salir").addEventListener("click", () => lanzar(salir()));
 $("refrescar").addEventListener("click", () => lanzar(cargarCola()));
+$("orden-cola").value = ordenDeLaCola;
+$("orden-cola").addEventListener("change", () => {
+  ordenDeLaCola = $("orden-cola").value;
+  try {
+    localStorage.setItem(LLAVE_DEL_ORDEN, ordenDeLaCola);
+  } catch {
+    // Se ordena igual; solo no se recordará la próxima vez.
+  }
+  pintar(ultimaCola);
+});
 $("cancelar-canje").addEventListener("click", () => $("dialogo-canje").close("cancelar"));
 
 // No se refresca mientras la pestaña está oculta. El motivo original era la

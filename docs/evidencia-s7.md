@@ -36,18 +36,18 @@ efectiva es `prefix` del router más el path del decorador.
 
 | Path en `openapi.yaml` | Prefijo del router | Path del decorador | Ruta resultante |
 |---|---|---|---|
-| `/health` · L85 | — | `main.py:132-133` `@app.get("/health")` | `/health` ✔ |
-| `/metricas` · L118 | — | `main.py:173-174` `@app.get("/metricas")` | `/metricas` ✔ |
-| `/v1/menu/items/{item_id}` · L144 | `menu/router.py:20` `/v1/menu` | `:23-24` `"/items/{item_id}"` | ✔ |
-| `/v1/menu/establecimientos/{establecimiento_id}/items` · L168 | `menu/router.py:20` `/v1/menu` | `:35-36` `"/establecimientos/{establecimiento_id}/items"` | ✔ |
-| `/v1/sesiones` (POST) · L202 — *2.0.0* | `usuarios/router.py:16` `/v1/sesiones` | `:19-20` `""` | ✔ |
-| `/v1/sesiones` (DELETE) · L202 — *2.0.0* | `usuarios/router.py:16` `/v1/sesiones` | `:45-46` `""` | ✔ |
-| `/v1/pedidos` (POST) · L262 | `pedidos/router.py:23` `/v1/pedidos` | `:26-27` `""` | ✔ |
-| `/v1/pedidos` (GET) · L262 | `pedidos/router.py:23` `/v1/pedidos` | `:57-58` `""` | ✔ |
-| `/v1/pedidos/{pedido_id}/estado` · L354 | `pedidos/router.py:23` `/v1/pedidos` | `:126-127` `"/{pedido_id}/estado"` | ✔ |
-| `/v1/pedidos/{pedido_id}` · L438 | `pedidos/router.py:23` `/v1/pedidos` | `:51-52` `"/{pedido_id}"` | ✔ |
-| `/v1/pagos/intentos` · L475 | `pagos/router.py:21` `/v1/pagos` | `:24-25` `"/intentos"` | ✔ |
-| `/v1/pagos/eventos` · L551 | `pagos/router.py:21` `/v1/pagos` | `:63-64` `"/eventos"` | ✔ |
+| `/health` · L89 | — | `main.py:139-140` `@app.get("/health")` | `/health` ✔ |
+| `/metricas` · L122 | — | `main.py:180-181` `@app.get("/metricas")` | `/metricas` ✔ |
+| `/v1/menu/items/{item_id}` · L148 | `menu/router.py:20` `/v1/menu` | `:23-24` `"/items/{item_id}"` | ✔ |
+| `/v1/menu/establecimientos/{establecimiento_id}/items` · L172 | `menu/router.py:20` `/v1/menu` | `:35-36` `"/establecimientos/{establecimiento_id}/items"` | ✔ |
+| `/v1/sesiones` (POST) · L206 — *2.0.0* | `usuarios/router.py:16` `/v1/sesiones` | `:19-20` `""` | ✔ |
+| `/v1/sesiones` (DELETE) · L206 — *2.0.0* | `usuarios/router.py:16` `/v1/sesiones` | `:45-46` `""` | ✔ |
+| `/v1/pedidos` (POST) · L266 | `pedidos/router.py:24` `/v1/pedidos` | `:27-28` `""` | ✔ |
+| `/v1/pedidos` (GET) · L266 | `pedidos/router.py:24` `/v1/pedidos` | `:135-136` `""` | ✔ |
+| `/v1/pedidos/{pedido_id}/estado` · L362 | `pedidos/router.py:24` `/v1/pedidos` | `:173-174` `"/{pedido_id}/estado"` | ✔ |
+| `/v1/pedidos/{pedido_id}` · L504 | `pedidos/router.py:24` `/v1/pedidos` | `:61-62` `"/{pedido_id}"` | ✔ |
+| `/v1/pagos/intentos` · L541 | `pagos/router.py:21` `/v1/pagos` | `:24-25` `"/intentos"` | ✔ |
+| `/v1/pagos/eventos` · L617 | `pagos/router.py:21` `/v1/pagos` | `:63-64` `"/eventos"` | ✔ |
 
 **10 paths declarados, 12 operaciones implementadas, ninguna de más.**
 `/v1/pedidos` y `/v1/sesiones` aparecen dos veces cada uno porque tienen dos
@@ -71,7 +71,7 @@ Los prefijos, literales:
 
 ```python
 backend/app/menu/router.py:20      router = APIRouter(prefix="/v1/menu",     tags=["menu"])
-backend/app/pedidos/router.py:23   router = APIRouter(prefix="/v1/pedidos",  tags=["pedidos"])
+backend/app/pedidos/router.py:24   router = APIRouter(prefix="/v1/pedidos",  tags=["pedidos"])
 backend/app/pagos/router.py:21     router = APIRouter(prefix="/v1/pagos",    tags=["pagos"])
 backend/app/usuarios/router.py:16  router = APIRouter(prefix="/v1/sesiones", tags=["sesiones"])
 ```
@@ -190,16 +190,16 @@ La rama se borró; el run permanece en el historial.
 
 ## 4. arc42 §6 — Vista de ejecución
 
-Ubicación: [`docs/arc42/arc42.md`](arc42/arc42.md) **líneas 453 a 850**.
+Ubicación: [`docs/arc42/arc42.md`](arc42/arc42.md) **líneas 454 a 859**.
 
 | Subsección | Línea | Contenido |
 |---|---|---|
-| 6.1 Resumen de los flujos y sus fronteras | 468 | Tabla de 6 flujos con protocolo, formato, modo y qué pasa si el otro lado no responde |
-| 6.2 Crear un pedido | 489 | Diagrama de secuencia — síncrono, en proceso |
-| 6.3 Pagar un pedido | 554 | Diagrama de secuencia — dos fases, cruza la frontera asíncrona |
-| 6.4 Consultar el estado | 636 | Diagrama de secuencia — cómo se entera el usuario |
-| 6.5 Modos de fallo | 669 | 9 modos de fallo, cada uno con la prueba que lo cubre |
-| 6.6 Deuda conocida | 837 | Limitaciones del transporte en proceso |
+| 6.1 Resumen de los flujos y sus fronteras | 469 | Tabla de 6 flujos con protocolo, formato, modo y qué pasa si el otro lado no responde |
+| 6.2 Crear un pedido | 490 | Diagrama de secuencia — síncrono, en proceso |
+| 6.3 Pagar un pedido | 555 | Diagrama de secuencia — dos fases, cruza la frontera asíncrona |
+| 6.4 Consultar el estado | 637 | Diagrama de secuencia — cómo se entera el usuario |
+| 6.5 Modos de fallo | 670 | 9 modos de fallo, cada uno con la prueba que lo cubre |
+| 6.6 Deuda conocida | 843 | Limitaciones del transporte en proceso |
 
 La tabla de §6.1, reproducida:
 
@@ -217,23 +217,25 @@ La tabla de §6.1, reproducida:
 ## 5. C4 nivel 2 — cada flecha con protocolo y formato
 
 Ubicación: [`docs/c4/nivel2-contenedores.md`](c4/nivel2-contenedores.md),
-**líneas 27 a 34**. Las siete relaciones, literales del diagrama Mermaid:
+**líneas 29 a 38**. Las 9 relaciones, literales del diagrama Mermaid:
 
 ```
-L27  Rel(usuario, frontend, "Consulta menús, pide, paga y recoge", "HTTPS · HTML/JSON · síncrono")
-L28  Rel(establecimiento, frontend, "Gestiona productos y estados de pedido", "HTTPS · HTML/JSON · síncrono")
-L29  Rel(admin, frontend, "Administra la plataforma", "HTTPS · HTML/JSON · síncrono")
-L31  Rel(frontend, api, "Consume la API v1", "HTTPS · JSON (REST) · síncrono")
-L32  Rel(api, supabase, "Lee/escribe datos, valida identidad", "PostgreSQL sobre un pool reutilizado · síncrono · ~1 ms")
-L33  Rel(api, wompi, "Abre el intento de cobro", "HTTPS · JSON · síncrono")
-L34  Rel_Back(api, wompi, "Confirma la transacción (webhook firmado)", "HTTPS · JSON + HMAC · ASÍNCRONO")
+L29  Rel(usuario, frontend, "Consulta menús, pide, paga y recoge", "HTTPS · HTML/JSON · síncrono")
+L30  Rel(establecimiento, frontend, "Gestiona productos y estados de pedido", "HTTPS · HTML/JSON · síncrono")
+L31  Rel(admin, frontend, "Administra la plataforma", "HTTPS · HTML/JSON · síncrono")
+L33  Rel(frontend, api, "Consume la API v1", "HTTPS · JSON (REST) · síncrono")
+L34  Rel(api, db, "Lee/escribe datos, incluidas credenciales y sesiones", "PostgreSQL sobre un pool reutilizado · síncrono · ~1 ms")
+L35  Rel(frontend, wompi, "Lleva al usuario a pagar, con la URL que arma la API", "HTTPS · HTML · lo navega el usuario")
+L36  Rel_Back(api, wompi, "Confirma la transacción (webhook firmado)", "HTTPS · JSON + HMAC · ASÍNCRONO")
+L37  Rel(api, smtp, "Manda el comprobante, si hay correo", "SMTP · en otro hilo · sin reintentos")
+L38  Rel(api, push, "Avisa de que el pedido está listo", "HTTPS · firmado con VAPID · en otro hilo · sin reintentos")
 ```
 
 El segundo argumento de cada `Rel` es la etiqueta técnica, y lleva **las tres
 cosas**: protocolo, formato y modo de interacción.
 
-La L34 es `Rel_Back` —flecha hacia dentro— porque el webhook **no es la
-respuesta** de la L33: es una petición nueva que llega minutos después, por otra
+La L36 es `Rel_Back` —flecha hacia dentro— porque el webhook **no es la
+respuesta** de la L35: es una petición nueva que llega minutos después, por otra
 conexión, y que puede llegar repetida o no llegar nunca.
 
 ---

@@ -381,6 +381,12 @@ def conciliar() -> list[str]:
     return [intento.referencia_pago for intento in descolgados]
 
 
+def metodo_del_pedido(pedido_id: int) -> MetodoDePago | None:
+    """Con qué se pagó un pedido. Lo pregunta el comprobante, y el dato es de Pagos."""
+    intento = repository.buscar_no_rechazado_de_pedido(pedido_id)
+    return None if intento is None else intento.metodo
+
+
 def _pedido_de(pedido_id: int) -> PedidoPublicado:
     pedido = pedidos_service.obtener_pedido(pedido_id)
     if pedido is None:

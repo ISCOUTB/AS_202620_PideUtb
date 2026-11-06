@@ -3,7 +3,7 @@
 No cruzan la frontera del contexto: otros módulos piden los datos a
 `usuarios.service`, que responde con los tipos de `usuarios.contracts`.
 """
-from datetime import datetime
+from datetime import datetime, time
 
 from pydantic import BaseModel
 
@@ -23,6 +23,12 @@ class Establecimiento(BaseModel):
     ubicacion: str
     horario: str
     activo: bool = True
+
+    #: El horario que se puede **comprobar**, en hora local de Bogotá. `horario`
+    #: es texto para leerlo. Nulo = no ha publicado su horario, y entonces no se
+    #: puede programar una recogida.
+    hora_apertura: time | None = None
+    hora_cierre: time | None = None
 
 
 class Usuario(BaseModel):

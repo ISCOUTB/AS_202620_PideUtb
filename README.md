@@ -169,6 +169,18 @@ python -m venv .venv; .\.venv\Scripts\Activate.ps1; pip install -r requirements.
 
 El servidor queda disponible en `http://127.0.0.1:8000`. Podés verificar que arrancó correctamente visitando `http://127.0.0.1:8000/health`, que debe responder `{"status": "ok"}`.
 
+## Correo, avisos y sugeridos del día
+
+Todo es opcional y se configura con variables: sin ellas, el pedido funciona igual.
+Los valores de ejemplo están en [`deploy/.env.example`](deploy/.env.example), y la
+decisión en [ADR-0012](docs/adr/0012-avisos-y-comprobante-prescindibles.md).
+
+| Variable | Qué enciende |
+|---|---|
+| `PIDEUTB_SMTP_HOST`, `_PUERTO`, `_USUARIO`, `_CONTRASENA`, `_REMITENTE` | El comprobante por correo al confirmarse el pago |
+| `PIDEUTB_VAPID_CLAVE_PRIVADA` | El aviso al teléfono cuando el pedido está listo |
+| `PIDEUTB_SUGERIDOS_DEL_DIA` | Qué platos giran en la carta: identificadores separados por comas |
+
 ## Cómo correr las pruebas
 
 Con el entorno virtual ya activado (ver paso anterior):
@@ -177,7 +189,7 @@ Con el entorno virtual ya activado (ver paso anterior):
 pytest
 ```
 
-**592 pruebas**, agrupadas por lo que protegen:
+**720 pruebas**, agrupadas por lo que protegen:
 
 | Archivo | Qué protege |
 |---|---|
@@ -200,6 +212,10 @@ pytest
 | `tests/test_qr.py` | Que el QR de la charla se pueda leer: tabla de formato del estándar, ida y vuelta, y Reed-Solomon |
 | `tests/test_demo.py` | Que el reinicio de la demo no exista salvo donde alguien lo haya encendido |
 | `tests/test_panel_mostrador.py` | La cola del mostrador y el canje con código |
+| `tests/test_recogida_programada.py` | Que la hora de recogida sea opcional, futura y dentro del horario |
+| `tests/test_comprobante.py` | Qué dice el correo, cuándo sale, y que un fallo suyo nunca toque el pedido |
+| `tests/test_avisos_push.py` | Quién puede pedir el aviso, a qué servicios se escribe y que salga una sola vez |
+| `tests/test_carta_y_pwa.py` | Los sugeridos, las gaseosas, las descripciones y que el Service Worker no se interponga |
 
 Las tres últimas son las **pruebas de contrato**, y llevan **20 casos negativos**
 —roturas introducidas a propósito— porque una prueba de contrato que no puede
@@ -208,7 +224,7 @@ ponerse en rojo no demuestra nada. Cómo reproducir un fallo:
 
 ### El recorrido con navegador
 
-Las 592 pruebas de arriba montan la aplicación en memoria. Ninguna toca un
+Las 720 pruebas de arriba montan la aplicación en memoria. Ninguna toca un
 botón, así que ninguna puede ver si el botón está donde se alcanza con el pulgar
 o si el carrito se vacía al pagar. Para eso está `e2e/`:
 
@@ -219,14 +235,14 @@ npx playwright install chromium
 npx playwright test
 ```
 
-**26 pruebas** en dos tamaños de pantalla, contra el sitio y la API que estén
-levantados (`PIDEUTB_SITIO` y `PIDEUTB_API`, por defecto los locales). Las dos
+**50 pruebas** en dos tamaños de pantalla, contra el sitio y la API que estén
+levantados (`PIDEUTB_SITIO` y `PIDEUTB_API`, por defecto los locales). Las
 del mostrador se saltan si no hay `PIDEUTB_MOSTRADOR_CORREO` y
 `PIDEUTB_MOSTRADOR_CONTRASENA`: necesitan una sesión de verdad para mover un
 pedido por la máquina de estados.
 
 No es un lujo: el rediseño de la semana 15 destapó tres defectos que ninguna de
-las 592 podía ver —el carrito seguía lleno después de pagar, la barra pegajosa se
+las 720 podía ver —el carrito seguía lleno después de pagar, la barra pegajosa se
 quedaba debajo del pie en escritorio, y el botón del carrito dependía de tres
 `<span>` anidados para tener nombre accesible—. En la 16 destapó otros tres, y
 los tres eran del mismo tipo: el código de recogida de un pedido **ya pagado** se

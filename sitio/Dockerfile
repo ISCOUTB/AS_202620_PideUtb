@@ -98,4 +98,10 @@ COPY fuentes/ /usr/share/nginx/html/fuentes/
 # se nota hasta que alguien mira la pantalla.
 COPY fotos/ /usr/share/nginx/html/fotos/
 
+# Lo que permite instalarla en la pantalla de inicio. No se sella: el navegador
+# vuelve a pedir el manifiesto por su cuenta, y `sw.js`, que sí viaja arriba con los
+# demás guiones, tiene que vivir siempre en la misma dirección.
+COPY manifest.json /usr/share/nginx/html/
+COPY iconos/ /usr/share/nginx/html/iconos/
+
 EXPOSE 8080
