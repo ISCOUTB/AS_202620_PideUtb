@@ -572,8 +572,9 @@ test.describe("La carta", () => {
 
     await expect(page.locator("#sugeridos")).toBeHidden();
     const nombres = page.locator("#lista-items .item-nombre");
-    await expect(nombres.filter({ hasText: "Coca-Cola" })).toHaveCount(2);
-    await expect(nombres.filter({ hasText: "Postobón Manzana" })).toHaveCount(2);
+    for (const sabor of ["Postobón Manzana", "Postobón Uva", "Postobón Naranja"]) {
+      await expect(nombres.filter({ hasText: sabor })).toHaveCount(2);
+    }
   });
 
   test("cada producto lleva su descripción en letra pequeña", async ({ page }) => {

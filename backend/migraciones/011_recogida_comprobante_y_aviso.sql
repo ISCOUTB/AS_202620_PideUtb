@@ -2,14 +2,11 @@
 --
 -- Decisión y costes: ADR-0012.
 --
--- ### El horario de El Asao es un supuesto
+-- ### El horario de El Asao
 --
--- `005` dejó «horario por confirmar» porque nadie lo sabía, y sigue sin constar:
--- lo único seguro es que a las 14:30 está abierto. Validar la hora de recogida
--- exige un horario, así que aquí se pone uno **ancho a propósito**, de 7:00 a
--- 20:00: un horario demasiado estrecho rechazaría pedidos buenos, y este como
--- mucho deja programar una hora en la que la cafetería ya cerró. El texto lo
--- dice para que nadie lo dé por cierto. Se corrige con otra migración.
+-- `005` dejó «horario por confirmar» porque nadie lo sabía. Lo confirmó el equipo
+-- el 07/11/2026: **de 11:00 a 16:30**. La franja de promociones de las 14:30 cae
+-- dentro, como tenía que ser.
 --
 -- Son dos columnas y no se deduce del texto de `horario`, que es para leerlo:
 -- ahí hay cosas como «L-V 07:00-18:00» y «cerrado temporalmente». Nulo significa
@@ -50,9 +47,9 @@ UPDATE establecimientos SET hora_apertura = '09:00', hora_cierre = '16:00' WHERE
 UPDATE establecimientos SET hora_apertura = '10:00', hora_cierre = '15:00' WHERE id = 4;
 
 UPDATE establecimientos
-SET hora_apertura = '07:00',
-    hora_cierre   = '20:00',
-    horario       = '7:00 a 20:00 (por confirmar)'
+SET hora_apertura = '11:00',
+    hora_cierre   = '16:30',
+    horario       = '11:00 a. m. a 4:30 p. m.'
 WHERE id = 5;
 
 ALTER TABLE pedidos

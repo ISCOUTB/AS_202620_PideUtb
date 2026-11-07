@@ -4,21 +4,23 @@
 -- en una migración: la base del laboratorio no publica puertos y el panel no da
 -- terminal, así que nada más alcanza esa tabla. Es idempotente.
 --
--- ### Lo que aquí es un supuesto, dicho sin rodeos
+-- ### De dónde sale cada dato
 --
--- **Los precios de las gaseosas nuevas no los dio la cafetería.** Cada sabor se
--- vende a lo que hoy vale la Colombiana del mismo tamaño ($3.100 y $5.400), que
--- es lo único que consta. Tampoco consta que tengan todos estos sabores. Un
--- sabor que no haya se marca agotado; un precio distinto se corrige con otra
--- migración.
+-- **Los sabores son los clásicos de Postobón** —Manzana, Uva y Naranja—, que se
+-- suman a la Colombiana que ya estaba. Al mismo precio que la Colombiana del mismo
+-- tamaño ($3.100 y $5.400): lo confirmó el equipo el 07/11/2026. Un sabor que se
+-- acabe se marca agotado.
 --
--- **Las descripciones tampoco.** El documento de la cafetería solo trae nombres
--- y precios, así que estas se redactaron mirando el nombre y la foto de cada
--- producto. ADR-0006 rechazó generar descripciones **en tiempo de ejecución**
--- porque inventar un ingrediente puede ser un riesgo de salud, y ese riesgo no
--- desaparece por escribirlas a mano: por eso son cortas, no enumeran recetas ni
--- afirman que algo no contenga nada, y la carta avisa de que son orientativas
--- (`#aviso-alergias`). Hay que validarlas con la cafetería.
+-- **Las descripciones siguen lo que el equipo contó de cada plato.** Todo lo que
+-- se llama «asado» lleva lo mismo, cambie la proteína: papitas a la francesa,
+-- ensalada, un vaso de jugo, salsa de tomate y chimichurri. Los demás platos
+-- fuertes llevan papas a la francesa o papa cocida. El resto se describe por su
+-- nombre y su foto.
+--
+-- ADR-0006 rechazó generar descripciones **en tiempo de ejecución** porque
+-- inventar un ingrediente puede ser un riesgo de salud. Por eso estas dicen qué
+-- lleva el plato y no qué no lleva, y la carta avisa de que no sustituyen a
+-- preguntar en el mostrador por una alergia (`#aviso-alergias`).
 --
 -- Las gaseosas nuevas no llevan foto: el marcador con la inicial está diseñado
 -- para eso, y poner la foto de otra botella sería enseñar otro producto.
@@ -29,16 +31,12 @@ INSERT INTO menu_items
     (id, establecimiento_id, nombre, precio_centavos, disponible, categoria, descripcion)
 OVERRIDING SYSTEM VALUE
 VALUES
-    (183, 5, 'Gaseosa Coca-Cola 400 ml',        310000, true, 'Bebidas', 'Gaseosa sabor cola en botella de 400 ml.'),
-    (184, 5, 'Gaseosa Coca-Cola 1,5 L',         540000, true, 'Bebidas', 'Gaseosa sabor cola en botella de 1,5 litros.'),
-    (185, 5, 'Gaseosa Postobón Manzana 400 ml', 310000, true, 'Bebidas', 'Gaseosa sabor manzana en botella de 400 ml.'),
-    (186, 5, 'Gaseosa Postobón Manzana 1,5 L',  540000, true, 'Bebidas', 'Gaseosa sabor manzana en botella de 1,5 litros.'),
-    (187, 5, 'Gaseosa Sprite 400 ml',           310000, true, 'Bebidas', 'Gaseosa sabor lima-limón en botella de 400 ml.'),
-    (188, 5, 'Gaseosa Sprite 1,5 L',            540000, true, 'Bebidas', 'Gaseosa sabor lima-limón en botella de 1,5 litros.'),
-    (189, 5, 'Gaseosa Fanta 400 ml',            310000, true, 'Bebidas', 'Gaseosa sabor naranja en botella de 400 ml.'),
-    (190, 5, 'Gaseosa Fanta 1,5 L',             540000, true, 'Bebidas', 'Gaseosa sabor naranja en botella de 1,5 litros.'),
-    (191, 5, 'Gaseosa Pepsi 400 ml',            310000, true, 'Bebidas', 'Gaseosa sabor cola en botella de 400 ml.'),
-    (192, 5, 'Gaseosa Pepsi 1,5 L',             540000, true, 'Bebidas', 'Gaseosa sabor cola en botella de 1,5 litros.')
+    (183, 5, 'Gaseosa Postobón Manzana 400 ml', 310000, true, 'Bebidas', 'Gaseosa sabor manzana en botella de 400 ml.'),
+    (184, 5, 'Gaseosa Postobón Manzana 1,5 L',  540000, true, 'Bebidas', 'Gaseosa sabor manzana en botella de 1,5 litros.'),
+    (185, 5, 'Gaseosa Postobón Uva 400 ml',     310000, true, 'Bebidas', 'Gaseosa sabor uva en botella de 400 ml.'),
+    (186, 5, 'Gaseosa Postobón Uva 1,5 L',      540000, true, 'Bebidas', 'Gaseosa sabor uva en botella de 1,5 litros.'),
+    (187, 5, 'Gaseosa Postobón Naranja 400 ml', 310000, true, 'Bebidas', 'Gaseosa sabor naranja en botella de 400 ml.'),
+    (188, 5, 'Gaseosa Postobón Naranja 1,5 L',  540000, true, 'Bebidas', 'Gaseosa sabor naranja en botella de 1,5 litros.')
 ON CONFLICT (id) DO NOTHING;
 
 SELECT setval(
@@ -48,19 +46,21 @@ SELECT setval(
 
 UPDATE menu_items SET descripcion = texto.descripcion
 FROM (VALUES
-    -- Asados
-    (101, 'Costillas de cerdo ahumadas con papa y ensalada.'),
-    (102, 'Alitas de pollo bañadas en salsa BBQ de tamarindo.'),
-    (103, 'Carne de res a la parrilla con papas a la francesa y bebida.'),
-    (104, 'Pechuga de pollo a la napolitana.'),
-    (105, 'El especial de la casa, con chicharrón.'),
-    (106, 'Cerdo a la parrilla con acompañantes.'),
-    (107, 'Pollo a la parrilla con acompañantes.'),
-    (108, 'Combinación de carnes a la parrilla con acompañantes.'),
-    (109, 'Selección de carnes servida en tabla de parrilla.'),
-    (110, 'Carne de res a la parrilla con bebida.'),
+    -- Asados: todo lo que se llama «asado» lleva lo mismo, cambie la proteína.
+    (103, 'Carne de res (beef steak) con papitas a la francesa, ensalada, un vaso de jugo, salsa de tomate y chimichurri.'),
+    (106, 'Carne de cerdo con papitas a la francesa, ensalada, un vaso de jugo, salsa de tomate y chimichurri.'),
+    (107, 'Pechuga de pollo con papitas a la francesa, ensalada, un vaso de jugo, salsa de tomate y chimichurri.'),
+    (108, 'Carnes mixtas con papitas a la francesa, ensalada, un vaso de jugo, salsa de tomate y chimichurri.'),
+    (109, 'Selección de carnes a la parrilla con papitas a la francesa, ensalada, un vaso de jugo, salsa de tomate y chimichurri.'),
+    (110, 'Carne de res con papitas a la francesa, ensalada, un vaso de jugo, salsa de tomate y chimichurri.'),
+
+    -- Los demás platos fuertes: papas a la francesa o papa cocida.
+    (101, 'Costillas de cerdo ahumadas, con papas a la francesa o papa cocida.'),
+    (102, 'Alitas de pollo en salsa BBQ de tamarindo, con papas a la francesa o papa cocida.'),
+    (104, 'Pechuga de pollo a la napolitana, con papas a la francesa o papa cocida.'),
+    (105, 'Chicharrón, el especial de la casa, con papas a la francesa o papa cocida.'),
+    (112, 'La picada de la casa, para compartir, con papas a la francesa o papa cocida.'),
     (111, 'Patacón cargado con carne, maíz y salsas.'),
-    (112, 'La picada de la casa, para compartir.'),
 
     -- Hamburguesas y perros
     (120, 'Hamburguesa de pollo con papas a la francesa y gaseosa.'),

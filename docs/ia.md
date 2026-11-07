@@ -641,6 +641,7 @@ recogida, sugeridos que giran y comprobante por correo. La decisión de fondo es
 
 | Propuesta | Decisión | Motivo |
 |---|---|---|
+| Proponer Coca-Cola, Sprite, Fanta y Pepsi como «más sabores» | **Corregida** | La cafetería vende Postobón, y Coca-Cola, Sprite y Fanta son de la competencia. Quedaron Manzana, Uva y Naranja, los sabores clásicos de la marca, junto a la Colombiana |
 | Dar por corregida la flecha a la pasarela del C4 (PR de la auditoría S12) | **Corregida aquí** | Se cambió la tabla y **no el diagrama**: `Rel(api, wompi, ...)` seguía dibujado. Lo destapó volver a leer el archivo |
 | Probar el permiso de notificaciones con el navegador reducido de Playwright | **Corregida** | Ese navegador da las notificaciones por bloqueadas aunque se le concedan. La prueba del aviso usa el Chromium completo |
 
@@ -652,13 +653,21 @@ recogida, sugeridos que giran y comprobante por correo. La decisión de fondo es
 | `pywebpush` | **Rechazada** | Trae `aiohttp` y `requests` para hacer un POST, en una imagen a la que la S13 ya le quitó ocho paquetes |
 | Una cola con *outbox* para el correo | **Rechazada** | Protegería un respaldo cuyo contenido ya está en la pantalla del cliente |
 
-### Lo que la IA escribió y nadie ha validado
+### Lo que la IA supuso, y lo que después confirmó el equipo
 
-Es lo que más importa de esta sección. **Las descripciones de los 47 productos, los
-precios de las gaseosas nuevas y el horario de El Asao son supuestos**: el documento de
-la cafetería solo trae nombres y precios. Están dichos como tales en sus migraciones,
-y la carta avisa de que las descripciones son orientativas.
+La primera versión **suponía tres cosas**, y lo decía en sus migraciones: el horario de
+El Asao (7:00 a 20:00), los sabores y precios de las gaseosas, y las descripciones,
+redactadas solo a partir del nombre y la foto porque el documento de la cafetería no
+trae ninguna.
+
+El equipo las corrigió antes de fusionar: el horario es de 11:00 a 16:30, los sabores
+son los de Postobón al precio de la Colombiana, y todo lo que se llama «asado» lleva
+papitas a la francesa, ensalada, un vaso de jugo, salsa de tomate y chimichurri. Los
+demás platos fuertes llevan papas a la francesa o papa cocida.
+
+Que se pudiera corregir sin una migración nueva fue cosa del orden: los supuestos se
+señalaron antes de fusionar, cuando las migraciones todavía se podían editar.
 
 ADR-0006 rechazó generar descripciones en tiempo de ejecución porque inventar un
-ingrediente puede ser un riesgo de salud. Redactarlas una vez no quita ese riesgo: lo
-acota. Por eso son cortas, no afirman que algo no contenga nada, y hay que validarlas.
+ingrediente puede ser un riesgo de salud. Por eso estas dicen qué lleva el plato y no
+qué no lleva, y la carta sigue avisando de que hay que preguntar por las alergias.

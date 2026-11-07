@@ -63,10 +63,31 @@ def test_una_variable_vacia_deja_los_de_siempre(monkeypatch):
 # --- Gaseosas y descripciones -----------------------------------------------
 
 
-@pytest.mark.parametrize("sabor", ["Coca-Cola", "Postobón Manzana", "Colombiana", "Sprite", "Fanta", "Pepsi"])
+@pytest.mark.parametrize("sabor", ["Colombiana", "Postobón Manzana", "Postobón Uva", "Postobón Naranja"])
 @pytest.mark.parametrize("tamano", ["400 ml", "1,5 L"])
 def test_cada_sabor_de_gaseosa_viene_en_los_dos_tamanos(sabor, tamano):
     assert f"'Gaseosa {sabor} {tamano}'" in _sql()
+
+
+def test_todo_lo_que_se_llama_asado_lleva_lo_mismo():
+    """Cambia la proteína, no el plato. Así lo contó el equipo, y así lo lee el cliente.
+
+    La prueba existe para que un asado nuevo no salga con una descripción a medias:
+    quien pide un asado espera el jugo y las salsas aunque no los vea en la foto.
+    """
+    migracion = (MIGRACIONES / "010_gaseosas_y_descripciones.sql").read_text(encoding="utf-8")
+    asados = {int(i) for i in re.findall(r"^\s*\((\d+),\s*5,\s*'Asado", _sql(), re.M)}
+    descripciones = {
+        int(i): texto for i, texto in re.findall(r"^\s*\((\d+),\s*'([^']+)'\)", migracion, re.M)
+    }
+
+    assert asados
+    sin_lo_de_siempre = sorted(
+        i for i in asados
+        if "papitas a la francesa, ensalada, un vaso de jugo, salsa de tomate y chimichurri"
+        not in descripciones.get(i, "")
+    )
+    assert not sin_lo_de_siempre
 
 
 def test_cada_producto_de_la_carta_tiene_descripcion():
