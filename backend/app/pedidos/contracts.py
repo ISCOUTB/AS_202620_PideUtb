@@ -9,6 +9,7 @@ estados **es** parte del lenguaje publicado. Mientras fue texto libre
 (`docs/violaciones.md`, V-08) ningún consumidor podía saber qué valores debía
 estar preparado para recibir, que es tanto como no tener contrato.
 """
+from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -95,3 +96,28 @@ class PedidoPublicado(BaseModel):
     #: devolverlo también al consultar lo volvería inútil, porque entonces
     #: bastaría acertar un identificador una vez para tenerlo para siempre.
     token_consulta: str | None = None
+
+    #: Fecha y hora de recogida en ISO 8601 con la zona de Bogotá, o nulo si es
+    #: lo antes posible.
+    hora_recogida: str | None = None
+
+
+class ComprobanteDePedido(BaseModel):
+    """Lo necesario para redactar el comprobante de un pedido pagado.
+
+    Va aparte de `PedidoPublicado` porque lleva datos de una persona. Ese tipo
+    acaba en respuestas de la API, y con los dos juntos bastaría un descuido al
+    serializarlo para enseñarle el correo de cada cliente a la cola del
+    mostrador. Este no lo convierte en respuesta nadie.
+    """
+
+    pedido_id: int
+    establecimiento_id: int
+    lineas: list[LineaPublicada] = Field(min_length=1)
+    total_centavos: int = Field(ge=0)
+    codigo_canje: str
+    numero_comprobante: int
+    pagado_en: datetime
+    hora_recogida: datetime | None
+    nombre_cliente: str | None
+    correo_cliente: str

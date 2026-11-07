@@ -20,9 +20,11 @@ que se prueba aquí.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
-from app import eventos
+from app import avisos, comprobante, eventos
 from app.pagos import repository as pagos_repo
 from app.pagos import service as pagos_service
 from app.pagos.contracts import EstadoPago, MetodoDePago
@@ -209,24 +211,40 @@ def test_un_suscriptor_que_revienta_no_arrastra_a_los_demas():
     assert len(recibidos) == 1
 
 
-def test_el_evento_se_pierde_si_no_hay_nadie_escuchando():
-    """Y hoy no hay nadie, lo que acota el alcance de esta pérdida.
+def test_quien_escucha_los_pagos_es_prescindible():
+    """Lo único que se pierde si el evento se pierde es un correo de respaldo.
 
-    El canal `pedidos-pagados` tiene contrato y publicador, y **cero
-    suscriptores en producción**. Esta prueba lo deja escrito para que la
-    afirmación de arc42 §6.7 no dependa de que alguien recuerde mirar.
+    Esta prueba exigía **cero suscriptores**, y avisaba de que el día que
+    apareciera uno había que decidir si hacía falta un *outbox*. Apareció el
+    comprobante por correo, y la decisión está en ADR-0012: no hace falta, porque
+    no depende nada de él. El código de canje ya está en la pantalla de quien
+    pagó, y si el correo no sale el pedido sigue exactamente igual.
 
-    Es la razón por la que no se implementa un *outbox*: un mecanismo para no
-    perder mensajes que nadie recibe resolvería un problema que no se tiene.
-    El día que exista un suscriptor del que dependa algo, esta prueba falla y
-    obliga a revisar la decisión.
+    Lo que vigila ahora es que esa lista siga siendo esa. El día que se suscriba
+    algo de lo que **sí** dependa el negocio, esta prueba falla y obliga a volver
+    a hacer la cuenta.
     """
-    _, referencia = _pedido_con_intento()
+    eventos.limpiar()
+    comprobante.suscribir()
+    avisos.suscribir()
 
-    entregados = eventos.publicar(eventos.CANAL_PEDIDO_PAGADO, {"prueba": True})
-
-    assert entregados == 0, (
-        "Apareció un suscriptor de `pedidos-pagados`. Eso cambia el análisis de "
-        "arc42 §6.7: con alguien escuchando, perder el evento deja de ser "
-        "inocuo y hay que decidir si hace falta un outbox."
+    assert eventos._suscriptores[eventos.CANAL_PEDIDO_PAGADO] == [
+        comprobante.al_confirmarse_el_pago
+    ], (
+        "Cambió quién escucha `pedidos-pagados`. Con un suscriptor del que dependa "
+        "algo, perder el evento deja de ser inocuo: revisá ADR-0012 y arc42 §6.7."
     )
+    assert eventos._suscriptores[eventos.CANAL_PEDIDO_LISTO] == [avisos.al_quedar_listo]
+
+
+def test_la_raiz_de_composicion_conecta_a_los_dos_suscriptores():
+    """Sin estas dos líneas en `main.py`, ni el correo ni el aviso salen nunca.
+
+    Es el fallo más callado posible: todo lo demás funciona, las pruebas de cada
+    pieza pasan, y simplemente nadie escucha. `limpiar()` no deja mirarlo en el
+    registro, porque otras pruebas lo vacían, así que se mira el código.
+    """
+    raiz = (Path(__file__).resolve().parents[1] / "app" / "main.py").read_text(encoding="utf-8")
+
+    assert "comprobante.suscribir()" in raiz
+    assert "avisos.suscribir()" in raiz

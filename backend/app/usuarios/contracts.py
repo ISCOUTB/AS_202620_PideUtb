@@ -4,6 +4,7 @@
 modelo interno permite que las cuentas crezcan (credenciales, roles,
 autenticación) sin arrastrar a `menu` ni a `pedidos`.
 """
+from datetime import time
 from enum import Enum
 
 from pydantic import BaseModel
@@ -15,6 +16,9 @@ class EstablecimientoPublico(BaseModel):
     establecimiento_id: int
     nombre: str
     activo: bool
+    ubicacion: str = ""
+    hora_apertura: time | None = None
+    hora_cierre: time | None = None
 
 
 class RolUsuario(str, Enum):

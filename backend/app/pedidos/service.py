@@ -15,11 +15,19 @@ un consumidor de cola en vez de desde un `POST`, este archivo no cambia.
 """
 import hmac
 import secrets
+from datetime import datetime, time
+from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 
-from app.eventos import CANAL_PEDIDO_PAGADO, publicar
+from app.eventos import CANAL_PEDIDO_LISTO, CANAL_PEDIDO_PAGADO, publicar
 from app.menu import service as catalogo_service
 from app.pedidos import repository
-from app.pedidos.contracts import EstadoPedido, LineaPublicada, PedidoPublicado
+from app.pedidos.contracts import (
+    ComprobanteDePedido,
+    EstadoPedido,
+    LineaPublicada,
+    PedidoPublicado,
+)
 from app.pedidos.models import LineaPedido, Pedido
 from app.usuarios import service as cuentas_service
 
@@ -56,6 +64,25 @@ from app.usuarios import service as cuentas_service
 _ALFABETO_CANJE = "ACDEFHJKLMNPRSTUVWXYZ0123456789"
 _LONGITUD_CANJE = 6
 
+#: La hora de recogida es la del establecimiento, por el mismo motivo que la
+#: franja de una promoción (`menu.service`): el contenedor corre en UTC.
+_ZONA = ZoneInfo("America/Bogota")
+
+#: Los únicos sitios a los que este servidor manda un aviso.
+#:
+#: El navegador nos da una URL y luego **nuestro servidor le hace un POST**. Sin
+#: esta lista, cualquiera podría registrar la dirección de un servicio interno
+#: del laboratorio y hacer que la API la llamara por él (SSRF). Son los servicios
+#: de push de Chrome, Firefox, Safari y Edge; un nombre exacto, o `.algo` para
+#: cualquier subdominio.
+_SERVICIOS_DE_PUSH = (
+    "fcm.googleapis.com",
+    "web.push.apple.com",
+    ".push.apple.com",
+    ".push.services.mozilla.com",
+    ".notify.windows.com",
+)
+
 
 class ItemNoEncontradoError(Exception):
     pass
@@ -79,6 +106,23 @@ class CodigoDeCanjeInvalidoError(Exception):
 
 class TransicionNoPermitidaError(Exception):
     """Se pidió llevar un pedido a un estado al que no puede ir desde donde está."""
+
+
+class HoraDeRecogidaInvalidaError(Exception):
+    """La hora pedida ya pasó, cae fuera del horario o no hay horario publicado."""
+
+
+class ServicioDePushDesconocidoError(Exception):
+    """La dirección del aviso no es de ningún servicio de push conocido."""
+
+
+class AvisoFueraDeTiempoError(Exception):
+    """El pedido ya está listo o terminó: no queda nada de lo que avisar."""
+
+
+def _ahora() -> datetime:
+    """Ahora en Bogotá. Es una función para poder fijar el reloj en las pruebas."""
+    return datetime.now(_ZONA)
 
 
 def _publicar(pedido: Pedido, *, con_token: bool = False) -> PedidoPublicado:
@@ -107,6 +151,11 @@ def _publicar(pedido: Pedido, *, con_token: bool = False) -> PedidoPublicado:
         token_consulta=pedido.token_consulta if con_token else None,
         estado=pedido.estado,
         codigo_canje=pedido.codigo_canje,
+        hora_recogida=(
+            pedido.hora_recogida.astimezone(_ZONA).isoformat(timespec="seconds")
+            if pedido.hora_recogida is not None
+            else None
+        ),
     )
 
 
@@ -129,13 +178,57 @@ class ItemRepetidoError(Exception):
     """El mismo producto dos veces en el mismo carrito."""
 
 
-def crear_pedido(lineas_pedidas: list[tuple[int, int]]) -> PedidoPublicado:
+def _hora_de_recogida(hora: str, establecimiento_id: int) -> datetime:
+    """Convierte `HH:MM` en un instante de hoy, o explica por qué no se puede.
+
+    Se valida aquí y no solo en el navegador porque el reloj del teléfono no es
+    de fiar, y lo que decide es el del servidor. La hora tiene que ser posterior
+    a este minuto y caer en el horario: la apertura cuenta, el cierre no, igual
+    que el final de una promoción.
+    """
+    establecimiento = cuentas_service.obtener_establecimiento(establecimiento_id)
+    apertura = establecimiento.hora_apertura if establecimiento else None
+    cierre = establecimiento.hora_cierre if establecimiento else None
+    if apertura is None or cierre is None:
+        raise HoraDeRecogidaInvalidaError(
+            "Este establecimiento no tiene un horario publicado, así que no se "
+            "puede programar la recogida."
+        )
+
+    pedida = time.fromisoformat(hora)
+    if not apertura <= pedida < cierre:
+        raise HoraDeRecogidaInvalidaError(
+            f"La hora de recogida tiene que ser entre las "
+            f"{apertura.strftime('%H:%M')} y las {cierre.strftime('%H:%M')}."
+        )
+
+    ahora = _ahora()
+    programada = ahora.replace(
+        hour=pedida.hour, minute=pedida.minute, second=0, microsecond=0
+    )
+    if programada <= ahora:
+        raise HoraDeRecogidaInvalidaError(
+            "Esa hora ya pasó. Elegí una hora más tarde o pedilo para ahora."
+        )
+    return programada
+
+
+def crear_pedido(
+    lineas_pedidas: list[tuple[int, int]],
+    *,
+    hora_recogida: str | None = None,
+    nombre_cliente: str | None = None,
+    correo_cliente: str | None = None,
+) -> PedidoPublicado:
     """Crea un pedido con una o varias líneas.
 
     `lineas_pedidas` son pares `(item_id, cantidad)`. Se valida **todo** antes
     de escribir nada: un carrito con un producto agotado se rechaza entero, y
     no a medias. Un pedido parcial sería peor que ninguno — el cliente pagaría
     por algo distinto de lo que pidió.
+
+    La hora de recogida y los datos del cliente son opcionales: sin ellos, el
+    pedido se prepara de inmediato y no se manda ningún comprobante.
     """
     if not lineas_pedidas:
         raise CarritoVacioError("El pedido no lleva ningún producto")
@@ -189,6 +282,12 @@ def crear_pedido(lineas_pedidas: list[tuple[int, int]]) -> PedidoPublicado:
             f"El establecimiento {establecimiento_id} no está recibiendo pedidos"
         )
 
+    programada = (
+        _hora_de_recogida(hora_recogida, establecimiento_id)
+        if hora_recogida is not None
+        else None
+    )
+
     # El identificador lo asigna el almacenamiento, no este servicio. Antes lo
     # pedía a un contador en memoria del proceso, y con dos instancias
     # desplegadas las dos habrían empezado por 1: era el ejemplo concreto de
@@ -204,6 +303,9 @@ def crear_pedido(lineas_pedidas: list[tuple[int, int]]) -> PedidoPublicado:
         lineas=lineas,
         total_centavos=sum(l.total_linea_centavos for l in lineas),
         token_consulta=secrets.token_urlsafe(24),
+        hora_recogida=programada,
+        nombre_cliente=nombre_cliente.strip() or None if nombre_cliente else None,
+        correo_cliente=correo_cliente,
     )
 
     # **El único sitio donde el token sale.**
@@ -257,6 +359,88 @@ def consultar_pedido(pedido_id: int, token_consulta: str) -> PedidoPublicado | N
         return None
 
     return _publicar(pedido)
+
+
+def es_servicio_de_push_conocido(endpoint: str) -> bool:
+    """Si esa dirección es de un servicio de push al que se le puede escribir."""
+    try:
+        partes = urlsplit(endpoint)
+        puerto = partes.port
+    except ValueError:
+        return False
+
+    anfitrion = partes.hostname or ""
+    return (
+        partes.scheme == "https"
+        and partes.username is None
+        and puerto in (None, 443)
+        and any(
+            anfitrion.endswith(servicio) if servicio.startswith(".") else anfitrion == servicio
+            for servicio in _SERVICIOS_DE_PUSH
+        )
+    )
+
+
+def registrar_aviso_push(pedido_id: int, token_consulta: str, endpoint: str) -> bool:
+    """Apunta a dónde avisar cuando el pedido esté listo.
+
+    Devuelve `False` si el token no corresponde, que es lo mismo que si el pedido
+    no existiera, y por el mismo motivo que `consultar_pedido`.
+    """
+    if not es_servicio_de_push_conocido(endpoint):
+        raise ServicioDePushDesconocidoError(
+            "Esa dirección no es de ningún servicio de notificaciones conocido."
+        )
+
+    pedido = repository.buscar_por_id(pedido_id)
+    if pedido is None or not hmac.compare_digest(pedido.token_consulta, token_consulta):
+        return False
+
+    if pedido.estado not in (
+        EstadoPedido.PENDIENTE_PAGO, EstadoPedido.PAGADO, EstadoPedido.EN_PREPARACION
+    ):
+        raise AvisoFueraDeTiempoError(
+            f"El pedido está en '{pedido.estado.value}': ya no hay nada de lo que avisar."
+        )
+
+    repository.guardar_aviso_push(pedido_id, endpoint)
+    return True
+
+
+def tomar_aviso_push(pedido_id: int) -> str | None:
+    """La dirección a la que avisar, una sola vez. Para `app.avisos`."""
+    return repository.tomar_aviso_push(pedido_id)
+
+
+def datos_del_comprobante(pedido_id: int) -> ComprobanteDePedido | None:
+    """Lo necesario para el comprobante, o `None` si no hay a quién mandárselo.
+
+    **Para uso interno del proceso**: lleva datos de una persona y ninguna ruta
+    HTTP lo publica.
+    """
+    pedido = repository.buscar_por_id(pedido_id)
+    if (
+        pedido is None
+        or pedido.correo_cliente is None
+        or pedido.codigo_canje is None
+        or pedido.numero_comprobante is None
+        or pedido.pagado_en is None
+    ):
+        return None
+
+    publicado = _publicar(pedido)
+    return ComprobanteDePedido(
+        pedido_id=pedido.id,
+        establecimiento_id=pedido.establecimiento_id,
+        lineas=publicado.lineas,
+        total_centavos=pedido.total_centavos,
+        codigo_canje=pedido.codigo_canje,
+        numero_comprobante=pedido.numero_comprobante,
+        pagado_en=pedido.pagado_en,
+        hora_recogida=pedido.hora_recogida,
+        nombre_cliente=pedido.nombre_cliente,
+        correo_cliente=pedido.correo_cliente,
+    )
 
 
 def confirmar_pago(pedido_id: int) -> tuple[PedidoPublicado, bool]:
@@ -423,6 +607,21 @@ def avanzar_estado(
             f"Otra persona movió el pedido {pedido_id} mientras se procesaba "
             "esta petición. Actualizá la cola y volvé a intentarlo."
         )
+
+    # Después de persistir y fuera de la transacción, igual que el evento de
+    # pago: el cliente se entera de un hecho que ya ocurrió, y si avisarle falla
+    # el pedido sigue listo.
+    if guardado.estado is EstadoPedido.LISTO_PARA_RECOGER:
+        publicar(
+            CANAL_PEDIDO_LISTO,
+            {
+                "pedido_id": guardado.id,
+                "establecimiento_id": guardado.establecimiento_id,
+            },
+        )
+    elif guardado.estado is EstadoPedido.CANCELADO:
+        # Ya nunca va a estar listo, así que la dirección no le sirve a nadie.
+        repository.tomar_aviso_push(guardado.id)
 
     return _publicar(guardado)
 

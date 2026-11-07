@@ -444,7 +444,11 @@ jobs:
   # --------------------------------------------------------------------------
   recorrido:
     name: Recorrido con navegador
-    runs-on: ubuntu-latest
+    # Fijo y no `ubuntu-latest`. El 6 de noviembre de 2026 `latest` pasó a ser la
+    # 26.04, y Playwright 1.56 no instala navegadores ahí: el job fallaba antes de
+    # abrir una sola página, y como no es obligatorio, en silencio. Se sube cuando
+    # se actualice Playwright, no cuando GitHub decida.
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
 

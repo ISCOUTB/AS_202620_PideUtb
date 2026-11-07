@@ -6,7 +6,7 @@
 #
 # | Archivo | Para qué |
 # |---|---|
-# | `requirements-prod.txt` | **Esta imagen.** 22 paquetes: lo que la aplicación importa |
+# | `requirements-prod.txt` | **Esta imagen.** 25 paquetes: lo que la aplicación importa |
 # | `requirements-ci.txt` | El pipeline. Los mismos 22 más `pytest`, `httpx` y 6 dependencias suyas |
 # | `requirements-calidad.txt` | Solo el job de cobertura: `pytest-cov` y `coverage` |
 # | `requirements.txt` | Instalación local, con rangos, para no romper Windows |

@@ -14,6 +14,11 @@
        bordes en los teléfonos con muesca. Lo que eso rompería —la barra
        inferior tapada por la franja del gesto de inicio— lo compensa
        `env(safe-area-inset-bottom)` en la hoja de estilos. -->
+  <!-- Lo que permite instalarla en la pantalla de inicio. En iPhone es la única
+       forma de recibir el aviso de que el pedido está listo. Ver `sw.js`. -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="iconos/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="PideUTB">
   <link rel="preload" href="fuentes/hanken-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fuentes/young-serif-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="estilos.css">
@@ -125,12 +130,28 @@
   <section id="pantalla-carta" class="pantalla">
     <h2>Carta</h2>
 
+    <!-- Sugeridos del día. Aparece solo cuando hay alguno que se pueda pedir, y
+         se aparta al filtrar: quien eligió una categoría ya sabe qué busca. Las
+         filas no se vuelven a crear al añadir al carrito, porque recrearlas haría
+         que los platos volvieran a empezar su giro. -->
+    <section id="sugeridos" class="sugeridos oculto" aria-labelledby="titulo-sugeridos">
+      <h3 id="titulo-sugeridos">Sugeridos del día</h3>
+      <ul id="lista-sugeridos" class="sugeridos-fila"></ul>
+    </section>
+
     <!-- Filtro por categoría. Se construye desde los datos: las categorías
          salen de los propios productos, así que añadir una en la base la hace
          aparecer aquí sin tocar el marcado. -->
     <div id="categorias" class="categorias" role="group" aria-label="Filtrar por categoría"></div>
 
     <ul id="lista-items" class="items catalogo"></ul>
+
+    <!-- Las descripciones dicen lo que lleva el plato, no la receta: alguien con
+         una alergia no debería decidir solo con ellas. -->
+    <p id="aviso-alergias" class="nota">
+      Las descripciones dicen lo que lleva cada plato, no todos sus ingredientes.
+      Si tenés alguna alergia, preguntá en el mostrador antes de pedir.
+    </p>
   </section>
 
   <!-- Pantalla 2 · confirmar el pedido y elegir método de pago -->
@@ -140,6 +161,43 @@
     <ul id="lineas-pedido" class="items lineas"></ul>
 
     <dl id="resumen-pedido" class="resumen"></dl>
+
+    <!-- Lo único que se decide al crear el pedido. Se esconde al reintentar un
+         cobro rechazado: ese pedido ya existe, y cambiar esto no cambiaría nada. -->
+    <div id="datos-del-pedido">
+      <fieldset id="recogida" class="metodos recogida">
+        <legend>¿Cuándo lo recogés?</legend>
+
+        <div class="metodos-opciones">
+          <input type="radio" id="recogida-ya" name="cuando-recoger" value="ya" checked>
+          <label class="metodo" for="recogida-ya">Lo antes posible</label>
+
+          <input type="radio" id="recogida-hora" name="cuando-recoger" value="hora">
+          <label class="metodo" for="recogida-hora">A una hora</label>
+        </div>
+
+        <div id="campo-hora" class="campo oculto">
+          <label for="hora-recogida">Hora de recogida, hoy</label>
+          <input type="time" id="hora-recogida">
+          <p id="nota-horario" class="nota"></p>
+        </div>
+      </fieldset>
+
+      <fieldset class="metodos datos-cliente">
+        <legend>¿Te mandamos el comprobante?</legend>
+
+        <div class="campo">
+          <label for="correo-cliente">Correo (opcional)</label>
+          <input type="email" id="correo-cliente" maxlength="254"
+                 autocomplete="email" inputmode="email" spellcheck="false">
+        </div>
+        <div class="campo">
+          <label for="nombre-cliente">Nombre (opcional)</label>
+          <input type="text" id="nombre-cliente" maxlength="80" autocomplete="name">
+        </div>
+        <p class="nota">Solo lo usamos para enviarte el comprobante de este pedido.</p>
+      </fieldset>
+    </div>
 
     <!-- Los tres métodos son los que declara contracts/consumidor-web.yaml.
          Añadir uno aquí sin declararlo allí rompe la prueba de contrato.
@@ -205,6 +263,15 @@
   <section id="pantalla-resultado" class="pantalla">
     <h2 id="titulo-resultado"></h2>
     <div id="cuerpo-resultado"></div>
+
+    <!-- Vive fuera de `#cuerpo-resultado` por lo mismo que la advertencia de abajo:
+         ese hueco se vuelve a dibujar cada vez que el mostrador mueve el pedido.
+         El permiso se pide al pulsar y nunca antes: iPhone solo lo acepta así, y
+         pedirlo al cargar la página es la forma segura de que digan que no. -->
+    <div id="bloque-aviso" class="aviso-listo oculto">
+      <button id="activar-aviso" class="secundario oculto" type="button">Avisarme cuando esté listo</button>
+      <p id="texto-aviso" class="nota" role="status"></p>
+    </div>
 
     <!-- La advertencia antes de tirar un código que todavía sirve.
 

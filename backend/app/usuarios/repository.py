@@ -6,7 +6,7 @@ Cuentas es el **único escritor** de `Establecimiento` (ADR-0002).
 Como en el resto de contextos, hay dos implementaciones tras la misma interfaz:
 PostgreSQL cuando `PIDEUTB_DATABASE_URL` está configurada, memoria cuando no.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 
 from app import base_de_datos
 from app.usuarios.contracts import RolUsuario
@@ -21,10 +21,12 @@ _ESTABLECIMIENTOS_SEED = {
     1: Establecimiento(
         id=1, nombre="Cafetería Central", ubicacion="Bloque A, primer piso",
         horario="L-V 07:00-18:00", activo=True,
+        hora_apertura=time(7, 0), hora_cierre=time(18, 0),
     ),
     2: Establecimiento(
         id=2, nombre="Kiosco Bloque D", ubicacion="Bloque D, entrada norte",
         horario="L-V 09:00-16:00", activo=True,
+        hora_apertura=time(9, 0), hora_cierre=time(16, 0),
     ),
     3: Establecimiento(
         id=3, nombre="Punto Café", ubicacion="Biblioteca, piso 2",
@@ -37,15 +39,17 @@ _ESTABLECIMIENTOS_SEED = {
     4: Establecimiento(
         id=4, nombre="Carrito de frutas", ubicacion="Plazoleta central",
         horario="L-V 10:00-15:00", activo=True,
+        hora_apertura=time(10, 0), hora_cierre=time(15, 0),
     ),
 }
 
-_COLUMNAS = "id, nombre, ubicacion, horario, activo"
+_COLUMNAS = "id, nombre, ubicacion, horario, activo, hora_apertura, hora_cierre"
 
 
 def _desde_fila(fila) -> Establecimiento:
     return Establecimiento(
-        id=fila[0], nombre=fila[1], ubicacion=fila[2], horario=fila[3], activo=fila[4]
+        id=fila[0], nombre=fila[1], ubicacion=fila[2], horario=fila[3], activo=fila[4],
+        hora_apertura=fila[5], hora_cierre=fila[6],
     )
 
 

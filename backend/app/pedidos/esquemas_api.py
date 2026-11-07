@@ -7,6 +7,13 @@ from pydantic import BaseModel, Field
 
 from app.pedidos.contracts import EstadoPedido, EstadoSolicitable, PedidoPublicado
 
+PATRON_HORA = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"
+
+#: Una comprobación de forma, no de que el buzón exista: lo único que lo demuestra
+#: es mandar el correo. Sin espacios ni saltos de línea, que es lo que impide
+#: colar otra cabecera en el mensaje.
+PATRON_CORREO = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+
 
 class LineaPedidoRequest(BaseModel):
     """Un producto del carrito."""
@@ -32,6 +39,22 @@ class CrearPedidoRequest(BaseModel):
     """
 
     lineas: list[LineaPedidoRequest] = Field(min_length=1, max_length=30)
+
+    #: Hoy, a esta hora de Bogotá. Es solo la hora y no una fecha porque se recoge
+    #: el mismo día, y así no hay que validar que nadie programe para el mes que
+    #: viene. Sin este campo, el pedido se prepara de inmediato.
+    hora_recogida: str | None = Field(default=None, pattern=PATRON_HORA)
+
+    #: Los dos son opcionales. Sin correo no hay comprobante, y eso es todo: se
+    #: puede pedir sin dejar ningún dato, igual que antes.
+    nombre_cliente: str | None = Field(default=None, min_length=1, max_length=80)
+    correo_cliente: str | None = Field(default=None, max_length=254, pattern=PATRON_CORREO)
+
+
+class AvisoPushRequest(BaseModel):
+    """A dónde mandar el aviso de que el pedido está listo."""
+
+    endpoint: str = Field(min_length=1, max_length=1024)
 
 
 class LineaPedidoResponse(BaseModel):
@@ -64,6 +87,9 @@ class PedidoResponse(BaseModel):
     #: cuenta; devolverlo también al consultar lo volvería inútil, porque
     #: bastaría acertar un identificador una vez para tenerlo para siempre.
     token_consulta: str | None
+
+    #: Requerido y anulable, como `codigo_canje`. `null` = lo antes posible.
+    hora_recogida: str | None
 
     @classmethod
     def desde_contrato(cls, pedido: PedidoPublicado) -> "PedidoResponse":

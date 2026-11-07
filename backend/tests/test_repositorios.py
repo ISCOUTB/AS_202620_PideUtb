@@ -25,6 +25,7 @@ import hashlib
 import os
 import re
 import secrets
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -202,8 +203,9 @@ def test_el_establecimiento_inactivo_se_lee_como_inactivo(implementacion):
 # Pedidos
 # ---------------------------------------------------------------------------
 
-def _crear_pedido() -> object:
+def _crear_pedido(**campos) -> object:
     return pedidos_repo.crear(
+        **campos,
         establecimiento_id=1,
         lineas=[
             LineaPedido(
@@ -348,6 +350,55 @@ def test_guardar_no_pisa_un_pedido_que_ya_se_movio(implementacion):
         "que perder. Si pasa, la condición no está dentro del UPDATE."
     )
     assert pedidos_repo.buscar_por_id(pagado.id).estado is EstadoPedido.EN_PREPARACION
+
+
+def test_el_consecutivo_lo_gasta_solo_quien_confirma_el_pago(implementacion):
+    """Un aviso repetido de la pasarela no consume número."""
+    pedido = _crear_pedido()
+
+    primero = pedidos_repo.marcar_pagado(pedido.id, "ABC123")
+    assert pedidos_repo.marcar_pagado(pedido.id, "OTRO99") is None
+
+    guardado = pedidos_repo.buscar_por_id(pedido.id)
+    assert primero.numero_comprobante is not None
+    assert guardado.numero_comprobante == primero.numero_comprobante
+    assert guardado.pagado_en is not None
+
+    otro = pedidos_repo.marcar_pagado(_crear_pedido().id, "DEF456")
+    assert otro.numero_comprobante > primero.numero_comprobante
+
+
+def test_la_direccion_del_aviso_se_entrega_una_sola_vez(implementacion):
+    pedido = _crear_pedido()
+    assert pedidos_repo.tomar_aviso_push(pedido.id) is None
+
+    pedidos_repo.guardar_aviso_push(pedido.id, "https://fcm.googleapis.com/a")
+
+    assert pedidos_repo.tomar_aviso_push(pedido.id) == "https://fcm.googleapis.com/a"
+    assert pedidos_repo.tomar_aviso_push(pedido.id) is None
+
+
+def test_la_hora_y_los_datos_del_cliente_se_guardan_y_se_devuelven(implementacion):
+    momento = datetime(2026, 11, 4, 19, 30, tzinfo=timezone.utc)
+
+    pedido = _crear_pedido(
+        hora_recogida=momento, nombre_cliente="Ana", correo_cliente="ana@example.com"
+    )
+
+    guardado = pedidos_repo.buscar_por_id(pedido.id)
+    assert guardado.hora_recogida == momento
+    assert guardado.nombre_cliente == "Ana"
+    assert guardado.correo_cliente == "ana@example.com"
+
+
+def test_el_intento_con_el_que_se_pago_no_es_uno_rechazado(implementacion):
+    pedido = _crear_pedido()
+    pagos_repo.guardar(_intento(pedido.id, "ref-1", EstadoPago.RECHAZADO))
+    assert pagos_repo.buscar_no_rechazado_de_pedido(pedido.id) is None
+
+    pagos_repo.guardar(_intento(pedido.id, "ref-2"))
+
+    assert pagos_repo.buscar_no_rechazado_de_pedido(pedido.id).referencia_pago == "ref-2"
 
 
 def test_guardar_un_pedido_inexistente_sigue_siendo_un_error(implementacion):

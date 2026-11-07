@@ -65,6 +65,8 @@ HUELLAS = {
     "007_token_de_consulta.sql": "c672ee413d2d93ec",
     "008_el_mostrador_al_establecimiento_de_la_carta.sql": "fc16245ee84c5073",
     "009_fotos_de_la_carta.sql": "d21e3fe001f3b771",
+    "010_gaseosas_y_descripciones.sql": "a9595c3a61288f09",
+    "011_recogida_comprobante_y_aviso.sql": "589e461374cabb5b",
 }
 
 

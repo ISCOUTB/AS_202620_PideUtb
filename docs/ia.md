@@ -614,3 +614,60 @@ secciones se reconstruyeron quince días después, y por eso tres de ellas tiene
 un hueco donde debería ir lo rechazado. **Una propuesta rechazada no deja
 rastro en el repositorio**: no hay commit, no hay archivo, no hay diff. Si no se
 anota en el momento, se pierde.
+
+---
+
+## Uso de IA en la ronda de mejoras de la carta (04/11/2026)
+
+**Herramienta utilizada:** Claude (Anthropic), vía Claude Code sobre el repositorio.
+
+### Qué se usó
+
+Gaseosas y descripciones, color del código, aviso con Web Push y vibración, hora de
+recogida, sugeridos que giran y comprobante por correo. La decisión de fondo está en
+[ADR-0012](adr/0012-avisos-y-comprobante-prescindibles.md).
+
+### Qué se aceptó
+
+| Propuesta de la IA | Por qué se aceptó |
+|---|---|
+| Web Push sin contenido, firmando con `cryptography` | Evita cifrar a mano, y el código de canje no pasa por Google ni Apple ni sale en la pantalla de bloqueo |
+| Una lista de servicios de push conocidos | La dirección la da el navegador y la llama nuestro servidor: sin lista sería una SSRF |
+| Sugeridos en una variable de entorno y no en una columna | Cambiar una fila en el laboratorio exige una migración, y esto cambia cada día |
+| Llamarlo «comprobante» y no «factura electrónica» | Una factura electrónica la valida la DIAN; afirmarlo sería falso |
+| Un fondo noche con la cifra en ámbar para el código | El verde dice «listo» antes de tiempo, y el azul de la marca parece un botón |
+
+### Qué se corrigió de lo que la IA propuso
+
+| Propuesta | Decisión | Motivo |
+|---|---|---|
+| Proponer Coca-Cola, Sprite, Fanta y Pepsi como «más sabores» | **Corregida** | La cafetería vende Postobón, y Coca-Cola, Sprite y Fanta son de la competencia. Quedaron Manzana, Uva y Naranja, los sabores clásicos de la marca, junto a la Colombiana |
+| Dar por corregida la flecha a la pasarela del C4 (PR de la auditoría S12) | **Corregida aquí** | Se cambió la tabla y **no el diagrama**: `Rel(api, wompi, ...)` seguía dibujado. Lo destapó volver a leer el archivo |
+| Probar el permiso de notificaciones con el navegador reducido de Playwright | **Corregida** | Ese navegador da las notificaciones por bloqueadas aunque se le concedan. La prueba del aviso usa el Chromium completo |
+
+### Qué se rechazó
+
+| Propuesta | Decisión | Motivo del rechazo |
+|---|---|---|
+| Un Service Worker con caché, como casi todos | **Rechazada** | Volvería el fallo del 29 de octubre: un `index.html` nuevo con un `app.js` viejo |
+| `pywebpush` | **Rechazada** | Trae `aiohttp` y `requests` para hacer un POST, en una imagen a la que la S13 ya le quitó ocho paquetes |
+| Una cola con *outbox* para el correo | **Rechazada** | Protegería un respaldo cuyo contenido ya está en la pantalla del cliente |
+
+### Lo que la IA supuso, y lo que después confirmó el equipo
+
+La primera versión **suponía tres cosas**, y lo decía en sus migraciones: el horario de
+El Asao (7:00 a 20:00), los sabores y precios de las gaseosas, y las descripciones,
+redactadas solo a partir del nombre y la foto porque el documento de la cafetería no
+trae ninguna.
+
+El equipo las corrigió antes de fusionar: el horario es de 11:00 a 16:30, los sabores
+son los de Postobón al precio de la Colombiana, y todo lo que se llama «asado» lleva
+papitas a la francesa, ensalada, un vaso de jugo, salsa de tomate y chimichurri. Los
+demás platos fuertes llevan papas a la francesa o papa cocida.
+
+Que se pudiera corregir sin una migración nueva fue cosa del orden: los supuestos se
+señalaron antes de fusionar, cuando las migraciones todavía se podían editar.
+
+ADR-0006 rechazó generar descripciones en tiempo de ejecución porque inventar un
+ingrediente puede ser un riesgo de salud. Por eso estas dicen qué lleva el plato y no
+qué no lleva, y la carta sigue avisando de que hay que preguntar por las alergias.

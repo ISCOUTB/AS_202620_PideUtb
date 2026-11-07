@@ -60,7 +60,7 @@ la clase de cosa que no se quiere descubrir con el público delante.
 
 Viven en `platos/` y las pide la **base de datos**, no la hoja de estilos:
 `menu_items.imagen` guarda la ruta relativa y `app.js` la mete en un `<img>`.
-Son 25 para 37 productos; los 12 que no tienen foto dibujan el marcador con la
+Son 25 para 43 productos; los 18 que no tienen foto dibujan el marcador con la
 inicial, que está diseñado para eso.
 
 ### Por qué 144 × 144

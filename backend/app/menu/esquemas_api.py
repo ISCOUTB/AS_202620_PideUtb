@@ -44,6 +44,7 @@ class ItemMenuResponse(BaseModel):
     #: de fiar.
     precio_antes_centavos: int | None
     promocion_hasta: str | None
+    sugerido: bool
 
     @classmethod
     def desde_contrato(cls, item: ItemDisponible) -> "ItemMenuResponse":
@@ -58,6 +59,7 @@ class ItemMenuResponse(BaseModel):
             descripcion=item.descripcion,
             precio_antes_centavos=item.precio_antes_centavos,
             promocion_hasta=item.promocion_hasta,
+            sugerido=item.sugerido,
         )
 
 
@@ -72,3 +74,10 @@ class ListaItemsMenuResponse(BaseModel):
 
     establecimiento_id: int = Field(ge=1)
     items: list[ItemMenuResponse]
+
+    #: Entre qué horas se puede programar una recogida, hora local de Bogotá. Es
+    #: texto por lo mismo que `promocion_hasta`, y nulo si el establecimiento no
+    #: publica su horario. El sitio solo lo usa para orientar: quien valida la
+    #: hora es `crearPedido`.
+    hora_apertura: str | None
+    hora_cierre: str | None

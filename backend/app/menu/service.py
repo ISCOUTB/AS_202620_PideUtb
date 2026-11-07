@@ -4,7 +4,10 @@ Responde siempre con tipos de `menu.contracts`, nunca con entidades
 internas. Ver ADR-0001 (regla de comunicación) y ADR-0002 (lenguaje
 publicado y propiedad de los datos de establecimiento).
 """
+import logging
+import os
 from datetime import datetime, time
+from functools import lru_cache
 from zoneinfo import ZoneInfo
 
 from app.menu import repository
@@ -21,6 +24,18 @@ from app.usuarios import service as cuentas_service
 #: de Bogotá, y eso no cambia aunque cambie el servidor.
 _ZONA = ZoneInfo("America/Bogota")
 
+_LOG = logging.getLogger("pideutb")
+
+#: Los sugeridos del día, por identificador. **Para cambiarlos no hace falta
+#: tocar el código:** basta poner `PIDEUTB_SUGERIDOS_DEL_DIA=108,103` en el panel
+#: de despliegue. Es una variable y no una columna porque cambiar una fila en el
+#: laboratorio exige escribir una migración (la base no publica puertos), y algo
+#: que cambia cada día no puede pedir un PR cada día.
+#:
+#: Estos cuatro son platos redondos con foto, que es lo que se ve bien girando.
+#: Una prueba comprueba que existan y que tengan foto.
+_SUGERIDOS_POR_DEFECTO = "108,103,111,102"
+
 
 class EstablecimientoNoEncontradoError(Exception):
     """El establecimiento consultado no existe en el contexto Cuentas."""
@@ -29,6 +44,27 @@ class EstablecimientoNoEncontradoError(Exception):
 def _ahora() -> time:
     """La hora local de Bogotá."""
     return datetime.now(_ZONA).time()
+
+
+@lru_cache(maxsize=1)
+def _interpretar_sugeridos(crudo: str) -> frozenset[int]:
+    """Los identificadores de la variable; lo que no sea un número se ignora.
+
+    Se ignora y se registra, igual que una URL de pasarela mal pegada: un error
+    al escribir la variable no puede tumbar la carta entera. Va en caché porque
+    se consulta una vez por producto y el texto casi nunca cambia.
+    """
+    trozos = [trozo.strip() for trozo in crudo.split(",")]
+    validos = {int(trozo) for trozo in trozos if trozo.isdecimal()}
+    if len(validos) != len([trozo for trozo in trozos if trozo]):
+        _LOG.warning("sugeridos_con_valores_ignorados", extra={"valor": crudo[:80]})
+    return frozenset(validos)
+
+
+def _sugeridos() -> frozenset[int]:
+    """Se lee en cada llamada, para que cambiar la variable no pida reconstruir."""
+    crudo = os.getenv("PIDEUTB_SUGERIDOS_DEL_DIA", "").strip()
+    return _interpretar_sugeridos(crudo or _SUGERIDOS_POR_DEFECTO)
 
 
 def _en_la_franja(item: ItemMenu, ahora: time) -> bool:
@@ -87,6 +123,7 @@ def _publicar(item: ItemMenu, ahora: time | None = None) -> ItemDisponible:
             if en_franja and item.promocion_hasta is not None
             else None
         ),
+        sugerido=item.id in _sugeridos(),
     )
 
 
@@ -101,6 +138,24 @@ def obtener_item(item_id: int) -> ItemDisponible | None:
     if item is None:
         return None
     return _publicar(item)
+
+
+def horario_de_atencion(establecimiento_id: int) -> tuple[str | None, str | None]:
+    """Apertura y cierre en `HH:MM`, o nulos si no están publicados.
+
+    El dato es de Cuentas, su único escritor (ADR-0002). Se publica junto a la
+    carta porque es la única petición que el sitio hace antes de que alguien
+    elija a qué hora quiere recoger.
+    """
+    establecimiento = cuentas_service.obtener_establecimiento(establecimiento_id)
+    if establecimiento is None or None in (
+        establecimiento.hora_apertura, establecimiento.hora_cierre
+    ):
+        return None, None
+    return (
+        establecimiento.hora_apertura.strftime("%H:%M"),
+        establecimiento.hora_cierre.strftime("%H:%M"),
+    )
 
 
 def listar_items_de_establecimiento(
