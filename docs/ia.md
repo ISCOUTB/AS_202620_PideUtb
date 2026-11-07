@@ -361,3 +361,256 @@ check que cuenta omitirse como éxito.
 El patrón es el mismo en los tres: **una verificación que no cubre todo el
 terreno es peor que no tenerla**, porque nadie vuelve a revisar a mano lo que
 cree cubierto.
+
+---
+
+# Entregas S10 a S14, y el tramo hasta la sustentación
+
+> ### Cómo se reconstruyeron estas secciones, y qué falta
+>
+> Este documento se quedó en la S9. Lo señaló la **auditoría de la semana 12**:
+> «no se acredita tampoco registro S11».
+>
+> Las secciones que siguen se escribieron después, el 03/11/2026, y conviene
+> saber de dónde sale cada cosa:
+>
+> - **«Qué se usó» es verificable.** Sale de los commits y los PR fusionados en
+>   cada fecha, no de la memoria de nadie. Cada entrada se puede contrastar con
+>   `git log`.
+> - **«Qué se aceptó» y «qué se rechazó» no siempre lo son.** Una propuesta
+>   rechazada no deja commit: por definición, no se escribió. Donde el motivo
+>   del rechazo consta en el código, en un ADR o en `correcciones.md`, está
+>   anotado. Donde no consta, aparece marcado así:
+>
+>   > ⬜ **Pendiente del equipo.**
+>
+>   y es el equipo quien lo completa. **No se rellenó por inferencia**, porque
+>   una bitácora de IA inventada vale menos que una incompleta: la primera
+>   engaña, la segunda solo falta.
+>
+> La lección operativa va al final, en «Lo que el hueco enseñó».
+
+---
+
+## Uso de IA en la décima entrega (S10 — Lo que las correcciones destaparon)
+
+**Herramienta utilizada:** Claude (Anthropic), vía Claude Code sobre el repositorio.
+
+Semana de correcciones a dos retroalimentaciones, que terminó encontrando seis
+defectos que ninguna prueba veía
+([`evidencia-s10.md`](evidencia-s10.md)).
+
+### Qué se usó
+
+- **Barrido de los avisos de SonarCloud**, separando los que señalan un defecto
+  real de los que no, y justificando por escrito cada descarte en vez de
+  silenciarlo.
+- **Migración de todo el backend a `Annotated`**, retirando los `response_model`
+  redundantes.
+- **Cierre del pool de conexiones** en los guiones que lo abren.
+- **Retirada de una aserción que se comparaba consigo misma** — una prueba que
+  no podía fallar.
+- **ADR-0007** (autenticación del panel) y el guion de alta de la primera
+  cuenta, con los dos pasos manuales de puesta en producción.
+- **Descripción del sistema para el servidor del laboratorio** y endurecimiento
+  de las imágenes.
+
+### Qué se aceptó
+
+| Propuesta de la IA | Por qué se aceptó |
+|---|---|
+| Justificar por escrito cada aviso de Sonar descartado, en vez de marcarlo como «won't fix» | Un descarte sin motivo es indistinguible de un descuido seis semanas después |
+| Sesiones propias en lugar de Supabase Auth ([ADR-0007](adr/0007-autenticacion-del-panel.md)) | La plataforma de despliegue cambió y arrastrar un proveedor de identidad por él habría atado dos decisiones que no tienen por qué ir juntas |
+
+### Qué se rechazó
+
+> ⬜ **Pendiente del equipo.**
+
+---
+
+## Uso de IA en la undécima entrega (S11 — Sistemas distribuidos)
+
+**Herramienta utilizada:** Claude (Anthropic), vía Claude Code sobre el repositorio.
+
+La entrega que la auditoría de la S12 echó en falta expresamente.
+
+### Qué se usó
+
+- **Análisis de fallos parciales** y diseño de la idempotencia:
+  [arc42 §6.7](arc42/arc42.md#fallos-parciales) y
+  [§8.5](arc42/arc42.md#idempotencia), con `test_fallos_parciales.py`, que
+  inyecta un fallo entre dos escrituras y verifica que la conciliación lo
+  detecta y reintenta **sin emitir un segundo código de canje**.
+- **ADR-0009** (no extraer ningún servicio), con la condición de lo que lo
+  cambiaría.
+- **Publicación de la API en su propio host**, que es lo que la plataforma
+  admitía, y la reconciliación de la documentación de arquitectura con el
+  despliegue real.
+- **Arreglo de la configuración de nginx** que impedía arrancar el sitio, y de
+  un `healthcheck` que usaba opciones de `wget` que busybox no entiende.
+- **Documentación de que Cloudflare filtra clientes automatizados** delante de
+  la API — relevante porque explica respuestas que de otro modo parecen caídas.
+
+### Qué se aceptó
+
+| Propuesta de la IA | Por qué se aceptó |
+|---|---|
+| Una prueba que **inyecta el fallo** entre las dos escrituras, en vez de comprobar solo que la conciliación existe | Vale la misma razón que en la S9: una prueba que no puede ponerse en rojo no demuestra nada |
+| No extraer ningún servicio, y dejar escrito qué lo cambiaría ([ADR-0009](adr/0009-no-extraer-un-servicio.md)) | Responder «no» sin haber mirado habría sido tan pobre como responder «sí» porque suena moderno |
+
+### Qué se rechazó
+
+> ⬜ **Pendiente del equipo.** La decisión de **no** montar un broker está
+> argumentada en ADR-0009, pero no consta si la herramienta llegó a proponerlo.
+
+---
+
+## Uso de IA en la duodécima entrega (S12 — Datos y eventos: medir antes de añadir)
+
+**Herramienta utilizada:** Claude (Anthropic), vía Claude Code sobre el repositorio.
+
+### Qué se usó
+
+- **Documentación de la consistencia por operación** —la tabla de las doce
+  operaciones del contrato— y **descarte de la caché con un número** en vez de
+  con una opinión (`59ec90c`).
+- **Medición de ESC-03 contra su umbral.** Descubrió que **no lo cumplía**: el
+  sondeo de 8000 ms más la red más el servidor daban 8320 ms contra los 10 000
+  concedidos, dejando 1,68 s para que una persona viera y pulsara. El intervalo
+  bajó a 5000 ms y la constante quedó atada a su umbral en
+  `test_escenarios_de_calidad.py`.
+- **ADR-0010** (sondeo frente a eventos, con el canal como costura sin
+  suscriptores).
+- **Adelgazamiento de la imagen de producción**: fuera los ocho paquetes que
+  solo usan las pruebas.
+- **Aislamiento de la suite** respecto de la base de datos de quien la ejecuta.
+- **Restauración de la migración que no se debía editar**, con la guardia
+  traída a CI (`test_migraciones.py`), tras la caída de ~30 minutos por
+  *checksum*.
+- **`pip-audit` con `--only-binary`** y cuatro avisos de Sonar más.
+
+### Qué se aceptó
+
+| Propuesta de la IA | Por qué se aceptó |
+|---|---|
+| Medir ESC-03 antes de decidir si hacía falta un broker | Lo que parecía una mejora de arquitectura resultó ser una constante mal puesta. Añadir SSE y un broker habría costado el último contenedor del presupuesto para ganar algo que el escenario no pedía |
+| Fijar la huella de cada migración y hacerla fallar en CI | Editar una migración ya aplicada tumbó el servicio media hora. La guardia convierte un fallo de despliegue en un fallo de construcción |
+| Conservar el canal de eventos **sin suscriptores**, declarándolo como tal | Una costura con contrato y sin uso es honesta; borrarla habría tirado el contrato que haría barata la extracción futura |
+
+### Qué se rechazó
+
+> ⬜ **Pendiente del equipo.**
+
+---
+
+## Uso de IA en la decimotercera entrega (S13 — Seguridad)
+
+**Herramienta utilizada:** Claude (Anthropic), vía Claude Code sobre el repositorio.
+
+### Qué se usó
+
+- **Modelado de amenazas con STRIDE**, pieza por pieza, seis preguntas a cada
+  una ([`evidencia-s13.md`](evidencia-s13.md)).
+
+### Qué se aceptó
+
+| Propuesta de la IA | Por qué se aceptó |
+|---|---|
+| Recorrer STRIDE pieza por pieza en vez de listar las amenazas que se ven venir | **Encontró tres que nadie habría escrito** de memoria. Ese es el argumento de usar un método y no la intuición |
+
+### Qué se rechazó
+
+> ⬜ **Pendiente del equipo.**
+
+---
+
+## Uso de IA en la decimocuarta entrega (S14 — Evaluación)
+
+**Herramienta utilizada:** Claude (Anthropic), vía Claude Code sobre el repositorio.
+
+### Qué se usó
+
+- **Derivación del 704 MB de ADR-0009** en vez de afirmarlo. La cifra estaba
+  escrita sin cuenta detrás; se rehízo la cuenta.
+- **Identidad visual de la UTB en la interfaz, midiendo el contraste primero**,
+  con `test_contraste.py` comprobando que la hoja y la guía de diseño declaran
+  los mismos números.
+
+### Qué se aceptó
+
+| Propuesta de la IA | Por qué se aceptó |
+|---|---|
+| Medir el contraste **antes** de elegir los colores, y fijar los resultados en una prueba | Una paleta elegida a ojo y comprobada después se defiende cambiando el umbral. Al revés, no |
+| Derivar la cifra de memoria en vez de afirmarla | Una constante sin cuenta detrás es una cita de sí misma. Es el mismo defecto que la S9 encontró en la cobertura |
+
+### Qué se rechazó
+
+> ⬜ **Pendiente del equipo.**
+
+---
+
+## Uso de IA tras la S14 — preparación de la sustentación (22/10 – 03/11)
+
+**Herramienta utilizada:** Claude (Anthropic), vía Claude Code sobre el repositorio.
+
+Este tramo **no corresponde a una entrega numerada**: es el trabajo de dejar el
+sistema presentable y la respuesta a la auditoría de la S12. Se registra aparte
+en vez de repartirlo entre semanas que ya habían cerrado.
+
+### Qué se usó
+
+- **Sistema de diseño** ([`sistema-de-diseno.md`](sistema-de-diseno.md)) y
+  rediseño de la carta como catálogo con carrito y pago en dos gestos.
+- **Pedido de varias líneas**, con el precio congelado en la línea.
+- **Carta real de El Asao**: 37 productos, las dos promociones de la franja de
+  2:30 a 3:30 resueltas en el servidor, y 25 fotos extraídas de un documento de
+  la cafetería, recortadas y convertidas.
+- **Cierre de V-13** (los códigos de canje se podían cosechar enumerando
+  pedidos) y de **R-11** (un pago rechazado parecía uno que no había llegado).
+- **Accesibilidad**: métodos de pago como radios de verdad, contraste de la
+  etiqueta «Agotado», y un alfabeto de canje sin letras confundibles.
+- **Recorrido con navegador en CI** (Playwright, 26 pruebas en dos tamaños de
+  pantalla), que destapó defectos que ninguna prueba de contrato podía ver.
+- **Paso de movimiento** sobre el sitio y el panel.
+- **Esta misma respuesta a la auditoría de la S12**: ADR-0011, las notas de
+  revisión de los ADR aceptados, y la corrección de la carrera en el avance de
+  estado.
+
+### Qué se aceptó
+
+| Propuesta de la IA | Por qué se aceptó |
+|---|---|
+| Partir en dos las tres fotos que traían dos productos | Una miniatura de 72 px donde la mitad es otro producto no es la foto de ese producto |
+| Atar el conteo de pruebas del README a lo que mide la suite, y no a una suma mental | Se había escrito 562 sumando dos pruebas nuevas y olvidando que una está parametrizada sobre `git ls-files`: las 25 fotos le añadieron 25 casos. El número real era 587 |
+| Animar solo lo que cambia por su cuenta, y no lo que acaba de pulsar un dedo | Una lista que entra escalonada en cada toque convierte un filtro en media espera |
+| `backwards` y no `both` en las animaciones con retraso | Una animación rellenada hacia delante gana a cualquier declaración normal de la hoja, y su `transform: none` habría matado el hundido al pulsar de los productos de la primera carta |
+
+### Qué se corrigió de lo que la IA propuso
+
+| Propuesta | Decisión | Motivo |
+|---|---|---|
+| Colgar la animación de entrada de `.pantalla.activa` | **Corregida** | `.activa` significa «estoy puesta», no «acabo de llegar». La pantalla del resultado se repinta en cada paso de la cocina, y la pantalla entera saltaba cuando solo cambiaba un renglón |
+| Escalonar la entrada de las 37 filas de la carta | **Corregida a 6** | Animar lo que está fuera de la pantalla no lo ve nadie, y con `backwards` una fila espera escondida a que le toque: su visibilidad pasaría a depender de que la animación llegue a correr |
+| Dar por verificado el comportamiento nuevo mirando el navegador | **Corregida** | El navegador servía un `app.js` en caché y se estuvo comprobando código que ya no existía en el disco. La verificación se rehízo leyendo estilos calculados contra un servidor que sella cada etiqueta |
+
+### Qué se rechazó
+
+| Propuesta de la IA | Decisión | Motivo del rechazo |
+|---|---|---|
+| Purgar el historial de git para eliminar el secreto de la pasarela que la S9 encontró | **Rechazada** | Invalidaría todos los hashes citados en `correcciones.md`, `docs/evidencia-*.md` y este documento, **y el commit de corte sobre el que se calculó la nota de la S12**. El valor está rotado y el código falla en cerrado: el riesgo vivo es nulo y el daño a la trazabilidad, cierto |
+| Reconstruir por inferencia las secciones S10–S13 de esta bitácora | **Rechazada** | Es el único sitio del repositorio donde inventar sale gratis y se nota tarde. Los huecos van marcados y los completa el equipo |
+| Redactar el criterio de «contribución de todos» a partir de las firmas de los commits | **Rechazada** | Las firmas dicen quién figura, no quién trabajó. Presentárselas a un evaluador como reparto de trabajo sería engañarlo. El emparejamiento con la nómina lo escribe el equipo |
+
+### Lo que el hueco enseñó
+
+Entre la S9 y hoy pasaron cinco entregas sin registrar, y el motivo es visible
+en las fechas: `docs/evidencia-s11.md` a `docs/evidencia-s14.md` se escribieron
+**todas el 18/10**, al cierre. Lo que se documenta al final se documenta de
+memoria, y de memoria no se recuerda lo que **no** se hizo — que es justo la
+mitad valiosa de esta bitácora.
+
+El registro de la S9 funcionó porque se escribió mientras se auditaba. Estas
+secciones se reconstruyeron quince días después, y por eso tres de ellas tienen
+un hueco donde debería ir lo rechazado. **Una propuesta rechazada no deja
+rastro en el repositorio**: no hay commit, no hay archivo, no hay diff. Si no se
+anota en el momento, se pierde.
