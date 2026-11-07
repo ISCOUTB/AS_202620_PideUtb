@@ -311,9 +311,58 @@ def test_marcar_pagado_un_pedido_inexistente_devuelve_none(implementacion):
 def test_guardar_persiste_el_cambio_de_estado(implementacion):
     pedido = pedidos_repo.marcar_pagado(_crear_pedido().id, "ABC123")
 
-    pedidos_repo.guardar(pedido.model_copy(update={"estado": EstadoPedido.EN_PREPARACION}))
+    pedidos_repo.guardar(
+        pedido.model_copy(update={"estado": EstadoPedido.EN_PREPARACION}),
+        estado_esperado=EstadoPedido.PAGADO,
+    )
 
     assert pedidos_repo.buscar_por_id(pedido.id).estado is EstadoPedido.EN_PREPARACION
+
+
+def test_guardar_no_pisa_un_pedido_que_ya_se_movio(implementacion):
+    """Dos avances desde la misma lectura: solo uno puede ganar.
+
+    Es la carrera que la auditoría de la semana 12 encontró por lectura
+    estática y no pudo ejecutar. Con `UPDATE ... WHERE id` a secas las dos
+    escrituras pasaban y ganaba la última, así que un pedido podía
+    **retroceder**: quien leyó `pagado` y escribe tarde deshace el trabajo de
+    quien ya lo llevó a `listo_para_recoger`.
+
+    Las dos escrituras salen del **mismo** `pedido` leído una vez, que es
+    exactamente lo que pasa cuando dos personas tienen la misma cola abierta.
+    """
+    pagado = pedidos_repo.marcar_pagado(_crear_pedido().id, "ABC123")
+
+    primera = pedidos_repo.guardar(
+        pagado.model_copy(update={"estado": EstadoPedido.EN_PREPARACION}),
+        estado_esperado=EstadoPedido.PAGADO,
+    )
+    segunda = pedidos_repo.guardar(
+        pagado.model_copy(update={"estado": EstadoPedido.LISTO_PARA_RECOGER}),
+        estado_esperado=EstadoPedido.PAGADO,
+    )
+
+    assert primera is not None, "La primera escritura tenía que pasar."
+    assert segunda is None, (
+        "La segunda escritura salió de una lectura que ya estaba vieja y tenía "
+        "que perder. Si pasa, la condición no está dentro del UPDATE."
+    )
+    assert pedidos_repo.buscar_por_id(pagado.id).estado is EstadoPedido.EN_PREPARACION
+
+
+def test_guardar_un_pedido_inexistente_sigue_siendo_un_error(implementacion):
+    """`None` significa «se movió», no «no existe». Son 409 y 404.
+
+    Sin esta prueba, la consulta que distingue los dos casos se puede borrar
+    por parecer de más y nadie lo nota: el camino del fallo es justo el que no
+    se recorre nunca.
+    """
+    fantasma = pedidos_repo.marcar_pagado(_crear_pedido().id, "ABC123").model_copy(
+        update={"id": 9999, "estado": EstadoPedido.EN_PREPARACION}
+    )
+
+    with pytest.raises(LookupError):
+        pedidos_repo.guardar(fantasma, estado_esperado=EstadoPedido.PAGADO)
 
 
 # ---------------------------------------------------------------------------

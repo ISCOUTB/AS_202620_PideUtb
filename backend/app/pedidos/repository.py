@@ -145,28 +145,65 @@ def crear(
         return _desde_fila(fila, _lineas_de(cur, pedido_id))
 
 
-def guardar(pedido: Pedido) -> Pedido:
-    """Persiste los cambios de un pedido que ya existe.
+def guardar(pedido: Pedido, *, estado_esperado: EstadoPedido) -> Pedido | None:
+    """Persiste los cambios de un pedido que ya existe, **si no se movió**.
 
     No crea: un pedido nuevo entra por `crear`, que es quien deja que la base de
     datos asigne el identificador.
+
+    Devuelve **`None` si la fila ya no estaba en `estado_esperado`**, igual que
+    `marcar_pagado` y por el mismo motivo: la condición viaja dentro del
+    `UPDATE` y no en un `if` previo de quien llama.
+
+    Esto era un defecto, y uno de los que no se ven hasta que hay dos personas.
+    Antes la instrucción era `UPDATE ... WHERE id = %s` a secas, y
+    `avanzar_estado` validaba la transición **antes**, contra un estado que
+    había leído en otra consulta. Entre la lectura y la escritura no había nada,
+    y en un mostrador esa ventana tiene dos personas dentro: A lee `pagado`, B
+    mueve el pedido a `en_preparacion` y luego a `listo`, y entonces aterriza la
+    escritura de A y el pedido **retrocede** a `en_preparacion`. Ni falla, ni
+    avisa, ni queda registro.
+
+    Lo detectó la auditoría de la semana 12 por lectura estática, contrastando
+    la tabla de consistencia de arc42 —que promete `UPDATE ... WHERE estado =
+    <el esperado>`— con lo que hacía esta función.
     """
     if not base_de_datos.hay_base_de_datos():
+        actual = _PEDIDOS.get(pedido.id)
+        if actual is None:
+            raise LookupError(f"El pedido {pedido.id} no existe")
+        if actual.estado is not estado_esperado:
+            return None
         _PEDIDOS[pedido.id] = pedido
         return pedido
 
+    existe = True
     with base_de_datos.conexion() as conn, conn.cursor() as cur:
         cur.execute(
             "UPDATE pedidos SET estado = %s, codigo_canje = %s, "
-            f"actualizado_en = now() WHERE id = %s RETURNING {_COLUMNAS}",
-            (pedido.estado.value, pedido.codigo_canje, pedido.id),
+            "actualizado_en = now() WHERE id = %s AND estado = %s "
+            f"RETURNING {_COLUMNAS}",
+            (
+                pedido.estado.value,
+                pedido.codigo_canje,
+                pedido.id,
+                estado_esperado.value,
+            ),
         )
         fila = cur.fetchone()
         lineas = _lineas_de(cur, pedido.id) if fila is not None else []
+        if fila is None:
+            # Cero filas puede ser «no existe» o «ya no está en ese estado», y
+            # la diferencia le importa a quien llama: una es un 404 y la otra un
+            # 409. Esta segunda consulta solo se paga en el camino del fallo.
+            cur.execute("SELECT 1 FROM pedidos WHERE id = %s", (pedido.id,))
+            existe = cur.fetchone() is not None
 
-    if fila is None:
+    if fila is not None:
+        return _desde_fila(fila, lineas)
+    if not existe:
         raise LookupError(f"El pedido {pedido.id} no existe")
-    return _desde_fila(fila, lineas)
+    return None
 
 
 def marcar_pagado(pedido_id: int, codigo_canje: str) -> Pedido | None:

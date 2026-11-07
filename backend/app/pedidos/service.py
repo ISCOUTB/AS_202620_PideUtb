@@ -403,7 +403,28 @@ def avanzar_estado(
                 "El código de canje no corresponde a este pedido."
             )
 
-    return _publicar(repository.guardar(pedido.model_copy(update={"estado": nuevo_estado})))
+    # La condición de estado viaja dentro del `UPDATE`, no en el `if` de arriba.
+    #
+    # La validación de la transición sigue estando donde estaba, porque es la
+    # regla de negocio y tiene que dar un mensaje decente. Lo que no puede
+    # hacer es *garantizar* nada: entre esa comprobación y esta escritura hay
+    # una ventana, y en el mostrador esa ventana tiene dos personas dentro.
+    guardado = repository.guardar(
+        pedido.model_copy(update={"estado": nuevo_estado}),
+        estado_esperado=pedido.estado,
+    )
+
+    # Cero filas actualizadas significa que alguien movió el pedido mientras
+    # esto corría. Antes ganaba la última escritura y el pedido podía retroceder
+    # de `listo` a `en_preparacion` sin que nada se quejara; ahora pierde la
+    # segunda, que es la que todavía está mirando la pantalla y puede enterarse.
+    if guardado is None:
+        raise TransicionNoPermitidaError(
+            f"Otra persona movió el pedido {pedido_id} mientras se procesaba "
+            "esta petición. Actualizá la cola y volvé a intentarlo."
+        )
+
+    return _publicar(guardado)
 
 
 def _codigo_coincide(presentado: str, real: str | None) -> bool:
