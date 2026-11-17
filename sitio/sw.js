@@ -18,7 +18,7 @@
 self.addEventListener("push", (evento) => {
   evento.waitUntil(
     self.registration.showNotification("Tu pedido está listo", {
-      body: "Pasá por el mostrador con tu código.",
+      body: "Pasa por el mostrador con tu código.",
       icon: "iconos/icono-192.png",
       tag: "pedido-listo",
       renotify: true,

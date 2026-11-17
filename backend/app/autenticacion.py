@@ -129,6 +129,6 @@ def establecimiento_que_puede_ver(
     if solicitado is not None and solicitado != propio:
         raise HTTPException(
             status_code=403,
-            detail="Solo podés operar sobre tu propio establecimiento.",
+            detail="Solo puedes operar sobre tu propio establecimiento.",
         )
     return propio

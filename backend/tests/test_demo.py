@@ -59,7 +59,7 @@ def contra_postgres(monkeypatch):
 def test_sin_la_variable_responde_404(sin_variable):
     """El mismo código que daría una ruta inventada.
 
-    No es cosmética: un 403 —«existe, pero no podés»— le confirma a quien
+    No es cosmética: un 403 —«existe, pero no puedes»— le confirma a quien
     sondea que la ruta está ahí y que solo falta la configuración adecuada. Un
     404 no le dice nada que no supiera.
     """

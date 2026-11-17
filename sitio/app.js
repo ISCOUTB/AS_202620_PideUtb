@@ -239,7 +239,7 @@ let cartaEstrenada = false;
  *
  * El cuerpo del resultado se vuelve a dibujar en cada paso de la cocina, así
  * que sin esto el número grande se destacaría tres veces para el mismo pedido.
- * A la tercera deja de significar «ya tenés tu código» y pasa a ser un
+ * A la tercera deja de significar «ya tienes tu código» y pasa a ser un
  * parpadeo encima de la única cosa de la pantalla que hay que leer bien.
  */
 let codigoEstrenado = null;
@@ -467,15 +467,15 @@ async function comprobarSalud() {
       fallar(
         caidas.length
           ? `El servicio está en mantenimiento: no responde ${caidas.join(", ")}. ` +
-            "Tu pedido no se perdió; volvé a intentarlo en unos minutos."
-          : "El servicio está en mantenimiento. Volvé a intentarlo en unos minutos."
+            "Tu pedido no se perdió; vuelve a intentarlo en unos minutos."
+          : "El servicio está en mantenimiento. Vuelve a intentarlo en unos minutos."
       );
       return;
     }
 
     $("mensaje-arranque").textContent = "No se pudo contactar con el servicio.";
     fallar(
-      `${e.message} Si acabás de abrir la página, esperá un minuto y recargá: ` +
+      `${e.message} Si acabas de abrir la página, espera un minuto y recarga: ` +
       "el servicio puede estar despertando."
     );
   }
@@ -1123,7 +1123,7 @@ function dibujarMetodos() {
   const pagar = $("pagar");
   pagar.disabled = metodoElegido === null;
   pagar.textContent = metodoElegido === null
-    ? "Elegí un método de pago"
+    ? "Elige un método de pago"
     : "Pagar " + pesos(totalDelCarrito());
 }
 
@@ -1195,7 +1195,7 @@ async function pagarCarrito() {
     const mensajes = {
       404: "Uno de los productos ya no existe en la carta.",
       409: e.message, // agotado, repetido, cerrado o una hora que no vale: la API dice cuál
-      422: "El pedido no es válido. Revisá las cantidades, la hora y el correo.",
+      422: "El pedido no es válido. Revisa las cantidades, la hora y el correo.",
     };
     fallar(mensajes[e.status] || "No se pudo crear el pedido: " + e.message);
     dibujarMetodos();
@@ -1416,7 +1416,7 @@ function mostrarCobroRechazado() {
   // No se afirma por qué: la pasarela no nos lo dice, e inventar un motivo
   // —«fondos insuficientes»— sería peor que no darlo.
   texto.textContent =
-    "Tu pedido sigue guardado y no se te cobró nada. Podés intentarlo otra " +
+    "Tu pedido sigue guardado y no se te cobró nada. Puedes intentarlo otra " +
     "vez, con el mismo método o con otro.";
   linea.append(punto, texto);
   cuerpo.append(linea);
@@ -1532,7 +1532,7 @@ const RESPUESTA_POR_ESTADO = {
   pagado: {
     titulo: "¡Listo! Pago confirmado",
     punto: "ok",
-    texto: "Presentá este código en el establecimiento para recoger tu pedido.",
+    texto: "Presenta este código en el establecimiento para recoger tu pedido.",
     mostrarCodigo: true,
   },
   en_preparacion: {
@@ -1542,9 +1542,9 @@ const RESPUESTA_POR_ESTADO = {
     mostrarCodigo: true,
   },
   listo_para_recoger: {
-    titulo: "¡Ya podés pasar a recogerlo!",
+    titulo: "¡Ya puedes pasar a recogerlo!",
     punto: "ok",
-    texto: "Tu pedido está listo. Presentá el código.",
+    texto: "Tu pedido está listo. Presenta el código.",
     mostrarCodigo: true,
   },
   entregado: {
@@ -1555,7 +1555,7 @@ const RESPUESTA_POR_ESTADO = {
   cancelado: {
     titulo: "Pedido cancelado",
     punto: "mal",
-    texto: "Este pedido fue cancelado. Podés hacer otro cuando quieras.",
+    texto: "Este pedido fue cancelado. Puedes hacer otro cuando quieras.",
   },
 };
 
@@ -1679,7 +1679,7 @@ function mostrarResultado(pedido) {
     $("titulo-resultado").textContent = "Estado desconocido";
     $("cuerpo-resultado").replaceChildren(
       nota(`Tu pedido está en el estado "${pedido.estado}", que esta versión
-            del sitio no sabe interpretar. Consultá en el establecimiento.`)
+            del sitio no sabe interpretar. Consulta en el establecimiento.`)
     );
     mostrar("resultado");
     return;
@@ -1778,14 +1778,14 @@ async function dibujarAviso(pedido) {
   } else if (esIphoneSinInstalar()) {
     decir(
       "En iPhone, el aviso solo funciona con PideUTB en la pantalla de inicio: " +
-        "tocá Compartir, «Agregar a inicio», y hacé tu próximo pedido desde ahí."
+        "toca Compartir, «Agregar a inicio», y haz tu próximo pedido desde ahí."
     );
   } else if (!soportaAvisos()) {
     bloque.classList.add("oculto");
   } else if (Notification.permission === "denied") {
     decir(
-      "Las notificaciones de este sitio están bloqueadas en tu navegador. Dejá " +
-        "esta pantalla abierta: acá vas a ver cuándo está listo."
+      "Las notificaciones de este sitio están bloqueadas en tu navegador. Deja " +
+        "esta pantalla abierta: aquí vas a ver cuándo está listo."
     );
   } else {
     decir("", true);
@@ -1837,7 +1837,7 @@ async function activarAviso() {
   } catch {
     // No se pierde nada: el pedido sigue, y esta pantalla se sigue actualizando.
     $("texto-aviso").textContent =
-      "No pudimos activar el aviso. Dejá esta pantalla abierta: acá vas a ver " +
+      "No pudimos activar el aviso. Deja esta pantalla abierta: aquí vas a ver " +
       "cuándo está listo.";
   } finally {
     boton.disabled = false;
@@ -1860,7 +1860,7 @@ async function avisarQueEstaListo() {
   const registro = await navigator.serviceWorker.getRegistration();
   if (registro) {
     await registro.showNotification("Tu pedido está listo", {
-      body: "Pasá por el mostrador con tu código.",
+      body: "Pasa por el mostrador con tu código.",
       icon: "iconos/icono-192.png",
       tag: "pedido-listo",
       vibrate: PATRON_DE_VIBRACION,
@@ -1952,7 +1952,7 @@ function abrirLaAdvertencia() {
   $("advertencia-texto").replaceChildren(
     "Ya pagaste este pedido y su código es ",
     fuerte,
-    ". Si empezás otro, esta pantalla deja de mostrarlo: desde el teléfono no " +
+    ". Si empiezas otro, esta pantalla deja de mostrarlo: desde el teléfono no " +
       "hay dónde volver a buscarlo, y habría que pedirlo en el mostrador."
   );
 

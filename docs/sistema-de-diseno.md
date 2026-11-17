@@ -173,7 +173,7 @@ más en la imagen.
 
 ```
 PideUTB            ← Fraunces 600, --azul, sobre --crema
-Pedí sin hacer fila. Recogé con un código.
+Haz tu pedido sin hacer fila. Recógelo con un código.
 ```
 
 El filete de tres colores desapareció con la paleta de la 1.0. Era lo único
@@ -423,7 +423,7 @@ no empieza bien por el nombre del servicio sobre un fondo plano.
 │                                      │  velo 34 %
 │ ····································· │
 │  PideUTB                             │  velo 72 %   ← el suelo medido
-│  Pedí sin hacer fila.                │
+│  Haz tu pedido sin hacer fila.       │
 └──────────────────────────────────────┘
  ╭────────────────────────────────────╮   --radio-hoja, el crema encima
  │  Carta                             │
@@ -730,7 +730,7 @@ El momento alto de la aplicación: lo que el cliente enseña para recoger. Se tr
 como un **billete**, con su propio par de colores: el azul de la UTB llevado a casi
 noche y la cifra en ámbar.
 
-**Dejó de ser verde** porque el verde significa «ya podés recoger», y el código aparece
+**Dejó de ser verde** porque el verde significa «ya puedes recoger», y el código aparece
 en cuanto se paga, cuando la comida ni se ha empezado a preparar. **Y no es el azul de
 la marca** porque ese es un botón, y el código parecía algo que se puede pulsar. Con
 10,68:1 se lee desde la última fila, y 15,40:1 contra la tarjeta blanca lo despega de
@@ -811,9 +811,9 @@ distinguir la caja, así que no cambia lo que se envía.
 
 ```
 ┌──────────────────────────────────────┐
-│ Guardá tu código antes de seguir     │  --ambar, Fraunces
+│ Guarda tu código antes de seguir     │  --ambar, Fraunces
 │ Ya pagaste este pedido y su código   │
-│ es K7M2X9. Si empezás otro, esta     │  fondo --ambar-niebla
+│ es K7M2X9. Si empiezas otro, esta    │  fondo --ambar-niebla
 │ pantalla deja de mostrarlo…          │  borde --ambar
 │                                      │
 │ [ Seguir viendo mi código ]          │  primario: el que no destruye
@@ -1070,7 +1070,7 @@ el resaltado de la cola, y abajo está por qué.
 | Las filas de la carta | Solo en el estreno, y solo las seis que caben en pantalla, cada 35 ms | Que los esqueletos eran esqueletos y esto es la carta |
 | El renglón del estado | Cada vez que la cocina mueve el pedido | Que algo cambió sin que tocaras nada |
 | El billete del código | En cada repintado del resultado | Que la tarjeta de arriba también es nueva |
-| El número del código | **Una sola vez**, cuando el código aparece | Que ya tenés tu código |
+| El número del código | **Una sola vez**, cuando el código aparece | Que ya tienes tu código |
 | La chapa del carrito | Al cambiar el número | Que el toque entró |
 | Una fila nueva de la cola | Al aparecer un pedido | Que hay trabajo nuevo |
 | Una fila que cambió de estado | Al moverse un pedido que ya estaba | Cuál de todas se movió |
@@ -1086,7 +1086,7 @@ del código de recogida, que es lo que se está mirando en ese momento.
 
 El número del código es el otro caso del mismo tipo. El cuerpo del resultado se
 vuelve a dibujar en cada paso de la cocina, así que sin la clase el código daría
-su golpe de efecto tres veces, y a la tercera deja de significar «ya tenés tu
+su golpe de efecto tres veces, y a la tercera deja de significar «ya tienes tu
 código» para ser un parpadeo encima de lo único que hay que leer bien.
 
 #### El resaltado de la cola, que dura 900 ms
@@ -1198,7 +1198,7 @@ PideUTB. Son todas las que hoy existen.
 ┌──────────────────────────────────────┐
 │          (la parrilla)               │
 │  PideUTB                             │  ← portada, velo 72 % bajo el texto
-│  Pedí sin hacer fila. Recogé con…    │
+│  Haz tu pedido sin hacer fila. Re…   │
 └──────────────────────────────────────┘
  ╭────────────────────────────────────╮   el crema se monta encima
  │                                     │
@@ -1258,7 +1258,7 @@ Tu pedido
 │  Total               $ 60.000    │
 └──────────────────────────────────┘
 
-¿Cómo querés pagar?
+¿Cómo quieres pagar?
 
 ( Tarjeta           )
 (✓ Nequi            )   ← elegido
@@ -1353,7 +1353,7 @@ código seguiría esperando.
 El pago fue rechazado
 
 ●  Tu pedido sigue guardado y no se te
-   cobró nada. Podés intentarlo otra vez,
+   cobró nada. Puedes intentarlo otra vez,
    con el mismo método o con otro.
 
 ┌──────────────────────────────────┐
@@ -1442,7 +1442,7 @@ cambiado de manos, así que el mismo bloque sirve para los seis estados.
 
 ```
 Mostrador
-Los pedidos que tenés que atender.
+Los pedidos que tienes que atender.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [ Refrescar ]            Última carga: 17:42
@@ -1497,7 +1497,7 @@ nada y cualquiera con el enlace movía pedidos de cualquier establecimiento
 
 ```
 PASARELA DE PRUEBAS
-Confirmá tu pago
+Confirma tu pago
                                 ← sin el filete de tres colores
 ┌──────────────────────────────────┐
 │  Comercio              PideUTB   │

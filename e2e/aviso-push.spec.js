@@ -106,7 +106,7 @@ test("pedir el aviso lo registra, y un push enseña la notificación", async ({
         return avisos.map((n) => [n.title, n.body, n.tag]);
       })
     )
-    .toEqual([["Tu pedido está listo", "Pasá por el mostrador con tu código.", "pedido-listo"]]);
+    .toEqual([["Tu pedido está listo", "Pasa por el mostrador con tu código.", "pedido-listo"]]);
 });
 
 test("si el navegador niega el permiso, se dice y no se insiste", async ({ page, request }) => {

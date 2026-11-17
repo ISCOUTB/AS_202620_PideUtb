@@ -315,7 +315,7 @@ async function salir() {
 function caducar() {
   guardarSesion(null);
   mostrarPantalla();
-  fallar("La sesión caducó o se cerró en otro equipo. Volvé a entrar.");
+  fallar("La sesión caducó o se cerró en otro equipo. Vuelve a entrar.");
 }
 
 // --------------------------------------------------------------------------

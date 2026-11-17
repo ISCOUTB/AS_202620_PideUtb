@@ -167,7 +167,7 @@ En Windows (PowerShell):
 python -m venv .venv; .\.venv\Scripts\Activate.ps1; pip install -r requirements.txt; uvicorn app.main:app --reload
 ```
 
-El servidor queda disponible en `http://127.0.0.1:8000`. Podés verificar que arrancó correctamente visitando `http://127.0.0.1:8000/health`, que debe responder `{"status": "ok"}`.
+El servidor queda disponible en `http://127.0.0.1:8000`. Puedes verificar que arrancó correctamente visitando `http://127.0.0.1:8000/health`, que debe responder `{"status": "ok"}`.
 
 ## Correo, avisos y sugeridos del día
 

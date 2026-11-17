@@ -163,7 +163,7 @@ def conexion() -> Iterator:
     if _pool is None:
         raise RuntimeError(
             "No hay base de datos configurada. Definí PIDEUTB_DATABASE_URL o "
-            "usá el almacenamiento en memoria."
+            "usa el almacenamiento en memoria."
         )
 
     with _pool.connection() as conn:

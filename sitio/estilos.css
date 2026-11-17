@@ -119,7 +119,7 @@
   --ambar: #92400a;          /* 7,09:1 con blanco encima. */
   --ambar-niebla: #fdf0dc;
 
-  /* --- Verde, que es la seña de «ya podés recoger» ---------------------
+  /* --- Verde, que es la seña de «ya puedes recoger» ---------------------
      Sobrevive al cambio de paleta porque es semántica, no decoración: es el
      color del momento en que la comida está lista. Oscurecido respecto al
      anterior porque el fondo dejó de ser blanco: 5,68:1 sobre crema. */
@@ -128,7 +128,7 @@
   /* --- El código de recogida -------------------------------------------
      Azul de la UTB llevado a casi noche, con la cifra en ámbar: 10,68:1.
 
-     Dejó de ser verde porque el verde significa «ya podés recoger», y el código
+     Dejó de ser verde porque el verde significa «ya puedes recoger», y el código
      aparece en cuanto se paga, cuando la comida ni se ha empezado a preparar: un
      bloque verde enorme decía lo contrario del renglón de abajo. Y no es el azul
      de la marca, que es un botón: con ese fondo el código parecía algo que se
@@ -1812,7 +1812,7 @@ input.codigo-canje {
    `app.js` pone `.estrena` solo en ese repintado, y eso es deliberado: el
    cuerpo del resultado se vuelve a dibujar en cada paso de la cocina, así que
    sin la clase el código daría el mismo golpe de efecto tres veces. A la
-   tercera deja de significar «ya tenés tu código» y pasa a ser un parpadeo.
+   tercera deja de significar «ya tienes tu código» y pasa a ser un parpadeo.
 
    Los 80 ms de retraso son la única cosa de esta hoja que existe para que algo
    se sienta bien y no para que se entienda: el billete llega, y el código cae

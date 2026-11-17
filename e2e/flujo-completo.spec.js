@@ -123,7 +123,7 @@ test.describe("El recorrido del cliente", () => {
 
     const pagar = page.locator("#pagar");
     await expect(pagar).toBeDisabled();
-    await expect(pagar).toHaveText("Elegí un método de pago");
+    await expect(pagar).toHaveText("Elige un método de pago");
 
     // Se marca por la etiqueta, que es lo que toca una persona.
     await page.getByText("Nequi", { exact: true }).click();
