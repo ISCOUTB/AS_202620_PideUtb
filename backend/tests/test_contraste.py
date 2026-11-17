@@ -462,3 +462,66 @@ def test_el_degradado_de_la_portada_termina_en_el_mismo_velo():
         "velo plano de abajo: con otro valor, la foto enseña una costura "
         "recta donde se tocan las dos capas."
     )
+
+
+# ---------------------------------------------------------------------------
+# El mantel de la carta
+# ---------------------------------------------------------------------------
+#
+# La hoja de la carta lleva cuadros de mantel en vez de crema liso. El texto que
+# cae directamente encima —títulos, notas, la advertencia de alergias— ya no cae
+# sobre `--crema` sino sobre uno de cuatro cuadros, y el que importa es el más
+# oscuro: el del cruce, donde las dos franjas suman su tono.
+
+
+def _mantel() -> tuple[tuple[int, int, int], float]:
+    """El color de las franjas del mantel y su opacidad."""
+    texto = HOJA.read_text(encoding="utf-8")
+
+    color = re.search(r"--mantel-tinta:\s*(\d+)\s+(\d+)\s+(\d+)\s*;", texto)
+    opacidad = re.search(r"--mantel-opacidad:\s*(\d+(?:\.\d+)?)%\s*;", texto)
+    assert color and opacidad, (
+        "`--mantel-tinta` o `--mantel-opacidad` ya no están en sitio/estilos.css, "
+        "o cambiaron de formato. Sin ellos esta prueba no puede componer el cuadro "
+        "más oscuro del mantel, y el texto de la carta queda sin medir."
+    )
+    return tuple(int(c) for c in color.groups()), float(opacidad.group(1)) / 100
+
+
+def _cuadro_mas_oscuro() -> str:
+    tinta, alfa = _mantel()
+    crema = _paleta()["crema"].lstrip("#")
+    debajo = tuple(int(crema[i:i + 2], 16) for i in (0, 2, 4))
+    una = _componer(tinta, alfa, debajo).lstrip("#")
+    # La segunda franja se pinta encima de la primera.
+    return _componer(tinta, alfa, tuple(int(una[i:i + 2], 16) for i in (0, 2, 4)))
+
+
+@pytest.mark.parametrize(
+    "tinta,minimo,donde",
+    [(t, m, d) for t, s, m, d in PARES if s == "crema"],
+)
+def test_lo_que_se_lee_sobre_el_crema_se_lee_sobre_el_mantel(tinta, minimo, donde):
+    """El mantel no rebaja ninguna tinta por debajo del mínimo que tenía sobre crema."""
+    cuadro = _cuadro_mas_oscuro()
+    medido = contraste(_paleta()[tinta], cuadro)
+
+    assert medido >= minimo, (
+        f"`--{tinta}` sobre el cuadro más oscuro del mantel ({cuadro}) da "
+        f"{medido:.2f}:1 y necesita {minimo}:1 — {donde}. Baja "
+        "`--mantel-opacidad`: el mantel es decoración y no puede costar lectura."
+    )
+
+
+def test_el_mantel_se_pinta_con_sus_tokens():
+    """Si la hoja dibuja el mantel con otro color, la prueba de arriba mide uno que no se ve."""
+    hoja = HOJA.read_text(encoding="utf-8")
+    franjas = re.findall(
+        r"rgb\(\s*var\(--mantel-tinta\)\s*/\s*var\(--mantel-opacidad\)\s*\)", hoja
+    )
+    assert len(franjas) == 2, (
+        "El mantel de `.portada + main` ya no se dibuja con "
+        "`rgb(var(--mantel-tinta) / var(--mantel-opacidad))` en sus dos franjas. "
+        "Las pruebas de contraste del mantel leen esos dos tokens: con otro color, "
+        "miden un cuadro que no es el que se ve."
+    )

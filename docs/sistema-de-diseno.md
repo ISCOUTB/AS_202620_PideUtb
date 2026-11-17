@@ -24,8 +24,8 @@ Esta guía fija la apariencia y el comportamiento de las dos superficies de
 PideUTB: la del cliente y la del mostrador. Cada pantalla que se desarrolle debe
 ajustarse a ella.
 
-**Versión** 2.5 · 04/11/2026 · **Fundamentos** fondo cálido, marca azul de la
-UTB y portada fotográfica, con cada contraste medido y **verificado en cada
+**Versión** 2.6 · 17/11/2026 · **Fundamentos** fondo cálido con mantel, marca azul de
+la UTB y portada fotográfica, con cada contraste medido y **verificado en cada
 construcción** por [`test_contraste.py`](../backend/tests/test_contraste.py) ·
 tokens vigentes en [`sitio/estilos.css`](../sitio/estilos.css) · **Alcance** las
 seis pantallas que hoy existen
@@ -259,6 +259,19 @@ lo adorna.
 **Que el fondo no sea blanco es lo que hace que una tarjeta blanca se lea como
 tarjeta** sin necesitar un borde. Es la razón de que haya dos superficies y no
 una.
+
+**La hoja de la carta lleva mantel.** Cuadros de mantel de asadero, del ámbar de la
+paleta al 4 % sobre el crema (`--mantel-tinta`, `--mantel-opacidad`,
+`--mantel-cuadro`). Solo en la hoja que sube sobre la portada: el panel y la
+pasarela siguen en crema liso, y fuera de la hoja también. No se dibuja en la
+página entera porque la hoja se centra con márgenes que no son múltiplo del cuadro,
+y su borde partiría los cuadros por la mitad.
+
+El texto que cae directamente sobre el mantel —títulos, notas, el aviso de
+alergias— se mide contra el cuadro más oscuro, el del cruce de las dos franjas
+(`#F3E8DD`): ahí `--carbon-tenue` queda en 4,66:1. `test_contraste.py` compone ese
+cuadro y exige a cada tinta el mismo mínimo que sobre el crema, así que subir la
+opacidad del mantel falla antes de que se note en pantalla.
 
 `--carbon-tenue` pasa AA con 5,23:1 pero no AAA. De ahí la restricción: sirve
 para la hora de última carga o una nota de ayuda, **nunca** para un precio, un
