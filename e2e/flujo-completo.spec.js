@@ -575,6 +575,8 @@ test.describe("La carta", () => {
     for (const sabor of ["Postobón Manzana", "Postobón Uva", "Postobón Naranja"]) {
       await expect(nombres.filter({ hasText: sabor })).toHaveCount(2);
     }
+    // La Pepsi, solo en 400 ml.
+    await expect(nombres.filter({ hasText: "Pepsi" })).toHaveCount(1);
   });
 
   test("cada producto lleva su descripción en letra pequeña", async ({ page }) => {

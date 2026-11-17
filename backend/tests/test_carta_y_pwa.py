@@ -94,9 +94,13 @@ def test_cada_producto_de_la_carta_tiene_descripcion():
     """El sitio pinta lo que haya: un producto sin texto simplemente sale sin él."""
     sql = _sql()
     carta = {int(i) for i in re.findall(r"^\s*\((\d+),\s*5,\s*'", sql, re.M)}
-    migracion = (MIGRACIONES / "010_gaseosas_y_descripciones.sql").read_text(encoding="utf-8")
-    con_texto = {int(i) for i in re.findall(r"^\s*\((\d+),\s*'[^']+\.'\)", migracion, re.M)}
-    con_texto |= {int(i) for i in re.findall(r"^\s*\((\d+),\s*5,.*'[^']+\.'\)", migracion, re.M)}
+    # Desde `010`: las anteriores no traían descripciones, y un producto nuevo trae
+    # la suya en su propia migración, como la Pepsi en `013`.
+    desde_010 = "\n".join(
+        a.read_text(encoding="utf-8") for a in sorted(MIGRACIONES.glob("*.sql")) if a.name >= "010"
+    )
+    con_texto = {int(i) for i in re.findall(r"^\s*\((\d+),\s*'[^']+\.'\)", desde_010, re.M)}
+    con_texto |= {int(i) for i in re.findall(r"^\s*\((\d+),\s*5,.*'[^']+\.'\)", desde_010, re.M)}
     # El combo de la franja trae la suya desde `006`.
     con_texto.add(127)
 
