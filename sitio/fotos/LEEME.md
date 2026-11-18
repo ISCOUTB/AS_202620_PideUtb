@@ -132,8 +132,11 @@ el repositorio: es una herramienta de una vez, y su modelo pesa 179 MB.
 | `gaseosa-postobon-naranja.webp` | [Naranja Postobón](https://world.openfoodfacts.org/product/7702090031935), Open Food Facts | Colaboradores de Open Food Facts | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) |
 
 Las tres miniaturas son obras derivadas —recortadas, sin fondo y reescaladas— y
-quedan bajo la misma licencia que su original. La atribución también está en el pie
-de la página, que es donde la ve quien mira la foto.
+quedan bajo la misma licencia que su original. Su atribución está en esta tabla.
+Estuvo también en el pie de la página hasta el 18/11/2026, cuando el equipo
+decidió quitarla del sitio por cómo se veía; la licencia pide darla donde se ve
+la foto, así que, si el sitio deja de ser un proyecto académico, lo que
+corresponde es volver a ponerla o sustituir estas tres fotos.
 
 Lo que **no** se buscó es la salsa de la casa. Nadie sabe de qué color es, y
 cualquier foto sería inventarse la salsa.

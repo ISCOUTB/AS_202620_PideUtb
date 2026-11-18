@@ -693,3 +693,37 @@ y pidió un fondo mejor que el crema liso.
 | Usar la foto del combo de perro y gaseosa que llegó con las demás | **Rechazada** | Llevaba la marca de agua de un banco de imágenes: era una vista previa sin licencia. A 144 px no se ve, y se encontró estirando el contraste de los blancos. La miniatura se compuso con dos fotos de la propia cafetería |
 | Buscar una foto para la salsa de la casa | **Rechazada** | Nadie sabe de qué color es. Cualquier foto sería inventarse la salsa |
 | Dibujar el mantel en toda la página, alineado con `background-attachment: fixed` | **Rechazada** | Obliga a repintar la pantalla entera en cada desplazamiento. El mantel va solo en la hoja de la carta |
+
+## Uso de IA en el fondo y el vidrio de la carta (18/11/2026)
+
+El mantel del 17/11 no convenció al equipo. Pidió otras opciones de fondo «pensando
+como un diseñador web senior», propuso el efecto *liquid glass* con una imagen de
+referencia y pidió quitar del pie de la página los créditos de las fotos.
+
+### Qué se aceptó
+
+| Propuesta | Motivo |
+|---|---|
+| Enseñar cuatro fondos más sobre la carta real, en el teléfono y junto al actual | Igual que el 17/11: un fondo se elige mirándolo. El equipo eligió la banda clara |
+| Dar color por secciones, con una banda de `--azul-niebla` en los sugeridos, en vez de una textura | Un dibujo detrás de una lista larga compite con las fotos de los platos. La banda separa lo destacado sin dibujar nada detrás de la lista |
+| Usar el vidrio solo en lo que flota: la barra de navegación y la franja del título de la portada | Es el uso del que viene el efecto: material para lo que va encima del contenido, no para el contenido |
+| Medir el vidrio con un suelo, como el velo de la portada | Lo que hay detrás de la barra cambia en cada desplazamiento. Con un mínimo de 82 % de blanco, el peor caso —un píxel negro— se puede medir, y la prueba de contraste lo rehace |
+| Pasar las etiquetas de la barra de `--carbon-tenue` a `--carbon-medio` | Sobre el peor vidrio, el tenue da 3,68:1 y no llega al mínimo AA |
+| Usar un solo token de vidrio para el teléfono y el escritorio | La barra de escritorio ya era de vidrio, con otros valores. Dos vidrios distintos no son un material |
+| Respetar `prefers-reduced-transparency` | Quien pide menos transparencia en su sistema ve la barra opaca. El contraste no cambia, porque el suelo no contaba con el desenfoque |
+
+### Qué se rechazó
+
+| Propuesta | Decisión | Motivo del rechazo |
+|---|---|---|
+| Vidrio también en las tarjetas y los botones, como en la imagen de referencia | **Rechazada** | Sobre vidrio, el contraste del texto depende de lo que pase detrás y deja de poder medirse; las fotos de los platos se ven lavadas, y el desenfoque en muchos elementos a la vez pesa en teléfonos de gama baja |
+| Los degradados morados y turquesa de la imagen de referencia | **Rechazada** | No están en la paleta. El vidrio funciona con el azul de la UTB y los blancos que ya había |
+| Una retícula de puntos azules sobre la hoja | **Rechazada** | Seguía siendo un dibujo detrás de la lista, el mismo problema del mantel |
+
+### Lo que decidió el equipo
+
+Las tres fotos con licencia CC BY-SA —el chicharrón y las gaseosas de uva y de
+naranja— piden la atribución donde se ve la foto. Se le propuso dejar un enlace
+corto a los créditos en el pie, o cambiar esas tres fotos. El equipo prefirió quitar
+la atribución del sitio, y queda en `sitio/fotos/LEEME.md`, que explica qué
+corresponde hacer si el sitio deja de ser un proyecto académico.

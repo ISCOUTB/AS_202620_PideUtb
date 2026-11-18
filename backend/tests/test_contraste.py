@@ -102,6 +102,7 @@ PARES = [
     ("carbon-medio", "crema-hundido", 4.5, "y el nombre y el precio de un producto agotado"),
     ("carbon-tenue", "crema-hundido", 4.5, "la descripción de ese mismo producto agotado"),
     ("error", "error-fondo", 4.5, "el texto del aviso de error"),
+    ("carbon", "azul-niebla", 7.0, "el título de los sugeridos, sobre su banda"),
 ]
 
 #: (texto blanco encima de, mínimo, dónde)
@@ -465,63 +466,100 @@ def test_el_degradado_de_la_portada_termina_en_el_mismo_velo():
 
 
 # ---------------------------------------------------------------------------
-# El mantel de la carta
+# El vidrio de la barra, que es el velo visto del otro lado
 # ---------------------------------------------------------------------------
 #
-# La hoja de la carta lleva cuadros de mantel en vez de crema liso. El texto que
-# cae directamente encima —títulos, notas, la advertencia de alergias— ya no cae
-# sobre `--crema` sino sobre uno de cuatro cuadros, y el que importa es el más
-# oscuro: el del cruce, donde las dos franjas suman su tono.
+# La barra de navegación flota sobre la carta y deja ver lo que pasa por debajo:
+# una tarjeta blanca, una foto oscura, el azul de un botón. Como en la portada,
+# no hay *un* contraste que medir, así que se impone un suelo —un mínimo de
+# blanco— y se mide contra el peor caso, que aquí es un píxel negro.
+#
+# El desenfoque no entra en la cuenta: emborrona lo de detrás, pero no lo aclara,
+# y hay navegadores que no lo tienen.
+#
+# Esto se va a romper el día que alguien quiera la barra más transparente,
+# «más vidrio». Es una reacción razonable, y aquí está el número que dice hasta
+# dónde.
+
+NEGRO_PURO = (0, 0, 0)
+
+#: Lo que se lee sobre el vidrio: las etiquetas de la barra.
+SOBRE_EL_VIDRIO = [
+    ("carbon-medio", "las etiquetas de la barra, «Carta» y «Mi código»"),
+    ("azul", "la etiqueta de la sección en la que se está"),
+]
 
 
-def _mantel() -> tuple[tuple[int, int, int], float]:
-    """El color de las franjas del mantel y su opacidad."""
+def _vidrio() -> float:
+    """El mínimo de blanco del vidrio, entre 0 y 1."""
     texto = HOJA.read_text(encoding="utf-8")
-
-    color = re.search(r"--mantel-tinta:\s*(\d+)\s+(\d+)\s+(\d+)\s*;", texto)
-    opacidad = re.search(r"--mantel-opacidad:\s*(\d+(?:\.\d+)?)%\s*;", texto)
-    assert color and opacidad, (
-        "`--mantel-tinta` o `--mantel-opacidad` ya no están en sitio/estilos.css, "
-        "o cambiaron de formato. Sin ellos esta prueba no puede componer el cuadro "
-        "más oscuro del mantel, y el texto de la carta queda sin medir."
+    opacidad = re.search(r"--vidrio:\s*(\d+)%\s*;", texto)
+    assert opacidad, (
+        "`--vidrio` ya no está en sitio/estilos.css, o cambió de formato. Es el "
+        "suelo de contraste de la barra de navegación: sin él no hay nada que "
+        "medir, y las etiquetas quedan a lo que pase por debajo."
     )
-    return tuple(int(c) for c in color.groups()), float(opacidad.group(1)) / 100
+    return int(opacidad.group(1)) / 100
 
 
-def _cuadro_mas_oscuro() -> str:
-    tinta, alfa = _mantel()
-    crema = _paleta()["crema"].lstrip("#")
-    debajo = tuple(int(crema[i:i + 2], 16) for i in (0, 2, 4))
-    una = _componer(tinta, alfa, debajo).lstrip("#")
-    # La segunda franja se pinta encima de la primera.
-    return _componer(tinta, alfa, tuple(int(una[i:i + 2], 16) for i in (0, 2, 4)))
+def _peor_vidrio() -> str:
+    return _componer(BLANCO_PURO, _vidrio(), NEGRO_PURO)
 
 
-@pytest.mark.parametrize(
-    "tinta,minimo,donde",
-    [(t, m, d) for t, s, m, d in PARES if s == "crema"],
-)
-def test_lo_que_se_lee_sobre_el_crema_se_lee_sobre_el_mantel(tinta, minimo, donde):
-    """El mantel no rebaja ninguna tinta por debajo del mínimo que tenía sobre crema."""
-    cuadro = _cuadro_mas_oscuro()
-    medido = contraste(_paleta()[tinta], cuadro)
+@pytest.mark.parametrize("tinta,donde", SOBRE_EL_VIDRIO)
+def test_lo_que_va_en_la_barra_se_lee_sobre_el_peor_vidrio(tinta, donde):
+    peor = _peor_vidrio()
+    medido = contraste(_paleta()[tinta], peor)
 
-    assert medido >= minimo, (
-        f"`--{tinta}` sobre el cuadro más oscuro del mantel ({cuadro}) da "
-        f"{medido:.2f}:1 y necesita {minimo}:1 — {donde}. Baja "
-        "`--mantel-opacidad`: el mantel es decoración y no puede costar lectura."
+    assert medido >= 4.5, (
+        f"Con el vidrio al {_vidrio():.0%}, un píxel negro debajo de la barra "
+        f"queda en {peor} y `--{tinta}` encima da {medido:.2f}:1, por debajo del "
+        f"mínimo AA de 4,5:1 — {donde}. Sube `--vidrio`."
     )
 
 
-def test_el_mantel_se_pinta_con_sus_tokens():
-    """Si la hoja dibuja el mantel con otro color, la prueba de arriba mide uno que no se ve."""
+def test_el_comentario_del_vidrio_dice_la_relacion_que_es():
+    """El comentario de `--vidrio` da un número, y el número tiene que ser este."""
     hoja = HOJA.read_text(encoding="utf-8")
-    franjas = re.findall(
-        r"rgb\(\s*var\(--mantel-tinta\)\s*/\s*var\(--mantel-opacidad\)\s*\)", hoja
+    escrito = re.search(
+        r"en --carbon-medio,\s*dan \*\*(\d+,\d+):1\*\*", hoja
     )
-    assert len(franjas) == 2, (
-        "El mantel de `.portada + main` ya no se dibuja con "
-        "`rgb(var(--mantel-tinta) / var(--mantel-opacidad))` en sus dos franjas. "
-        "Las pruebas de contraste del mantel leen esos dos tokens: con otro color, "
-        "miden un cuadro que no es el que se ve."
+    assert escrito, (
+        "El comentario de `--vidrio` ya no dice cuánto da `--carbon-medio` sobre "
+        "el peor vidrio, o cambió la frase que esta prueba sabe leer."
+    )
+
+    medido = contraste(_paleta()["carbon-medio"], _peor_vidrio())
+
+    assert round(medido, 2) == pytest.approx(
+        float(escrito.group(1).replace(",", ".")), abs=0.02
+    ), (
+        f"El comentario de `--vidrio` dice {escrito.group(1)}:1 y la cuenta da "
+        f"{medido:.2f}:1. Si cambió el vidrio, el número cambia con él."
+    )
+
+
+def test_la_barra_se_pinta_con_el_vidrio_medido_y_sus_etiquetas_tambien():
+    """Las cuentas de arriba solo valen si la barra usa ese token y esas tintas.
+
+    Si alguien pinta la barra con otra opacidad escrita a mano, o devuelve las
+    etiquetas a `--carbon-tenue` —que era su color cuando la barra era opaca—,
+    las pruebas de arriba seguirían en verde midiendo una barra que no es la
+    que se ve.
+    """
+    hoja = HOJA.read_text(encoding="utf-8")
+
+    barra = re.search(r"\n\.nav-inferior\s*\{([^}]*)\}", hoja)
+    assert barra and re.search(
+        r"background:\s*rgb\(\s*255\s+255\s+255\s*/\s*var\(--vidrio\)\s*\)", barra.group(1)
+    ), (
+        "`.nav-inferior` ya no se pinta con `rgb(255 255 255 / var(--vidrio))`. "
+        "Las pruebas del vidrio leen ese token: con otro valor, miden una barra "
+        "que no es la que se ve."
+    )
+
+    boton = re.search(r"\n\.nav-boton\s*\{([^}]*)\}", hoja)
+    assert boton and re.search(r"\bcolor:\s*var\(--carbon-medio\)", boton.group(1)), (
+        "Las etiquetas de `.nav-boton` ya no van en `--carbon-medio`. Sobre el "
+        "peor vidrio, `--carbon-tenue` no llega al mínimo AA."
     )

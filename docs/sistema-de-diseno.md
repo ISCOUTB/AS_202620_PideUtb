@@ -24,8 +24,9 @@ Esta guía fija la apariencia y el comportamiento de las dos superficies de
 PideUTB: la del cliente y la del mostrador. Cada pantalla que se desarrolle debe
 ajustarse a ella.
 
-**Versión** 2.6 · 17/11/2026 · **Fundamentos** fondo cálido con mantel, marca azul de
-la UTB y portada fotográfica, con cada contraste medido y **verificado en cada
+**Versión** 2.7 · 18/11/2026 · **Fundamentos** fondo cálido con color por secciones,
+vidrio en lo que flota, marca azul de la UTB y portada fotográfica, con cada
+contraste medido y **verificado en cada
 construcción** por [`test_contraste.py`](../backend/tests/test_contraste.py) ·
 tokens vigentes en [`sitio/estilos.css`](../sitio/estilos.css) · **Alcance** las
 seis pantallas que hoy existen
@@ -230,7 +231,7 @@ de la página, y con texto blanco encima cuando hace de botón.
 |---|---|---|---|---|
 | `--azul` | `#093AD8` | **7,49:1** | **8,05:1** | Botones, enlaces, título, precio en promoción |
 | `--azul-hundido` | `#0730AB` | 9,67:1 | **10,40:1** | Hover y pulsado: el mismo tono, más grave |
-| `--azul-niebla` | `#E8EDFD` | — | — | Fondo del hueco de foto y del secundario en hover |
+| `--azul-niebla` | `#E8EDFD` | — | — | La banda de los sugeridos, el hueco de foto y el secundario en hover |
 | `--ambar` | `#92400A` | 6,60:1 | **7,09:1** | La etiqueta de la franja de promoción |
 | `--ambar-niebla` | `#FDF0DC` | — | — | Su fondo |
 
@@ -260,18 +261,26 @@ lo adorna.
 tarjeta** sin necesitar un borde. Es la razón de que haya dos superficies y no
 una.
 
-**La hoja de la carta lleva mantel.** Cuadros de mantel de asadero, del ámbar de la
-paleta al 4 % sobre el crema (`--mantel-tinta`, `--mantel-opacidad`,
-`--mantel-cuadro`). Solo en la hoja que sube sobre la portada: el panel y la
-pasarela siguen en crema liso, y fuera de la hoja también. No se dibuja en la
-página entera porque la hoja se centra con márgenes que no son múltiplo del cuadro,
-y su borde partiría los cuadros por la mitad.
+**El color de la carta va por secciones, no en una textura.** La hoja es crema
+liso, y los sugeridos del día van sobre una banda de `--azul-niebla` que en el
+teléfono llega de borde a borde de la hoja y en escritorio se queda dentro, con
+la esquina de la hoja. El título de la banda, en `--carbon`, da 14,96:1. La 2.6
+probó un mantel de cuadros sobre toda la hoja y se quitó: un dibujo detrás de
+una lista larga compite con las fotos de los platos, que es lo que hay que mirar.
 
-El texto que cae directamente sobre el mantel —títulos, notas, el aviso de
-alergias— se mide contra el cuadro más oscuro, el del cruce de las dos franjas
-(`#F3E8DD`): ahí `--carbon-tenue` queda en 4,66:1. `test_contraste.py` compone ese
-cuadro y exige a cada tinta el mismo mínimo que sobre el crema, así que subir la
-opacidad del mantel falla antes de que se note en pantalla.
+**Lo que flota es de vidrio; el contenido, no.** Solo dos cosas flotan sobre
+otra: la barra de navegación y la franja del título de la portada. Las dos dejan
+ver desenfocado lo que pasa por debajo (`--vidrio-filtro`). Las tarjetas, los
+precios y los botones van siempre sobre una superficie sólida, porque sobre
+vidrio el contraste depende de lo que pase detrás y deja de poder medirse.
+
+El vidrio de la barra lleva un mínimo de blanco, `--vidrio` (82 %), y se mide
+como el velo de la portada pero al revés: contra el peor caso, que aquí es un
+píxel negro debajo. Ahí queda `#D1D1D1`, y las etiquetas de la barra van en
+`--carbon-medio` (5,12:1) y no en `--carbon-tenue`, que no llegaría al mínimo.
+`test_contraste.py` rehace las dos cuentas. El desenfoque no entra en ellas: donde
+el navegador no lo tiene, o quien usa el sitio pidió menos transparencia, la
+barra se ve opaca y se sigue leyendo igual.
 
 `--carbon-tenue` pasa AA con 5,23:1 pero no AAA. De ahí la restricción: sirve
 para la hora de última carga o una nota de ayuda, **nunca** para un precio, un
@@ -702,21 +711,24 @@ se agradece.
 | Destino | Cuándo se puede pulsar |
 |---|---|
 | **Carta** | Cuando la carta ya llegó. Antes llevaría a una pantalla en blanco |
-| **Carrito** (central, elevado) | Con algo dentro. Lleva la cuenta y el total encima |
+| **Carrito** (central, de color) | Con algo dentro. Lleva la cuenta y el total encima |
 | **Mi código** | Cuando hay un pedido que mirar |
 
-El botón central va elevado porque **es la acción, no un destino**, y lleva una
-chapa con la cantidad que da un salto al cambiar: confirma que el toque hizo algo
-sin necesidad de un mensaje.
+El botón central es el único de color porque **es la acción, no un destino**, y
+lleva una chapa con la cantidad que da un salto al cambiar: confirma que el toque
+hizo algo sin necesidad de un mensaje.
+
+En el teléfono la barra **flota**: se despega 12 px de los bordes, tiene las
+cuatro esquinas redondas y es de vidrio, así que la carta se ve pasar desenfocada
+por debajo. Despegada no se lee como un recorte, porque la sombra y el canto claro
+de arriba dicen «esto va encima».
 
 En escritorio la barra deja de estar abajo y se pega arriba: pegada al borde
 inferior de un monitor de 27", una barra de navegación queda a medio metro del
 contenido que acompaña. Eso obliga a que el `<nav>` vaya **antes** del encabezado
 en el documento —`position: sticky` respeta el orden del documento, y al final
-del `<body>` la barra se quedaba debajo del pie—.
-
-El fondo llega de borde a borde —una barra fija recortada se lee como un error—
-pero su contenido se alinea con la columna del resto de la página.
+del `<body>` la barra se quedaba debajo del pie—. Arriba es el mismo vidrio que
+abajo, y su contenido se alinea con la columna del resto de la página.
 
 ### Esqueletos
 
