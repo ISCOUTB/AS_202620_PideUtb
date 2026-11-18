@@ -747,3 +747,34 @@ def test_no_se_pueden_abrir_dos_cobros_pendientes_sobre_el_mismo_pedido(monkeypa
         pagos_repo.guardar(segundo)
 
     base_de_datos.cerrar_pool()
+
+
+@sin_postgres
+def test_las_gaseosas_del_mismo_tamano_cuestan_lo_mismo(monkeypatch):
+    """Así lo pidió el equipo: cada sabor, al precio de la Colombiana del mismo tamaño.
+
+    Lo escriben cuatro migraciones distintas —`005`, `010`, `013` y `014`—, y no
+    hay nada que las ate. La `014` tuvo que subir cinco filas para mover una
+    sola cifra de la Colombiana; una corrección futura que toque solo esa fila
+    dejaría la Pepsi a un precio y la Colombiana a otro, y nadie lo vería hasta
+    tener las dos en el mismo pedido.
+    """
+    monkeypatch.setenv("PIDEUTB_DATABASE_URL", URL_PRUEBAS)
+    base_de_datos.cerrar_pool()
+    _preparar_base_de_datos()
+
+    with base_de_datos.conexion() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT nombre, precio_centavos FROM menu_items "
+            "WHERE establecimiento_id = 5 AND nombre LIKE 'Gaseosa %'"
+        )
+        precios = dict(cur.fetchall())
+
+    base_de_datos.cerrar_pool()
+
+    for tamano in ("400 ml", "1,5 L"):
+        del_tamano = {nombre: precio for nombre, precio in precios.items() if nombre.endswith(tamano)}
+        assert len(del_tamano) >= 2, f"Faltan gaseosas de {tamano} en la carta: {del_tamano}"
+        assert len(set(del_tamano.values())) == 1, (
+            f"Las gaseosas de {tamano} no cuestan todas lo mismo: {del_tamano}"
+        )

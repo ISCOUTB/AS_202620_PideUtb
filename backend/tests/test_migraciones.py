@@ -69,6 +69,7 @@ HUELLAS = {
     "011_recogida_comprobante_y_aviso.sql": "589e461374cabb5b",
     "012_fotos_que_faltaban.sql": "a9c630e87421463f",
     "013_pepsi.sql": "ff99541db3bced50",
+    "014_precios_del_documento.sql": "197168f07a43f70f",
 }
 
 
