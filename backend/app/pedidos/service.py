@@ -208,7 +208,7 @@ def _hora_de_recogida(hora: str, establecimiento_id: int) -> datetime:
     )
     if programada <= ahora:
         raise HoraDeRecogidaInvalidaError(
-            "Esa hora ya pasó. Elegí una hora más tarde o pedilo para ahora."
+            "Esa hora ya pasó. Elige una hora más tarde o pídelo para ahora."
         )
     return programada
 
@@ -238,7 +238,7 @@ def crear_pedido(
         # La base también lo impide, pero un 409 explicado es mejor que un
         # error de integridad: aquí sabemos *qué* producto se repitió.
         raise ItemRepetidoError(
-            "El mismo producto aparece dos veces; aumentá su cantidad en lugar "
+            "El mismo producto aparece dos veces; aumenta su cantidad en lugar "
             "de añadirlo otra vez"
         )
 
@@ -557,7 +557,7 @@ def avanzar_estado(
         raise PedidoNoEncontradoError(f"El pedido {pedido_id} no existe")
 
     # Un pedido de otro establecimiento se trata como inexistente, no como
-    # prohibido. Responder «no podés tocar ese» confirmaría que existe, y eso
+    # prohibido. Responder «no puedes tocar ese» confirmaría que existe, y eso
     # permite enumerar los pedidos del campus probando identificadores.
     if pedido.establecimiento_id != establecimiento_id:
         raise PedidoNoEncontradoError(f"El pedido {pedido_id} no existe")
@@ -605,7 +605,7 @@ def avanzar_estado(
     if guardado is None:
         raise TransicionNoPermitidaError(
             f"Otra persona movió el pedido {pedido_id} mientras se procesaba "
-            "esta petición. Actualizá la cola y volvé a intentarlo."
+            "esta petición. Actualiza la cola y vuelve a intentarlo."
         )
 
     # Después de persistir y fuera de la transacción, igual que el evento de

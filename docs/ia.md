@@ -671,3 +671,25 @@ señalaron antes de fusionar, cuando las migraciones todavía se podían editar.
 ADR-0006 rechazó generar descripciones en tiempo de ejecución porque inventar un
 ingrediente puede ser un riesgo de salud. Por eso estas dicen qué lleva el plato y no
 qué no lleva, y la carta sigue avisando de que hay que preguntar por las alergias.
+
+## Uso de IA en las fotos, el fondo y el español de la carta (17/11/2026)
+
+El equipo mandó 12 fotos con instrucciones, pidió buscar en internet las que faltaran
+y pidió un fondo mejor que el crema liso.
+
+### Qué se aceptó
+
+| Propuesta | Motivo |
+|---|---|
+| Buscar las fotos que faltaban solo en bancos con licencia libre, y dar la atribución en el pie de la página | Una foto de producto sacada de una tienda tiene dueño. Wikimedia Commons y Open Food Facts publican con CC BY-SA, que permite usarlas citando al autor |
+| Enseñar cuatro fondos sobre la carta real antes de tocar la hoja | Un fondo se elige mirándolo. El equipo eligió el mantel |
+| Medir el texto contra el cuadro más oscuro del mantel | El texto que cae sobre la hoja ya no cae sobre `--crema`. Si subiera la opacidad del mantel, la prueba de contraste lo vería antes que nadie |
+| Pasar todo el sitio a «tú», y no solo el eslogan | Las instrucciones pedían el eslogan en español neutro, y el resto de la carta habría seguido en voseo |
+
+### Qué se rechazó
+
+| Propuesta | Decisión | Motivo del rechazo |
+|---|---|---|
+| Usar la foto del combo de perro y gaseosa que llegó con las demás | **Rechazada** | Llevaba la marca de agua de un banco de imágenes: era una vista previa sin licencia. A 144 px no se ve, y se encontró estirando el contraste de los blancos. La miniatura se compuso con dos fotos de la propia cafetería |
+| Buscar una foto para la salsa de la casa | **Rechazada** | Nadie sabe de qué color es. Cualquier foto sería inventarse la salsa |
+| Dibujar el mantel en toda la página, alineado con `background-attachment: fixed` | **Rechazada** | Obliga a repintar la pantalla entera en cada desplazamiento. El mantel va solo en la hoja de la carta |

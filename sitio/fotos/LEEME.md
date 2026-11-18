@@ -4,7 +4,7 @@
 |---|---|---|---|
 | `portada-movil.webp` | 640 × 514 | 34 KB | Fondo de la portada, por defecto |
 | `portada.webp` | 1024 × 823 | 61 KB | Lo mismo, a partir de 768 px |
-| `platos/` (25 archivos) | 144 × 144 | 71 KB | Las miniaturas del catálogo |
+| `platos/` (40 archivos) | 144 × 144 | 115 KB | Las miniaturas del catálogo |
 
 Las dos salen del **mismo original** y no son recortes distintos: la pequeña es
 la grande reescalada. El teléfono se lleva la pequeña, y eso importa más de lo
@@ -60,7 +60,8 @@ la clase de cosa que no se quiere descubrir con el público delante.
 
 Viven en `platos/` y las pide la **base de datos**, no la hoja de estilos:
 `menu_items.imagen` guarda la ruta relativa y `app.js` la mete en un `<img>`.
-Son 25 para 43 productos; los 18 que no tienen foto dibujan el marcador con la
+Son 40 para 44 productos: las gaseosas de sabor llevan la misma foto en sus dos
+tamaños. Solo uno sigue sin foto, la salsa de la casa, y dibuja el marcador con la
 inicial, que está diseñado para eso.
 
 ### Por qué 144 × 144
@@ -101,6 +102,41 @@ el de la portada: Pillow no está en `requirements.in` porque la aplicación no
 procesa imágenes, y meterlo por un retoque que se hace una vez le costaría un
 paquete a la imagen de producción por nada. Lo que sí queda escrito es el
 criterio, que es lo que haría falta para repetirlo.
+
+### Las que llegaron después
+
+`012` y `013` pusieron 15 fotos más. No salen todas del mismo sitio, y conviene
+dejar dicho de dónde, porque tres no son nuestras.
+
+**Doce las mandó el equipo**, con nombres que dicen de qué producto son. Llegaron
+sobre blanco, así que bastó recortar el blanco que sobraba y encuadrarlas como las
+demás: el plato ocupa el 94 % del lado.
+
+**Una no se usó.** La del combo de perro y gaseosa traía la marca de agua de un banco
+de imágenes: era la vista previa, no una foto con licencia. A 144 px no se nota, y
+justo por eso hubo que buscarla: se ve estirando el contraste de los tonos casi
+blancos. Su miniatura se compuso con dos fotos de la propia cafetería, la del perro
+caliente y la de la Colombiana de 400 ml.
+
+**Tres salen de bancos con licencia libre**, porque el equipo pidió buscar las que
+faltaran. Venían con fondo —una tabla de cortar, una estantería, una cama—, y se les
+quitó con [rembg](https://github.com/danielgatis/rembg) (modelo `isnet-general-use`).
+Al chicharrón además se le quitaron los trozos de limón que el recorte dejó sueltos:
+se queda la mancha más grande del recorte y nada más. Como Pillow, rembg no está en
+el repositorio: es una herramienta de una vez, y su modelo pesa 179 MB.
+
+| Archivo | Original | Autor | Licencia |
+|---|---|---|---|
+| `especial-chicharron.webp` | [ChicharronBarranquilla-20250130.jpg](https://commons.wikimedia.org/wiki/File:ChicharronBarranquilla-20250130.jpg), Wikimedia Commons | Jdvillalobos | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) |
+| `gaseosa-postobon-uva.webp` | [Uva Postobón 400 ml](https://world.openfoodfacts.org/product/17020907), Open Food Facts | Colaboradores de Open Food Facts | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) |
+| `gaseosa-postobon-naranja.webp` | [Naranja Postobón](https://world.openfoodfacts.org/product/7702090031935), Open Food Facts | Colaboradores de Open Food Facts | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) |
+
+Las tres miniaturas son obras derivadas —recortadas, sin fondo y reescaladas— y
+quedan bajo la misma licencia que su original. La atribución también está en el pie
+de la página, que es donde la ve quien mira la foto.
+
+Lo que **no** se buscó es la salsa de la casa. Nadie sabe de qué color es, y
+cualquier foto sería inventarse la salsa.
 
 ### Reemplazar una, aquí, es pasar por una migración
 

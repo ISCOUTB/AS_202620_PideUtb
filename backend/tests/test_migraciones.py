@@ -67,6 +67,8 @@ HUELLAS = {
     "009_fotos_de_la_carta.sql": "d21e3fe001f3b771",
     "010_gaseosas_y_descripciones.sql": "a9595c3a61288f09",
     "011_recogida_comprobante_y_aviso.sql": "589e461374cabb5b",
+    "012_fotos_que_faltaban.sql": "a9c630e87421463f",
+    "013_pepsi.sql": "ff99541db3bced50",
 }
 
 

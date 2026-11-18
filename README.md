@@ -167,7 +167,7 @@ En Windows (PowerShell):
 python -m venv .venv; .\.venv\Scripts\Activate.ps1; pip install -r requirements.txt; uvicorn app.main:app --reload
 ```
 
-El servidor queda disponible en `http://127.0.0.1:8000`. Podés verificar que arrancó correctamente visitando `http://127.0.0.1:8000/health`, que debe responder `{"status": "ok"}`.
+El servidor queda disponible en `http://127.0.0.1:8000`. Puedes verificar que arrancó correctamente visitando `http://127.0.0.1:8000/health`, que debe responder `{"status": "ok"}`.
 
 ## Correo, avisos y sugeridos del día
 
@@ -189,7 +189,7 @@ Con el entorno virtual ya activado (ver paso anterior):
 pytest
 ```
 
-**717 pruebas**, agrupadas por lo que protegen:
+**740 pruebas**, agrupadas por lo que protegen:
 
 | Archivo | Qué protege |
 |---|---|
@@ -224,7 +224,7 @@ ponerse en rojo no demuestra nada. Cómo reproducir un fallo:
 
 ### El recorrido con navegador
 
-Las 717 pruebas de arriba montan la aplicación en memoria. Ninguna toca un
+Las 740 pruebas de arriba montan la aplicación en memoria. Ninguna toca un
 botón, así que ninguna puede ver si el botón está donde se alcanza con el pulgar
 o si el carrito se vacía al pagar. Para eso está `e2e/`:
 
@@ -242,7 +242,7 @@ del mostrador se saltan si no hay `PIDEUTB_MOSTRADOR_CORREO` y
 pedido por la máquina de estados.
 
 No es un lujo: el rediseño de la semana 15 destapó tres defectos que ninguna de
-las 717 podía ver —el carrito seguía lleno después de pagar, la barra pegajosa se
+las 740 podía ver —el carrito seguía lleno después de pagar, la barra pegajosa se
 quedaba debajo del pie en escritorio, y el botón del carrito dependía de tres
 `<span>` anidados para tener nombre accesible—. En la 16 destapó otros tres, y
 los tres eran del mismo tipo: el código de recogida de un pedido **ya pagado** se

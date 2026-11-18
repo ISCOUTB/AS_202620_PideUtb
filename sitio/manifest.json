@@ -1,7 +1,7 @@
 {
   "name": "PideUTB",
   "short_name": "PideUTB",
-  "description": "Pedí tu comida en el campus sin hacer fila.",
+  "description": "Pide tu comida en el campus sin hacer fila.",
   "lang": "es-CO",
   "start_url": "./",
   "scope": "./",

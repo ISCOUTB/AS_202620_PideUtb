@@ -120,7 +120,7 @@ async function resolver(estadoPago) {
     const mensajes = {
       404:
         "Esta referencia no existe, o este despliegue no tiene pasarela " +
-        "simulada. Volvé a PideUTB e iniciá el pago otra vez.",
+        "simulada. Vuelve a PideUTB e inicia el pago otra vez.",
       422: "La respuesta no es válida.",
     };
     fallar(mensajes[e.status] || `No se pudo avisar a PideUTB: ${e.message}`);
