@@ -253,7 +253,9 @@ def _enviar(pedido_id: int) -> None:
 
     Un fallo se registra con el pedido y el tipo de error, **sin el mensaje**: el
     de `smtplib` puede traer la dirección del cliente, y no tiene por qué acabar
-    en los registros.
+    en los registros. Sí va el código de respuesta del servidor cuando lo hay,
+    que es un número y dice qué arreglar: un 535 son credenciales rechazadas, y
+    un `TimeoutError` sin código es que el servidor ni contestó.
     """
     try:
         datos = pedidos_service.datos_del_comprobante(pedido_id)
@@ -269,7 +271,11 @@ def _enviar(pedido_id: int) -> None:
     except Exception as error:  # noqa: BLE001 — el correo no puede afectar al pedido
         _LOG.warning(
             "comprobante_no_enviado",
-            extra={"pedido_id": pedido_id, "motivo": type(error).__name__},
+            extra={
+                "pedido_id": pedido_id,
+                "motivo": type(error).__name__,
+                "codigo_smtp": getattr(error, "smtp_code", None),
+            },
         )
         return
 
@@ -283,4 +289,16 @@ def al_confirmarse_el_pago(mensaje: dict) -> None:
 
 
 def suscribir() -> None:
+    """Escucha los pagos, y deja dicho en el registro si va a mandar algo.
+
+    Sin servidor el comprobante no se intenta, y hasta el 20/11/2026 eso no dejaba
+    ningún rastro: un correo que no llegaba porque faltaba la variable no se
+    distinguía, mirando el registro, de uno que nadie pidió. Ahora el arranque lo
+    dice, y un fallo de verdad sigue saliendo como `comprobante_no_enviado`.
+    """
     eventos.suscribir(eventos.CANAL_PEDIDO_PAGADO, al_confirmarse_el_pago)
+
+    if correo.configurado():
+        _LOG.info("comprobante_activo", extra=correo.destino())
+    else:
+        _LOG.warning("comprobante_apagado", extra={"motivo": "falta PIDEUTB_SMTP_HOST"})

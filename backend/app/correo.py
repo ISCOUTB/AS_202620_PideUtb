@@ -30,6 +30,20 @@ def configurado() -> bool:
     return bool(os.getenv("PIDEUTB_SMTP_HOST", "").strip())
 
 
+def destino() -> dict[str, object]:
+    """A dónde se manda, para dejarlo en el registro al arrancar.
+
+    **Nunca el usuario ni la contraseña**: el usuario suele ser una dirección de
+    correo, y la contraseña no tiene nada que hacer en un registro. Solo si hay
+    credenciales, que es lo que hace falta saber para descartar un olvido.
+    """
+    return {
+        "servidor": os.getenv("PIDEUTB_SMTP_HOST", "").strip(),
+        "puerto": os.getenv("PIDEUTB_SMTP_PUERTO", "587").strip() or "587",
+        "con_credenciales": bool(os.getenv("PIDEUTB_SMTP_USUARIO", "").strip()),
+    }
+
+
 def enviar(*, para: str, asunto: str, texto: str, html: str) -> None:
     """Manda un correo con su versión en texto y su versión en HTML.
 

@@ -120,7 +120,10 @@ sabe que existen el correo ni los avisos. La conexión son dos líneas en `main.
 **Negativas y costes aceptados.**
 
 - **Un correo puede no llegar, y nadie se entera salvo por los registros**
-  (`comprobante_no_enviado`). Tampoco hay forma de reenviarlo.
+  (`comprobante_no_enviado`, con el código del servidor si contestó). Tampoco hay
+  forma de reenviarlo. Desde el 20/11/2026 el arranque también deja
+  `comprobante_activo` o `comprobante_apagado`: antes, un despliegue sin servidor
+  de correo no dejaba ningún rastro y no se distinguía de uno que funcionaba.
 - **`pedidos` guarda datos de personas por primera vez** cuando alguien los deja, y
   hoy nada los borra (arc42 §8.8). Con clientes reales habría que definir retención
   y una política de tratamiento de datos (Ley 1581 de 2012).
