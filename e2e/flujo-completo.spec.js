@@ -42,6 +42,30 @@ async function abrirLaCarta(page) {
   return productos;
 }
 
+/** Qué animación lleva la fila de sugeridos y en qué estado, o `undefined`. */
+function desfile(fila) {
+  return fila.evaluate((el) => {
+    const animacion = el.getAnimations()[0];
+    return animacion && { nombre: animacion.animationName, estado: animacion.playState };
+  });
+}
+
+/**
+ * Detiene el desfile de los sugeridos en una fracción de la vuelta (0 a 1).
+ *
+ * Playwright espera a que lo que va a tocar deje de moverse, y esta fila no se
+ * detiene sola: sin esto, ningún clic sobre ella llegaría nunca. Una persona la
+ * toca andando, y bajo el dedo se para; eso se comprueba aparte.
+ */
+async function detenerElDesfile(fila, fraccion) {
+  await expect.poll(() => desfile(fila)).toEqual({ nombre: "desfilar", estado: "running" });
+  await fila.evaluate((el, f) => {
+    const animacion = el.getAnimations()[0];
+    animacion.pause();
+    animacion.currentTime = animacion.effect.getTiming().duration * f;
+  }, fraccion);
+}
+
 /**
  * Aprueba el cobro abierto, como haría la pasarela, y devuelve su referencia.
  *
@@ -528,40 +552,120 @@ test.describe("El mostrador", () => {
 });
 
 test.describe("La carta", () => {
-  test("los sugeridos giran, y añadir uno no les reinicia el giro", async ({ page }) => {
+  test("los sugeridos desfilan a la derecha, y los platos ya no giran", async ({ page }) => {
     await abrirLaCarta(page);
 
-    const plato = page.locator(".plato").first();
-    await expect(plato).toBeVisible();
-    const giro = await plato.evaluate((el) => {
-      const animacion = el.getAnimations()[0];
-      return {
-        nombre: animacion.animationName,
-        estado: animacion.playState,
-        tiempo: animacion.currentTime,
-      };
-    });
-    expect(giro.nombre).toBe("girar");
-    expect(giro.estado).toBe("running");
+    const fila = page.locator("#lista-sugeridos");
+    await expect.poll(() => desfile(fila)).toEqual({ nombre: "desfilar", estado: "running" });
 
-    await page.locator(".sugerido").first().getByRole("button", { name: /^Agregar/ }).click();
-    await expect(page.locator("#carrito-chapa")).toHaveText("1");
+    const platosQueSeMueven = await page.locator(".plato").evaluateAll(
+      (platos) => platos.filter((p) => p.getAnimations().length > 0).length
+    );
+    expect(platosQueSeMueven).toBe(0);
 
-    // `plato` sigue apuntando al mismo elemento. Si `dibujarCarta` lo hubiera vuelto
-    // a crear, el giro habría vuelto a cero.
-    const despues = await plato.evaluate((el) => el.getAnimations()[0].currentTime);
-    expect(despues).toBeGreaterThan(giro.tiempo);
+    // Hacia la derecha: la misma tarjeta, un rato después, está más a la derecha.
+    const primera = page.locator(".sugerido:not(.copia)").first();
+    const x = () => primera.evaluate((el) => el.getBoundingClientRect().x);
+    const antes = await x();
+    await expect.poll(x).toBeGreaterThan(antes + 2);
+
+    // Las copias no cuentan dos veces: un lector de pantalla ve cada producto una
+    // sola vez.
+    const deVerdad = await page.locator(".sugerido:not(.copia)").count();
+    await expect(fila.getByRole("listitem")).toHaveCount(deVerdad);
   });
 
-  test("con menos movimiento, los platos se quedan quietos", async ({ page }) => {
+  test("la fila se para bajo el dedo, y vuelve a andar al soltarla", async ({ page }) => {
+    await abrirLaCarta(page);
+    const fila = page.locator("#lista-sugeridos");
+    await expect.poll(() => desfile(fila)).toEqual({ nombre: "desfilar", estado: "running" });
+
+    // A mano y no con `hover()`, que esperaría a que la fila dejara de moverse antes
+    // de apuntar: justo lo que se quiere comprobar. Se apunta a una foto y no a un
+    // botón, para que soltar no añada nada.
+    const foto = await page.locator(".sugerido:not(.copia) .plato").first().boundingBox();
+    await page.mouse.move(foto.x + foto.width / 2, foto.y + foto.height / 2);
+    await page.mouse.down();
+    await expect.poll(() => desfile(fila)).toEqual({ nombre: "desfilar", estado: "paused" });
+
+    await page.mouse.up();
+    await page.mouse.move(0, 0);
+    await expect.poll(() => desfile(fila)).toEqual({ nombre: "desfilar", estado: "running" });
+  });
+
+  test("añadir un sugerido cambia su control y no rehace la fila", async ({ page }) => {
+    await abrirLaCarta(page);
+    const fila = page.locator("#lista-sugeridos");
+    await detenerElDesfile(fila, 0);
+
+    const tarjeta = page.locator(".sugerido:not(.copia)").first();
+    const enLaFila = await tarjeta.elementHandle();
+    await tarjeta.getByRole("button", { name: /^Agregar/ }).click();
+    await expect(page.locator("#carrito-chapa")).toHaveText("1");
+
+    // `tarjeta` sigue siendo el mismo elemento. Si se hubiera vuelto a crear, se
+    // habrían vuelto a pedir su foto y las de sus copias.
+    expect(await enLaFila.evaluate((el) => el.isConnected)).toBe(true);
+    await expect(fila).toHaveClass(/sugeridos-fila/);
+    await expect(page.locator("#sugeridos")).toHaveClass(/desfila/);
+  });
+
+  test("una copia del desfile también se puede pedir", async ({ page }) => {
+    await abrirLaCarta(page);
+
+    // A media vuelta, la copia de delante está entrando por la izquierda.
+    const fila = page.locator("#lista-sugeridos");
+    await detenerElDesfile(fila, 0.5);
+    const indice = await page.locator("#sugeridos").evaluate((banda) => {
+      const borde = banda.getBoundingClientRect();
+      return [...banda.querySelectorAll(".sugerido.copia")].findIndex((tarjeta) => {
+        const caja = tarjeta.getBoundingClientRect();
+        return caja.left >= borde.left && caja.right <= borde.right;
+      });
+    });
+    expect(indice).toBeGreaterThanOrEqual(0);
+
+    const copia = page.locator(".sugerido.copia").nth(indice);
+    await copia.locator("button.agregar").click();
+    await expect(page.locator("#carrito-chapa")).toHaveText("1");
+
+    // Y el producto aparece pedido en todas sus tarjetas, no solo en la tocada.
+    const producto = await copia.locator(".sugerido-control").getAttribute("data-item");
+    const delMismo = page.locator(`.sugerido-control[data-item="${producto}"]`);
+    expect(await delMismo.count()).toBeGreaterThan(1);
+    await expect(delMismo.locator(".cantidad-valor")).toHaveCount(await delMismo.count());
+  });
+
+  test("con menos movimiento, la fila se queda quieta y sin copias", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await abrirLaCarta(page);
 
-    const plato = page.locator(".plato").first();
-    await expect(plato).toBeVisible();
-    await expect
-      .poll(() => plato.evaluate((el) => el.getAnimations().filter((a) => a.playState === "running").length))
-      .toBe(0);
+    await expect(page.locator("#sugeridos")).toBeVisible();
+    await expect(page.locator("#sugeridos")).not.toHaveClass(/desfila/);
+    await expect(page.locator(".sugerido.copia")).toHaveCount(0);
+    const animaciones = await page.locator("#sugeridos").evaluate(
+      (el) => el.getAnimations({ subtree: true }).length
+    );
+    expect(animaciones).toBe(0);
+  });
+
+  test("con el teclado dentro, la fila se queda quieta", async ({ page }) => {
+    await abrirLaCarta(page);
+    await expect(page.locator("#sugeridos")).toHaveClass(/desfila/);
+
+    // Desde «Carta» de la barra, que va justo antes en el orden del tabulador, un
+    // tabulador más cae en el «+» del primer sugerido de verdad: las copias no
+    // están en ese orden. Se parte de ahí porque, sin foco, Chromium sin ventana
+    // empieza a tabular desde más abajo de la página.
+    await page.locator("#nav-carta").focus();
+    await page.keyboard.press("Tab");
+    const primero = page.locator(".sugerido:not(.copia) button").first();
+    await expect(primero).toBeFocused();
+
+    const fila = page.locator("#lista-sugeridos");
+    expect(await fila.evaluate((el) => el.getAnimations().length)).toBe(0);
+    await expect(page.locator(".sugerido.copia").first()).toBeHidden();
+    await expect(primero).toBeInViewport();
   });
 
   test("filtrar aparta los sugeridos, y las gaseosas están", async ({ page }) => {

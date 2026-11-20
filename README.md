@@ -179,7 +179,7 @@ decisión en [ADR-0012](docs/adr/0012-avisos-y-comprobante-prescindibles.md).
 |---|---|
 | `PIDEUTB_SMTP_HOST`, `_PUERTO`, `_USUARIO`, `_CONTRASENA`, `_REMITENTE` | El comprobante por correo al confirmarse el pago |
 | `PIDEUTB_VAPID_CLAVE_PRIVADA` | El aviso al teléfono cuando el pedido está listo |
-| `PIDEUTB_SUGERIDOS_DEL_DIA` | Qué platos giran en la carta: identificadores separados por comas |
+| `PIDEUTB_SUGERIDOS_DEL_DIA` | Qué platos salen en los sugeridos del día: identificadores separados por comas |
 
 ## Cómo correr las pruebas
 

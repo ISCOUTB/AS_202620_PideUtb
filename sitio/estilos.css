@@ -1055,8 +1055,10 @@ button.secundario {
    SUGERIDOS DEL DÍA
    ===========================================================================
 
-   Una fila que se desplaza de lado, para no empujar la carta hacia abajo. Se ven
-   dos y media a propósito: la que queda cortada es lo que dice que hay más. */
+   Una fila que desfila hacia la derecha sin acabarse nunca, para no empujar la
+   carta hacia abajo. Sin movimiento —porque se pidió en el sistema, o porque el
+   teclado está dentro— es la fila de siempre, que se desplaza de lado y deja ver
+   dos y media: la que queda cortada es lo que dice que hay más. */
 
 /* La banda: el azul de apoyo de la paleta, de borde a borde de la hoja en el
    teléfono. Es lo que separa «lo que recomienda la cocina» del resto de la
@@ -1092,9 +1094,53 @@ button.secundario {
 /* Centrada cuando sobra sitio, y desplazable cuando no. Con márgenes automáticos y
    no con `justify-content: center`, que en una fila que desborda deja la primera
    tarjeta fuera de alcance por la izquierda: el margen automático, en cambio, se
-   queda en cero en cuanto no hay sitio que repartir. */
-.sugerido:first-child { margin-left: auto; }
-.sugerido:last-child { margin-right: auto; }
+   queda en cero en cuanto no hay sitio que repartir.
+
+   La primera y la última **de verdad**, sin contar las copias del desfile, que en
+   la fila quieta están escondidas y se quedarían con los márgenes. */
+.sugerido:nth-child(1 of :not(.copia)) { margin-left: auto; }
+.sugerido:nth-last-child(1 of :not(.copia)) { margin-right: auto; }
+
+/* El desfile. Lo enciende `app.js` con `.desfila`, porque es quien sabe cuánto mide
+   una tanda (`--tramo`) y cuánto tarda en pasar (`--vuelta`). Y lo apaga el foco
+   del teclado: una tarjeta que se va mientras se tabula por ella no se puede
+   usar, así que con el foco dentro la fila vuelve a ser la de siempre.
+
+   Lo mueve un `transform` sobre la fila entera y nada más, así que lo resuelve el
+   compositor sin repintar las fotos. La fila se estira hasta el borde de la
+   banda, para que las tarjetas entren y salgan por el borde y no a un dedo de él.
+
+   Un navegador sin `:has()` no entiende estas reglas y se queda con la fila
+   quieta, sin copias: pierde el adorno y nada más. */
+.sugeridos.desfila:not(:has(:focus-visible)) { overflow: clip; }
+
+/* Por partes y no con el atajo `animation`, que también pone `animation-play-state`
+   en `running` y le ganaría, por ser más específico, a la pausa de más abajo. */
+.sugeridos.desfila:not(:has(:focus-visible)) .sugeridos-fila {
+  width: max-content;
+  margin-inline: calc(var(--e4) * -1);
+  overflow: visible;
+  animation-name: desfilar;
+  animation-duration: var(--vuelta);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.sugerido.copia { display: none; }
+.sugeridos.desfila:not(:has(:focus-visible)) .sugerido.copia { display: flex; }
+
+/* Una tanda entera hacia la derecha. Al volver a empezar se ve lo mismo que había,
+   porque lo que iba delante era una copia de la misma tanda. */
+@keyframes desfilar {
+  from { transform: translateX(calc(var(--tramo) * -1)); }
+  to   { transform: translateX(0); }
+}
+
+/* Se para bajo el dedo, para que el «+» no se escape mientras se apunta. Bajo el
+   puntero también, con los demás `:hover` en su compuerta al final de la hoja:
+   en un teléfono el `:hover` se queda pegado después de tocar, y la fila no
+   volvería a andar hasta tocar fuera. */
+.sugeridos-fila:active { animation-play-state: paused; }
 
 /* Donde caben todas, el título va centrado con ellas. En el teléfono la fila
    desborda y arranca a la izquierda, y un título centrado encima no casaría. */
@@ -1117,15 +1163,8 @@ button.secundario {
   scroll-snap-align: start;
 }
 
-/* El plato del microondas: una vuelta cada 12 s, a velocidad constante.
-
-   `transform` y nada más, así que lo mueve el compositor sin repintar la foto ni
-   recalcular nada, y no le quita fotogramas al desplazamiento. No lleva
-   `will-change`: el navegador ya sube a su propia capa lo que se está animando, y
-   pedirlo aparte solo gastaría memoria mientras la pantalla está oculta.
-
-   Quien pide menos movimiento lo ve quieto: el bloque del final de esta hoja apaga
-   toda animación que no recupere a propósito, y esta no se recupera. Es adorno. */
+/* La foto en redondo, como servida en un plato. Ya no gira: lo que se mueve es la
+   fila entera, y dos movimientos a la vez se estorban. */
 .plato {
   width: 88px;
   height: 88px;
@@ -1133,7 +1172,6 @@ button.secundario {
   overflow: hidden;
   background: var(--papel);
   box-shadow: var(--sombra);
-  animation: girar 12s linear infinite;
 }
 
 .plato img {
@@ -1788,6 +1826,8 @@ input.codigo-canje {
     border-color: var(--azul);
     color: var(--azul);
   }
+
+  .sugeridos-fila:hover { animation-play-state: paused; }
 }
 
 /* Un botón nativo responde en el instante en que el dedo aterriza. Uno que

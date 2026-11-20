@@ -727,3 +727,36 @@ naranja— piden la atribución donde se ve la foto. Se le propuso dejar un enla
 corto a los créditos en el pie, o cambiar esas tres fotos. El equipo prefirió quitar
 la atribución del sitio, y queda en `sitio/fotos/LEEME.md`, que explica qué
 corresponde hacer si el sitio deja de ser un proyecto académico.
+
+## Uso de IA en el desfile de los sugeridos (20/11/2026)
+
+El equipo pidió que los sugeridos del día dejaran de girar y que, en su lugar, la fila
+entera pasara de izquierda a derecha a la misma velocidad, sin acabarse nunca: cuando
+pasa el último, vuelve a empezar y los platos se repiten. Se usó un asistente de IA
+para implementarlo.
+
+### Qué se aceptó
+
+| Propuesta | Por qué |
+|---|---|
+| Tomar como velocidad la del borde del plato que giraba: 88 px de diámetro, una vuelta cada 12 s, unos 23 px/s | «La misma velocidad» entre un giro y un desplazamiento solo se puede comparar en el borde, que es lo que se veía moverse |
+| Repetir la tanda de tarjetas y mover la fila una tanda entera por vuelta | Al volver a empezar se ve lo mismo que había, así que el salto no se nota. Se comprobó comparando capturas del principio y del final de la vuelta |
+| Calcular cuántas copias hacen falta según el ancho de la banda | Con pocos sugeridos en un escritorio ancho, dos tandas dejaban hueco |
+| Esconder las copias a los lectores de pantalla y al tabulador, sin quitarles el clic | Se ven y se tocan como las de verdad, pero cada producto se anuncia una sola vez |
+| Parar la fila bajo el puntero y bajo el dedo | Un «+» que se mueve mientras se apunta se escapa |
+| Con el foco del teclado dentro, volver a la fila quieta de siempre | Pausar no bastaba: una tarjeta tabulada podía quedar fuera de la banda, sin forma de verla |
+| Sin movimiento para quien lo pide en su sistema | Es adorno. La fila queda quieta, sin copias, y se desplaza de lado como antes |
+
+### Qué se rechazó
+
+| Propuesta | Decisión | Motivo del rechazo |
+|---|---|---|
+| Mantener el giro de las fotos además del desfile | **Rechazada** | Dos movimientos a la vez se estorban, y el equipo pidió quitarlo |
+| Mover la fila desplazando su barra con JavaScript en cada fotograma | **Rechazada** | Ocupa el hilo principal en cada fotograma, y a 23 px/s los saltos de un píxel se ven. Un `transform` lo resuelve el compositor |
+| Una biblioteca de carruseles | **Rechazada** | Para una fila que solo desfila basta CSS y unas líneas de JavaScript, y la aplicación no tiene dependencias en el navegador |
+
+### Lo que cambia para el cliente
+
+En el teléfono la fila ya no se arrastra con el dedo mientras desfila: se para al
+tocarla y vuelve a andar al soltarla. Todos los sugeridos están también en la carta,
+justo debajo.

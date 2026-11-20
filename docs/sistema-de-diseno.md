@@ -24,8 +24,8 @@ Esta guía fija la apariencia y el comportamiento de las dos superficies de
 PideUTB: la del cliente y la del mostrador. Cada pantalla que se desarrolle debe
 ajustarse a ella.
 
-**Versión** 2.7 · 18/11/2026 · **Fundamentos** fondo cálido con color por secciones,
-vidrio en lo que flota, marca azul de la UTB y portada fotográfica, con cada
+**Versión** 2.8 · 20/11/2026 · **Fundamentos** fondo cálido con color por secciones,
+vidrio en lo que flota, sugeridos que desfilan, marca azul de la UTB y portada fotográfica, con cada
 contraste medido y **verificado en cada
 construcción** por [`test_contraste.py`](../backend/tests/test_contraste.py) ·
 tokens vigentes en [`sitio/estilos.css`](../sitio/estilos.css) · **Alcance** las
@@ -862,22 +862,35 @@ decisión con consecuencia, que es para lo que `--ambar` existe.
 
 ### Sugeridos del día
 
-Una fila que se desplaza de lado, encima del filtro, con los platos que la API marca
-como `sugerido`. Se aparta al elegir una categoría: quien filtró ya sabe qué busca.
+Una fila que **desfila hacia la derecha sin acabarse nunca**, encima del filtro, con
+los platos que la API marca como `sugerido`. Se aparta al elegir una categoría: quien
+filtró ya sabe qué busca.
 
 | Parte | Clase | Nota |
 |---|---|---|
-| La tarjeta | `.sugerido` | 142 px, para que se vean dos y media: la cortada dice que hay más |
-| El plato | `.plato` | 88 px y redondo. **Gira como el plato de un microondas**: una vuelta cada 12 s, constante |
+| La fila | `.sugeridos-fila` | Avanza a unos **23 px/s**, la velocidad del borde del plato que antes giraba (88 px, una vuelta cada 12 s) |
+| La tarjeta | `.sugerido` | 142 px. Quieta, se ven dos y media: la cortada dice que hay más |
+| La copia | `.sugerido.copia` | Una tarjeta repetida para el desfile. Se ve y se toca, pero no la lee un lector de pantalla ni la recorre el tabulador |
+| El plato | `.plato` | 88 px y redondo. **Quieto**: dos movimientos a la vez se estorban |
 | El control | `.sugerido-control` | El mismo «+» de la carta, y siempre abajo aunque el nombre ocupe más líneas |
 
-El giro solo usa `transform`, así que lo resuelve el compositor sin repintar la foto.
-Quien pide menos movimiento ve el plato quieto. Y añadir al carrito **no vuelve a crear
-la imagen**, porque el giro empezaría de cero: se cambia solo el control.
+**Cómo no se acaba.** La fila lleva la tanda de verdad, una copia delante y las que
+hagan falta detrás para cubrir la banda. En cada vuelta avanza exactamente una tanda,
+así que al volver a empezar se ve lo mismo que había y el salto no se nota: por la
+izquierda entra el último plato, después el penúltimo, y así sin fin. Lo mueve un solo
+`transform` sobre la fila, que resuelve el compositor sin repintar las fotos.
 
-Solo salen los que tienen foto y se pueden pedir: un marcador con una inicial dando
-vueltas no se parece a un plato. Se cambian con `PIDEUTB_SUGERIDOS_DEL_DIA`, sin tocar
-el código.
+**Cuándo se para.** Bajo el puntero y bajo el dedo, para que el «+» no se escape
+mientras se apunta. Con el foco del teclado dentro, y para quien pide menos
+movimiento, no desfila: es la fila de siempre, que se desplaza de lado, y sin copias.
+Un navegador sin `:has()` también la ve así.
+
+Añadir al carrito **no vuelve a crear las tarjetas** ni sus fotos: se cambia solo el
+control, en la tarjeta de verdad y en todas sus copias.
+
+Solo salen los que tienen foto y se pueden pedir: una fila de iniciales desfilando no
+le abre el apetito a nadie. Se cambian con `PIDEUTB_SUGERIDOS_DEL_DIA`, sin tocar el
+código.
 
 ### Hora de recogida y comprobante
 

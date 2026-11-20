@@ -131,9 +131,10 @@
     <h2>Carta</h2>
 
     <!-- Sugeridos del día. Aparece solo cuando hay alguno que se pueda pedir, y
-         se aparta al filtrar: quien eligió una categoría ya sabe qué busca. Las
-         filas no se vuelven a crear al añadir al carrito, porque recrearlas haría
-         que los platos volvieran a empezar su giro. -->
+         se aparta al filtrar: quien eligió una categoría ya sabe qué busca. La
+         fila desfila hacia la derecha sin acabarse, con copias de las tarjetas
+         que pone `app.js` (`prepararDesfile`). Las tarjetas no se vuelven a crear
+         al añadir al carrito: se cambia solo el control. -->
     <section id="sugeridos" class="sugeridos oculto" aria-labelledby="titulo-sugeridos">
       <h3 id="titulo-sugeridos">Sugeridos del día</h3>
       <ul id="lista-sugeridos" class="sugeridos-fila"></ul>

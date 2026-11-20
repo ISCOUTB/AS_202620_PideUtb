@@ -251,13 +251,25 @@ let cartaCompleta = [];
 let horarioDeAtencion = { apertura: null, cierre: null };
 
 /**
- * El hueco del control de cantidad de cada sugerido, por producto.
+ * Los productos de los sugeridos del día, por id.
  *
- * `dibujarCarta` repinta toda la carta en cada toque de «+», y hacer lo mismo aquí
- * crearía la imagen otra vez y el plato volvería a empezar su giro. Se cambia solo
- * el control.
+ * `dibujarCarta` repinta toda la carta en cada toque de «+», y hacer lo mismo con
+ * los sugeridos volvería a crear las tarjetas, sus copias del desfile y sus fotos.
+ * Se cambia solo el control, y para eso basta saber de qué producto es cada hueco.
  */
-const huecosDeSugeridos = new Map();
+const sugeridosDelDia = new Map();
+
+/**
+ * La velocidad del desfile de los sugeridos, en píxeles por segundo.
+ *
+ * Es la del borde del plato que giraba antes —88 px de diámetro, una vuelta cada
+ * 12 s—, que es la que el equipo pidió conservar: unos 23 px/s. Va en píxeles y no
+ * en segundos por vuelta para que la fila vaya igual de rápido con tres sugeridos
+ * que con ocho.
+ */
+const VELOCIDAD_DEL_DESFILE = (Math.PI * 88) / 12;
+
+const menosMovimiento = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 /** Si este pedido ya pidió que se le avise cuando esté listo. */
 let avisoActivado = false;
@@ -620,7 +632,7 @@ function dibujarCarta() {
 
   $("sugeridos").classList.toggle(
     "oculto",
-    categoriaActiva !== null || huecosDeSugeridos.size === 0
+    categoriaActiva !== null || sugeridosDelDia.size === 0
   );
   actualizarControlesDeSugeridos();
 
@@ -648,14 +660,14 @@ function dibujarCarta() {
 /**
  * Los sugeridos del día: los que la API marca, si se pueden pedir y tienen foto.
  *
- * La foto es condición porque la gracia es el plato girando, y un marcador con una
- * inicial dando vueltas no se le parece. Qué se sugiere lo decide la API
+ * La foto es condición porque es lo que se ve pasar: una fila de iniciales
+ * desfilando no le abre el apetito a nadie. Qué se sugiere lo decide la API
  * (`PIDEUTB_SUGERIDOS_DEL_DIA`).
  */
 function dibujarSugeridos() {
   const lista = $("lista-sugeridos");
   lista.replaceChildren();
-  huecosDeSugeridos.clear();
+  sugeridosDelDia.clear();
 
   for (const item of cartaCompleta) {
     if (!item.sugerido || !item.disponible || !item.imagen) continue;
@@ -663,8 +675,6 @@ function dibujarSugeridos() {
     const fila = document.createElement("li");
     fila.className = "sugerido";
 
-    // El giro va en el contenedor y lo hace el CSS: solo `transform`, que resuelve
-    // el compositor sin repintar nada. Ver `.plato` en `estilos.css`.
     const plato = document.createElement("div");
     plato.className = "plato";
     const img = document.createElement("img");
@@ -678,16 +688,91 @@ function dibujarSugeridos() {
 
     const hueco = document.createElement("div");
     hueco.className = "sugerido-control";
-    huecosDeSugeridos.set(item.item_id, { item, hueco });
+    hueco.dataset.item = String(item.item_id);
+    sugeridosDelDia.set(item.item_id, item);
 
     fila.append(plato, nombre, dibujarPrecio(item), hueco);
     lista.append(fila);
   }
+
+  prepararDesfile();
+}
+
+/**
+ * Pone los sugeridos a desfilar hacia la derecha, sin que la fila se acabe nunca.
+ *
+ * La fila lleva la tanda de verdad con copias suyas a los lados, y la mueve un
+ * solo `transform`. En cada vuelta avanza exactamente una tanda, así que al volver
+ * a empezar se ve lo mismo que había y el salto no se nota. Por la izquierda va
+ * entrando el último plato, después el penúltimo, y así sin fin.
+ *
+ * Una copia va **delante** de la tanda de verdad, para que al cargar se vea esta y
+ * por la izquierda entre aquella; el resto va detrás, tantas como hagan falta para
+ * que no quede hueco en una banda ancha con pocos sugeridos. Las copias se ven y
+ * se tocan como las de verdad, pero no las lee un lector de pantalla ni el
+ * tabulador pasa por sus botones: el mismo producto ya está en la tanda de verdad.
+ *
+ * Quien pide menos movimiento ve la fila de siempre, sin copias.
+ */
+function prepararDesfile() {
+  const banda = $("sugeridos");
+  const lista = $("lista-sugeridos");
+  const originales = [...lista.querySelectorAll(".sugerido:not(.copia)")];
+  const copias = lista.querySelectorAll(".copia");
+  const ancho = banda.clientWidth;
+
+  // Oculta —al filtrar, o antes de pintar la carta— mide 0, y no hay nada que medir.
+  if (ancho === 0 || originales.length === 0 || menosMovimiento.matches) {
+    for (const copia of copias) copia.remove();
+    banda.classList.remove("desfila");
+    return;
+  }
+
+  // Lo que avanza la fila en una vuelta: las tarjetas de una tanda y el hueco que
+  // sigue a cada una, que es la distancia hasta la misma tarjeta en la tanda de al lado.
+  const separacion = parseFloat(getComputedStyle(lista).columnGap) || 0;
+  const tramo = originales.reduce((suma, t) => suma + t.offsetWidth + separacion, 0);
+
+  lista.style.setProperty("--tramo", `${tramo}px`);
+  lista.style.setProperty("--vuelta", `${tramo / VELOCIDAD_DEL_DESFILE}s`);
+
+  // La banda tiene que quedar cubierta en los dos extremos de la vuelta.
+  const tandas = 1 + Math.ceil(ancho / tramo);
+  const yaEstaPuesto =
+    banda.classList.contains("desfila") &&
+    copias.length === (tandas - 1) * originales.length;
+  if (yaEstaPuesto) return;
+
+  const copiarTanda = () => {
+    const tanda = document.createDocumentFragment();
+    for (const original of originales) {
+      const copia = original.cloneNode(true);
+      copia.classList.add("copia");
+      copia.setAttribute("aria-hidden", "true");
+      tanda.append(copia);
+    }
+    return tanda;
+  };
+
+  for (const copia of copias) copia.remove();
+  lista.prepend(copiarTanda());
+  for (let i = 2; i < tandas; i++) lista.append(copiarTanda());
+  banda.classList.add("desfila");
+
+  // `cloneNode` no copia los manejadores de los botones: se hacen de nuevo.
+  actualizarControlesDeSugeridos();
 }
 
 function actualizarControlesDeSugeridos() {
-  for (const { item, hueco } of huecosDeSugeridos.values()) {
-    hueco.replaceChildren(controlDeCantidad(item));
+  for (const hueco of $("lista-sugeridos").querySelectorAll(".sugerido-control")) {
+    const control = controlDeCantidad(sugeridosDelDia.get(Number(hueco.dataset.item)));
+
+    if (hueco.closest(".copia")) {
+      const botones = control.matches("button") ? [control] : control.querySelectorAll("button");
+      for (const boton of botones) boton.tabIndex = -1;
+    }
+
+    hueco.replaceChildren(control);
   }
 }
 
@@ -2082,6 +2167,23 @@ $("pagar").addEventListener("click", () => lanzar(pagarCarrito()));
 $("ver-pedido").addEventListener("click", verPedido);
 
 $("volver-a-carta").addEventListener("click", volverALaCarta);
+
+// Cuántas copias necesita el desfile depende del ancho de la banda, y la banda
+// mide 0 mientras está oculta: este observador es también quien lo arranca
+// cuando aparece, y quien lo quita cuando un filtro la aparta.
+const observadorDeLaBanda = new ResizeObserver(prepararDesfile);
+observadorDeLaBanda.observe($("sugeridos"));
+menosMovimiento.addEventListener("change", prepararDesfile);
+
+// Con el foco del teclado dentro, la fila deja de desfilar y vuelve a ser la de
+// siempre (ver `.sugeridos.desfila` en `estilos.css`): una tarjeta que se va
+// mientras se tabula por ella no se puede usar. Ese cambio llega cuando el foco
+// ya cayó, así que la tarjeta se trae a la vista aquí.
+$("lista-sugeridos").addEventListener("focusin", (evento) => {
+  if (evento.target.matches(":focus-visible")) {
+    evento.target.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+});
 
 // Los dos destinos de la barra. No hacen nada que no se pudiera hacer ya con
 // los botones de cada pantalla: son el mismo viaje con el pulgar donde el
