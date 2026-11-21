@@ -1654,14 +1654,17 @@ arquitectura y no una casualidad:
 | `usuarios` | `correo` del personal | En claro. Es el identificador de acceso |
 | `usuarios` | Contraseña | **Nunca**: solo su derivación scrypt con sal propia |
 | `sesiones` | Token | **Nunca**: solo su hash |
-| `pedidos` | `correo_cliente`, `nombre_cliente` | **Solo si los dejan, y son opcionales.** Sirven para mandar el comprobante. No los devuelve ninguna respuesta de la API |
+| `pedidos` | `correo_cliente`, `nombre_cliente` | **El correo es obligatorio desde el 21/11/2026; el nombre, opcional.** Sirven para mandar el comprobante. No los devuelve ninguna respuesta de la API. Los pedidos anteriores pueden no tener ninguno |
 | `pedidos` | `aviso_push_endpoint` | La dirección a la que avisar a ese teléfono. **Se borra al usarla** |
 
 **Un cliente de PideUTB sigue sin ser un registro: es quien tiene un código de
-canje.** Pide sin cuenta y, si quiere, sin dejar ningún dato. Hasta el 04/11/2026 esta
-tabla decía que `pedidos` no guardaba nada de una persona; el comprobante por correo
-cambió eso para quien lo pida, y se decidió en
-[ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md).
+canje.** Pide sin cuenta, y deja un correo para recibir el comprobante. Hasta el
+04/11/2026 esta tabla decía que `pedidos` no guardaba nada de una persona; el
+comprobante por correo cambió eso para quien lo pidiera
+([ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md)), y desde el
+21/11/2026 el correo es obligatorio en cada pedido nuevo
+([ADR-0013](../adr/0013-correo-obligatorio-para-el-comprobante.md)). La retención de
+ese dato sigue sin definirse, y con eso pesa más.
 
 Eso no se decidió como política de privacidad; salió de
 [ADR-0002](../adr/0002-propiedad-datos-establecimiento.md) y del alcance del
@@ -1774,14 +1777,16 @@ arquitectura sin abrir nada.
 | [ADR-0008](../adr/0008-despliegue-en-el-servidor-del-laboratorio.md) | Desplegar en el servidor del laboratorio, con la base de datos dentro del despliegue y la API en un host aparte | [ESC-03](#esc-03) | Aceptada — reemplaza a ADR-0004 |
 | [ADR-0009](../adr/0009-no-extraer-un-servicio.md) | No extraer ningún módulo a un servicio independiente, y dejar escrito qué lo cambiaría | [ESC-02](#esc-02) | Aceptada |
 | [ADR-0010](../adr/0010-notificar-al-panel-por-sondeo.md) | Notificar al panel por sondeo, y conservar el canal de eventos como costura sin suscriptores | [ESC-03](#esc-03) | Aceptada — revisa ADR-0003 con evidencia de producción; el intervalo bajó a 5 s en la S14 |
-| [ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md) | Avisar al cliente y mandarle el comprobante como salidas prescindibles, sin cola ni reintentos | [ESC-05](#esc-05) | Aceptada — revisa ADR-0009 y ADR-0010 |
+| [ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md) | Avisar al cliente y mandarle el comprobante como salidas prescindibles, sin cola ni reintentos | [ESC-05](#esc-05) | Aceptada — revisa ADR-0009 y ADR-0010; el correo opcional lo modifica ADR-0013 |
+| [ADR-0013](../adr/0013-correo-obligatorio-para-el-comprobante.md) | Pedir siempre el correo, para que el código de recogida tenga una copia fuera de la pantalla | [ESC-05](#esc-05) | Aceptada — modifica en parte ADR-0012; contrato 5.0.0 |
 | [ADR-0011](../adr/0011-un-solo-esquema-para-los-cuatro-contextos.md) | Guardar los cuatro contextos en un solo esquema con integridad referencial cruzada, que es la decisión de datos más cara de deshacer | [ESC-02](#esc-02) | Aceptada — pone precio a la reversión que ADR-0009 deja abierta |
 
 *(Este índice se amplía en cada entrega a medida que surgen nuevas
-decisiones. Dos de las de arriba **revisan** a otras en vez de añadirse: ADR-0008
-reemplaza la plataforma que eligió ADR-0004, y ADR-0010 revisa ADR-0003 a la luz
-de lo que el sistema desplegado hace de verdad. Una decisión revisada no se
-borra: se deja con su razonamiento y se anota qué premisa dejó de ser cierta.)*
+decisiones. Tres de las de arriba **revisan** a otras en vez de añadirse: ADR-0008
+reemplaza la plataforma que eligió ADR-0004, ADR-0010 revisa ADR-0003 a la luz
+de lo que el sistema desplegado hace de verdad, y ADR-0013 vuelve obligatorio el
+correo que ADR-0012 dejó opcional. Una decisión revisada no se borra: se deja con
+su razonamiento y se anota qué premisa dejó de ser cierta.)*
 
 ------------------------------------------------------------------------
 

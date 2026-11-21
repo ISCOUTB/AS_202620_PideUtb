@@ -172,6 +172,9 @@ El servidor queda disponible en `http://127.0.0.1:8000`. Puedes verificar que ar
 ## Correo, avisos y sugeridos del día
 
 Todo es opcional y se configura con variables: sin ellas, el pedido funciona igual.
+Lo opcional es que el despliegue mande correos: el **correo del cliente sí es
+obligatorio** al pedir desde la versión 5.0.0 del contrato
+([ADR-0013](docs/adr/0013-correo-obligatorio-para-el-comprobante.md)).
 Los valores de ejemplo están en [`deploy/.env.example`](deploy/.env.example), y la
 decisión en [ADR-0012](docs/adr/0012-avisos-y-comprobante-prescindibles.md).
 
@@ -189,7 +192,7 @@ Con el entorno virtual ya activado (ver paso anterior):
 pytest
 ```
 
-**744 pruebas**, agrupadas por lo que protegen:
+**747 pruebas**, agrupadas por lo que protegen:
 
 | Archivo | Qué protege |
 |---|---|
@@ -224,7 +227,7 @@ ponerse en rojo no demuestra nada. Cómo reproducir un fallo:
 
 ### El recorrido con navegador
 
-Las 744 pruebas de arriba montan la aplicación en memoria. Ninguna toca un
+Las 747 pruebas de arriba montan la aplicación en memoria. Ninguna toca un
 botón, así que ninguna puede ver si el botón está donde se alcanza con el pulgar
 o si el carrito se vacía al pagar. Para eso está `e2e/`:
 
@@ -235,14 +238,14 @@ npx playwright install chromium
 npx playwright test
 ```
 
-**50 pruebas** en dos tamaños de pantalla, contra el sitio y la API que estén
+**62 pruebas** en dos tamaños de pantalla, contra el sitio y la API que estén
 levantados (`PIDEUTB_SITIO` y `PIDEUTB_API`, por defecto los locales). Las
 del mostrador se saltan si no hay `PIDEUTB_MOSTRADOR_CORREO` y
 `PIDEUTB_MOSTRADOR_CONTRASENA`: necesitan una sesión de verdad para mover un
 pedido por la máquina de estados.
 
 No es un lujo: el rediseño de la semana 15 destapó tres defectos que ninguna de
-las 744 podía ver —el carrito seguía lleno después de pagar, la barra pegajosa se
+las 747 podía ver —el carrito seguía lleno después de pagar, la barra pegajosa se
 quedaba debajo del pie en escritorio, y el botón del carrito dependía de tres
 `<span>` anidados para tener nombre accesible—. En la 16 destapó otros tres, y
 los tres eran del mismo tipo: el código de recogida de un pedido **ya pagado** se

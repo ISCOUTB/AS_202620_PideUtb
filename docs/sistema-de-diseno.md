@@ -24,8 +24,8 @@ Esta guía fija la apariencia y el comportamiento de las dos superficies de
 PideUTB: la del cliente y la del mostrador. Cada pantalla que se desarrolle debe
 ajustarse a ella.
 
-**Versión** 2.8 · 20/11/2026 · **Fundamentos** fondo cálido con color por secciones,
-vidrio en lo que flota, sugeridos que desfilan, marca azul de la UTB y portada fotográfica, con cada
+**Versión** 2.9 · 21/11/2026 · **Fundamentos** fondo cálido con color por secciones,
+vidrio en lo que flota, sugeridos que desfilan, el aviso del correo bajo el código, marca azul de la UTB y portada fotográfica, con cada
 contraste medido y **verificado en cada
 construcción** por [`test_contraste.py`](../backend/tests/test_contraste.py) ·
 tokens vigentes en [`sitio/estilos.css`](../sitio/estilos.css) · **Alcance** las
@@ -830,33 +830,38 @@ desvían.
 La conversión a mayúsculas del campo es **visual**: el servidor compara sin
 distinguir la caja, así que no cambia lo que se envía.
 
-<a id="c-advertencia"></a>
+<a id="c-aviso-correo"></a>
 
-### Advertencia antes de perder un código
+### Aviso del correo bajo el código
 
 ```
 ┌──────────────────────────────────────┐
-│ Guarda tu código antes de seguir     │  --ambar, Fraunces
-│ Ya pagaste este pedido y su código   │
-│ es K7M2X9. Si empiezas otro, esta    │  fondo --ambar-niebla
-│ pantalla deja de mostrarlo…          │  borde --ambar
-│                                      │
-│ [ Seguir viendo mi código ]          │  primario: el que no destruye
-│ [ Ya lo anoté, hacer otro pedido ]   │  secundario
+│ Revisa tu correo                     │  --ambar, Fraunces
+│ Tu código y tu comprobante te llegan │
+│ a ana@example.com. Si no los ves en  │  fondo --ambar-niebla
+│ unos minutos, búscalos en la         │  borde --ambar
+│ carpeta de spam.                     │
 └──────────────────────────────────────┘
 ```
 
-**Ámbar y no rojo.** El rojo es el color de lo que ya salió mal, y aquí no ha
-salido nada mal: el pedido está pagado y el código es bueno. Lo que hay es una
-decisión con consecuencia, que es para lo que `--ambar` existe.
+Va debajo del billete, en la pantalla del código. Ocupa el lugar de la advertencia
+que hasta el 21/11/2026 pedía confirmar «Ya lo anoté» antes de hacer otro pedido.
+Desde que el correo es obligatorio
+([ADR-0013](adr/0013-correo-obligatorio-para-el-comprobante.md)) el código tiene
+una copia fuera de la pantalla, así que ya no se pregunta nada: se dice dónde está
+esa copia.
+
+**Ámbar y no rojo**, igual que aquella. El rojo es el color de lo que ya salió mal,
+y aquí no ha salido nada mal: el pedido está pagado y el código es bueno. Lo que hay
+es algo que conviene hacer, que es para lo que `--ambar` existe.
 
 | Regla | Por qué |
 |---|---|
-| Ocupa el sitio del botón que la abrió | El código sigue a la vista mientras se lee la advertencia, que es de lo que trata la advertencia |
-| El primario es el que **conserva** | El botón grande y lleno nunca es el que destruye |
-| El foco entra en el primario | Quien llegue con el teclado y pulse Intro sin leer se queda donde estaba |
-| **Solo cuando hay algo que perder** | Con el pedido entregado, cancelado o sin pagar no aparece. Una confirmación que sale siempre se aprende a despachar sin leerla, y deja de proteger de nada |
-| No se cierra sola | Vive fuera del cuerpo de la pantalla, que se repinta cuando el mostrador mueve el pedido. Si viviera dentro, desaparecería bajo el dedo de quien la está leyendo |
+| Debajo del billete, no encima | Primero el código, que es lo que se presenta; después, dónde queda guardado |
+| **La dirección, en negrita** | Un error de tecleo se descubre ahí o no se descubre. Si no cabe, se parte antes que desbordar la pantalla |
+| Sin dirección, «tu correo» | Al retomar un pedido guardado no se sabe: la dirección no se guarda en el navegador |
+| **Dice «revisa», no «enviado»** | El correo sale aparte y sin reintentos, y la página no se entera de si salió. Por eso nombra el spam |
+| Solo con un código vivo | Sin pagar, cancelado o entregado no hay código que buscar |
 
 <a id="c-estados"></a>
 
@@ -894,8 +899,9 @@ código.
 
 ### Hora de recogida y comprobante
 
-Las dos cosas son opcionales, y por eso no estorban: **quien no toca nada pide
-exactamente como siempre**, para ya y sin dejar ningún dato.
+La hora es opcional, y por eso no estorba: **quien no toca nada pide para ya**. El
+correo no: desde el 21/11/2026 es obligatorio, porque es donde llega el comprobante
+con el código ([ADR-0013](adr/0013-correo-obligatorio-para-el-comprobante.md)).
 
 - La hora usa las pastillas de los métodos de pago: «Lo antes posible» viene marcado.
   Solo se ofrece dentro del horario publicado; pasado el cierre desaparece.
@@ -904,8 +910,11 @@ exactamente como siempre**, para ya y sin dejar ningún dato.
   `--carbon-tenue`: la hora es lo que se mira, y solo destaca cuando la hay. Se puede
   ordenar por ella: primero lo que es para ya y después lo programado, del más próximo
   al más lejano.
-- El correo dice para qué es («solo para enviarte el comprobante») y se pide antes que
-  el nombre, porque es el que hace falta.
+- La sección se llama «Tu comprobante» y no pregunta si mandarlo. El campo «Correo»
+  lleva `required`, así que vacío o mal escrito lo dice el navegador en el propio campo,
+  antes de crear nada. Debajo, para qué es: «Ahí te llega el comprobante con tu código
+  para recoger. Solo lo usamos para eso».
+- Se pide antes que el nombre, que sigue siendo opcional.
 
 ### Aviso de pedido listo
 
@@ -1054,8 +1063,8 @@ Las mismas situaciones se resuelven siempre igual.
 |---|---|---|
 | **Avanzar en el flujo del cliente** | Una pantalla visible a la vez, `.pantalla.activa`, con una entrada de 0,26 s **solo al cambiar de pantalla** | Carta → pedido → espera → resultado |
 | **Esperar algo que no depende de nosotros** | Estado consultable más sondeo. Nunca una pantalla bloqueada | Esperando la confirmación del pago, cada 3 s |
-| **Enterarse de un cambio ajeno** | Sondeo con intervalo atado a su umbral | La cola del mostrador, cada 5 s; el estado del pedido en el teléfono de quien pidió, también cada 5 s |
-| **Decisión que destruye algo que no se puede recuperar** | Advertencia en el sitio del botón, con lo que se va a perder a la vista, y confirmación explícita | [Hacer otro pedido con un código sin recoger](#c-advertencia) |
+| **Enterarse de un cambio ajeno** | Sondeo con intervalo atado a su umbral. **Seguir no es adueñarse de la pantalla**: solo lleva a lo seguido si ya se está mirando, o cuando aparece algo que se estaba esperando | La cola del mostrador, cada 5 s; el estado del pedido en el teléfono de quien pidió, también cada 5 s, sin sacar de la carta a quien está pidiendo otra cosa |
+| **Decisión que destruye algo que no se puede recuperar** | Advertencia en el sitio del botón, con lo que se va a perder a la vista, y confirmación explícita | Hoy ninguna en el teléfono. «Hacer otro pedido» lo fue hasta que el código tuvo copia en el correo, y se quitó ([ADR-0013](adr/0013-correo-obligatorio-para-el-comprobante.md)) |
 | **Acción que compromete dinero** | Resumen de lo que se va a cobrar **antes** del botón | «Tu pedido» antes de «Pagar con…» |
 | **Acción irreversible del mostrador** | Diálogo que nombra el pedido y pide el código | Entregar un pedido |
 | **Acción reversible** | Sin confirmación | Volver a la carta, refrescar |
@@ -1438,6 +1447,12 @@ Lo están preparando
 └──────────────────────────────────┘
 
 ┌──────────────────────────────────┐
+│ Revisa tu correo                 │  ← dónde queda la copia
+│ Tu código y tu comprobante te    │
+│ llegan a ana@example.com…        │
+└──────────────────────────────────┘
+
+┌──────────────────────────────────┐
 │  1 × Pechuga asada    $ 18.000   │
 │  2 × Chorizo          $ 14.000   │
 │  1 × Gaseosa 400 ml    $ 4.500   │
@@ -1465,8 +1480,11 @@ pedido llega a entregado o cancelado: a partir de ahí el código no le sirve a
 nadie, y guardarlo solo serviría para enseñárselo a quien abra la carta después
 en ese mismo teléfono.
 
-Pulsar «Hacer otro pedido» con un código todavía sin recoger abre la
-[advertencia](#c-advertencia) en vez de tirarlo.
+**Y se puede dejar.** «Hacer otro pedido» lleva a la carta sin preguntar, con el
+carrito vacío. El código de un pedido todavía sin recoger sigue en «Mi código», y se
+sigue su estado, hasta que se crea el siguiente pedido; su copia está en el correo,
+como dice el [aviso](#c-aviso-correo). Mientras tanto, el sondeo no saca a nadie de
+la carta: solo lleva al código cuando el pago acaba de confirmarse.
 
 **Debajo va el recibo: qué se compró, no solo cuánto.** Antes esta pantalla
 decía únicamente «Total pagado: …», que además mentía en los estados donde no se
