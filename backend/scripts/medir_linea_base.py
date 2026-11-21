@@ -21,7 +21,9 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app import base_de_datos  # noqa: E402
 from app.main import app  # noqa: E402
 
-PEDIDO = {"lineas": [{"item_id": 1, "cantidad": 2}]}
+#: El correo es obligatorio desde la 5.0.0 del contrato (ADR-0013). En proceso y
+#: sin `PIDEUTB_SMTP_HOST` no sale ningún correo, así que no altera la medida.
+PEDIDO = {"lineas": [{"item_id": 1, "cantidad": 2}], "correo_cliente": "medida@example.com"}
 
 
 def percentil(muestras: list[float], p: float) -> float:

@@ -144,7 +144,7 @@ def test_borra_los_pedidos_y_sus_intentos(con_variable):
     """
     cliente = TestClient(app)
 
-    creado = cliente.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}]})
+    creado = cliente.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}], "correo_cliente": "cliente@example.com"})
     assert creado.status_code == 201, creado.text
     pedido_id = creado.json()["pedido_id"]
 
@@ -184,11 +184,11 @@ def test_el_siguiente_pedido_vuelve_a_ser_el_uno(con_variable):
     """
     cliente = TestClient(app)
 
-    cliente.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}]})
+    cliente.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}], "correo_cliente": "cliente@example.com"})
     cliente.post("/v1/demo/reiniciar", headers={"X-Token-Demo": TOKEN})
 
     siguiente = cliente.post(
-        "/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}]}
+        "/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}], "correo_cliente": "cliente@example.com"}
     )
 
     assert siguiente.json()["pedido_id"] == 1

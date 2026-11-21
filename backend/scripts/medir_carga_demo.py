@@ -32,6 +32,12 @@ cadena del servidor, que es la que se cae por concurrencia.
 Tantos pedidos pagados como personas se simulen. Con `--limpiar` y
 `PIDEUTB_TOKEN_REINICIO_DEMO` los borra al terminar; sin eso hay que reiniciar
 a mano antes de la charla, o el primer pedido del público será el #61.
+
+Cada pedido lleva el correo `carga@example.com`, porque desde la 5.0.0 del
+contrato es obligatorio (ADR-0013). `example.com` es un dominio reservado que
+no recibe correo: si el despliegue tiene el comprobante encendido, cada pago
+gasta un envío de la cuenta y el rechazo vuelve a su buzón. Para medir sin
+eso, vacía `PIDEUTB_SMTP_HOST` mientras dura la medición.
 """
 from __future__ import annotations
 
@@ -87,7 +93,10 @@ def _una_persona(base: str, items: list[dict]) -> tuple[float, str | None]:
         if len(items) > 1:
             lineas.append({"item_id": items[(i + 1) % len(items)]["item_id"], "cantidad": 2})
 
-        pedido = _pedir(base, "POST", "/v1/pedidos", {"lineas": lineas})
+        pedido = _pedir(
+            base, "POST", "/v1/pedidos",
+            {"lineas": lineas, "correo_cliente": "carga@example.com"},
+        )
         intento = _pedir(
             base, "POST", "/v1/pagos/intentos",
             {"pedido_id": pedido["pedido_id"], "metodo": "tarjeta"},

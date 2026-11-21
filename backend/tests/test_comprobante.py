@@ -185,6 +185,8 @@ def test_un_pago_rechazado_no_manda_nada(buzon):
 
 
 def test_sin_correo_no_se_manda_nada_y_el_pedido_sigue_igual(buzon):
+    """Por la API ya no se puede pedir sin correo, pero los pedidos de antes de
+    la 5.0.0 existen sin él. Confirmar uno de esos no puede romper nada."""
     pedido_id, referencia = _pedido_con_cobro()
 
     pagos_service.procesar_evento(referencia, EstadoPago.APROBADO)
@@ -324,6 +326,17 @@ def test_un_correo_mal_formado_se_rechaza_antes_de_guardarlo(malo):
     )
 
     assert respuesta.status_code == 422
+
+
+@pytest.mark.parametrize("cuerpo", [{}, {"correo_cliente": None}, {"correo_cliente": ""}])
+def test_sin_correo_no_se_puede_pedir(cuerpo):
+    """Desde la 5.0.0 el correo es obligatorio: es donde llega el código para
+    recoger, y la copia de la compra que queda fuera de la pantalla (ADR-0013).
+    Se rechaza antes de guardar nada, así que no queda un pedido a medias."""
+    respuesta = client.post("/v1/pedidos", json={"lineas": [{"item_id": 1}], **cuerpo})
+
+    assert respuesta.status_code == 422
+    assert pedidos_repo._PEDIDOS == {}
 
 
 # --- El transporte ----------------------------------------------------------

@@ -99,7 +99,7 @@ def _pedido_pagado(item_id: int = 1) -> int:
     """Crea un pedido y lo lleva a `pagado` por la vía legítima."""
     pedido_id = _recordar(
         client.post(
-            "/v1/pedidos", json={"lineas": [{"item_id": item_id, "cantidad": 1}]}
+            "/v1/pedidos", json={"lineas": [{"item_id": item_id, "cantidad": 1}], "correo_cliente": "cliente@example.com"}
         ).json()
     )["pedido_id"]
     service.confirmar_pago(pedido_id)
@@ -120,7 +120,7 @@ def test_el_mostrador_no_puede_marcar_un_pedido_como_pagado():
     """
     pedido_id = _recordar(
         client.post(
-            "/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}]}
+            "/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}], "correo_cliente": "cliente@example.com"}
         ).json()
     )["pedido_id"]
 
@@ -273,7 +273,7 @@ def test_la_cola_solo_muestra_los_pedidos_del_establecimiento():
     4 y **pasaba sin demostrar nada**: ese pedido nunca llegaba a crearse, así
     que la cola salía con un solo elemento por el motivo equivocado.
     """
-    client.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}]})
+    client.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}], "correo_cliente": "cliente@example.com"})
 
     repository.crear(
         establecimiento_id=3,
@@ -310,7 +310,7 @@ def test_el_establecimiento_sale_de_la_sesion_y_no_del_parametro():
     establecimiento que quisiera ([V-10](../../docs/violaciones.md)). Ahora
     omitirlo es lo normal, y lo que se obtiene es lo propio.
     """
-    client.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}]})
+    client.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}], "correo_cliente": "cliente@example.com"})
 
     cola = client.get("/v1/pedidos").json()
 
@@ -448,7 +448,7 @@ def test_el_codigo_no_se_puede_reutilizar():
 
 def test_la_cola_llega_del_mas_reciente_al_mas_antiguo():
     """Quien atiende necesita ver arriba lo que acaba de entrar."""
-    ids = [_recordar(client.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}]}).json())["pedido_id"]
+    ids = [_recordar(client.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}], "correo_cliente": "cliente@example.com"}).json())["pedido_id"]
            for _ in range(3)]
 
     cola = client.get("/v1/pedidos").json()["pedidos"]

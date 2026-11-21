@@ -45,10 +45,10 @@ CITAS = [
     ("docs/api/openapi.yaml", 172, "/v1/menu/establecimientos/{establecimiento_id}/items:"),
     ("docs/api/openapi.yaml", 206, "/v1/sesiones:"),
     ("docs/api/openapi.yaml", 266, "/v1/pedidos:"),
-    ("docs/api/openapi.yaml", 362, "/v1/pedidos/{pedido_id}/estado:"),
-    ("docs/api/openapi.yaml", 504, "/v1/pedidos/{pedido_id}:"),
-    ("docs/api/openapi.yaml", 541, "/v1/pagos/intentos:"),
-    ("docs/api/openapi.yaml", 617, "/v1/pagos/eventos:"),
+    ("docs/api/openapi.yaml", 366, "/v1/pedidos/{pedido_id}/estado:"),
+    ("docs/api/openapi.yaml", 508, "/v1/pedidos/{pedido_id}:"),
+    ("docs/api/openapi.yaml", 545, "/v1/pagos/intentos:"),
+    ("docs/api/openapi.yaml", 621, "/v1/pagos/eventos:"),
 
     # §2 — El pipeline ejecuta la prueba de contrato
     (".github/workflows/ci.yml", 109, "Ejecutar pruebas"),

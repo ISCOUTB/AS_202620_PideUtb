@@ -227,8 +227,11 @@ def crear_pedido(
     no a medias. Un pedido parcial sería peor que ninguno — el cliente pagaría
     por algo distinto de lo que pidió.
 
-    La hora de recogida y los datos del cliente son opcionales: sin ellos, el
-    pedido se prepara de inmediato y no se manda ningún comprobante.
+    Sin hora de recogida, el pedido se prepara de inmediato. El correo lo exige
+    la API desde la 5.0.0 (`CrearPedidoRequest`, ADR-0013), y aquí sigue
+    admitiendo `None` a propósito: la regla vive en la frontera HTTP, y los
+    pedidos de antes de esa versión existen sin correo. Sin correo no se manda
+    ningún comprobante.
     """
     if not lineas_pedidas:
         raise CarritoVacioError("El pedido no lleva ningún producto")

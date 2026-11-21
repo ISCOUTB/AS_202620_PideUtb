@@ -37,7 +37,11 @@ descripcion: >
 # funcionar contra la 2.0.0. Lo comprueba
 # `test_el_consumidor_declara_la_version_mayor_que_publica_el_contrato`, así que
 # este campo ya no es decoración.
-version_contrato_requerida: "4.x"
+#
+# El salto de `4.x` a `5.x` lo motivó el comprobante: el correo pasó a ser
+# obligatorio al crear el pedido (ADR-0013), y este sitio lo exige en el
+# formulario antes de mandarlo.
+version_contrato_requerida: "5.x"
 
 operaciones:
   consultarSalud:
@@ -82,7 +86,8 @@ operaciones:
     proposito: Enviar el carrito y mostrar el resumen de confirmación.
     # Desde la 3.0.0 se envía una lista de líneas. Es el cambio que motiva el
     # salto de MAYOR: `item_id` y `cantidad` dejaron de estar en el nivel de
-    # arriba de la petición.
+    # arriba de la petición. Desde la 5.0.0 `correo_cliente` es obligatorio, y
+    # el formulario no deja pagar sin él.
     campos_enviados: [lineas, hora_recogida, nombre_cliente, correo_cliente]
     campos_leidos:
       - pedido_id

@@ -169,7 +169,12 @@ def verificar(base: str, limpiar: bool = False) -> int:
     lineas = [{"item_id": items[0]["item_id"], "cantidad": 2}]
     if len(items) > 1:
         lineas.append({"item_id": items[1]["item_id"], "cantidad": 1})
-    codigo, pedido = _pedir(base, "POST", "/v1/pedidos", {"lineas": lineas})
+    # El correo es obligatorio desde la 5.0.0 (ADR-0013). `example.com` no recibe
+    # correo: con el comprobante encendido, el rechazo vuelve al buzón de la cuenta.
+    codigo, pedido = _pedir(
+        base, "POST", "/v1/pedidos",
+        {"lineas": lineas, "correo_cliente": "verificacion@example.com"},
+    )
     if codigo != 201:
         raise Fallo(f"crear el pedido respondió {codigo}: {pedido}")
 
