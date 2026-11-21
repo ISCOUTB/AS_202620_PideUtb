@@ -86,7 +86,7 @@ services:
       PIDEUTB_VAPID_CLAVE_PRIVADA: ${PIDEUTB_VAPID_CLAVE_PRIVADA:-}
       PIDEUTB_VAPID_CONTACTO: ${PIDEUTB_VAPID_CONTACTO:-}
 
-      # Cambia los platos que giran en la carta sin tocar el código.
+      # Cambia los platos de los sugeridos del día sin tocar el código.
       PIDEUTB_SUGERIDOS_DEL_DIA: ${PIDEUTB_SUGERIDOS_DEL_DIA:-}
 
       # El sitio vive en otro host, así que **toda** llamada del panel es una

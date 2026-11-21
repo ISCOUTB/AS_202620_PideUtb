@@ -235,6 +235,49 @@ def test_un_correo_que_falla_no_toca_el_pedido(monkeypatch, caplog):
     assert CORREO not in caplog.text
 
 
+def test_un_fallo_del_servidor_deja_su_codigo_y_no_la_direccion(monkeypatch, caplog):
+    """El código dice qué arreglar: 535 son credenciales que el servidor rechazó."""
+    monkeypatch.setenv("PIDEUTB_SMTP_HOST", "correo.example.com")
+
+    def rechaza(**_):
+        raise smtplib.SMTPAuthenticationError(535, f"usuario {CORREO} no aceptado".encode())
+
+    monkeypatch.setattr(correo, "enviar", rechaza)
+    _, referencia = _pedido_con_cobro(correo_cliente=CORREO)
+
+    with caplog.at_level(logging.WARNING, logger="pideutb"):
+        pagos_service.procesar_evento(referencia, EstadoPago.APROBADO)
+
+    [registro] = [r for r in caplog.records if r.getMessage() == "comprobante_no_enviado"]
+    assert registro.motivo == "SMTPAuthenticationError"
+    assert registro.codigo_smtp == 535
+    assert CORREO not in caplog.text
+
+
+def test_al_arrancar_dice_si_va_a_mandar_correos(monkeypatch, caplog):
+    """Sin la variable no se intenta nada, y eso no puede pasar en silencio."""
+    monkeypatch.delenv("PIDEUTB_SMTP_HOST", raising=False)
+    with caplog.at_level(logging.INFO, logger="pideutb"):
+        comprobante.suscribir()
+    assert "comprobante_apagado" in caplog.text
+
+    caplog.clear()
+    monkeypatch.setenv("PIDEUTB_SMTP_HOST", "smtp.example.com")
+    monkeypatch.setenv("PIDEUTB_SMTP_USUARIO", "cuenta@example.com")
+    monkeypatch.setenv("PIDEUTB_SMTP_CONTRASENA", "no-debe-salir")
+    with caplog.at_level(logging.INFO, logger="pideutb"):
+        comprobante.suscribir()
+
+    [registro] = [r for r in caplog.records if r.getMessage() == "comprobante_activo"]
+    assert (registro.servidor, registro.puerto, registro.con_credenciales) == (
+        "smtp.example.com", "587", True,
+    )
+    # Ni el usuario, que suele ser una dirección de correo, ni la contraseña.
+    for registro in caplog.records:
+        assert "cuenta@example.com" not in str(registro.__dict__)
+        assert "no-debe-salir" not in str(registro.__dict__)
+
+
 def test_el_trabajo_en_segundo_plano_no_deja_escapar_nada(monkeypatch):
     """La versión de verdad, con su hilo: un fallo ahí no le llega a nadie."""
     monkeypatch.undo()

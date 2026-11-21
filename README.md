@@ -179,7 +179,7 @@ decisión en [ADR-0012](docs/adr/0012-avisos-y-comprobante-prescindibles.md).
 |---|---|
 | `PIDEUTB_SMTP_HOST`, `_PUERTO`, `_USUARIO`, `_CONTRASENA`, `_REMITENTE` | El comprobante por correo al confirmarse el pago |
 | `PIDEUTB_VAPID_CLAVE_PRIVADA` | El aviso al teléfono cuando el pedido está listo |
-| `PIDEUTB_SUGERIDOS_DEL_DIA` | Qué platos giran en la carta: identificadores separados por comas |
+| `PIDEUTB_SUGERIDOS_DEL_DIA` | Qué platos salen en los sugeridos del día: identificadores separados por comas |
 
 ## Cómo correr las pruebas
 
@@ -189,7 +189,7 @@ Con el entorno virtual ya activado (ver paso anterior):
 pytest
 ```
 
-**742 pruebas**, agrupadas por lo que protegen:
+**744 pruebas**, agrupadas por lo que protegen:
 
 | Archivo | Qué protege |
 |---|---|
@@ -224,7 +224,7 @@ ponerse en rojo no demuestra nada. Cómo reproducir un fallo:
 
 ### El recorrido con navegador
 
-Las 742 pruebas de arriba montan la aplicación en memoria. Ninguna toca un
+Las 744 pruebas de arriba montan la aplicación en memoria. Ninguna toca un
 botón, así que ninguna puede ver si el botón está donde se alcanza con el pulgar
 o si el carrito se vacía al pagar. Para eso está `e2e/`:
 
@@ -242,7 +242,7 @@ del mostrador se saltan si no hay `PIDEUTB_MOSTRADOR_CORREO` y
 pedido por la máquina de estados.
 
 No es un lujo: el rediseño de la semana 15 destapó tres defectos que ninguna de
-las 742 podía ver —el carrito seguía lleno después de pagar, la barra pegajosa se
+las 744 podía ver —el carrito seguía lleno después de pagar, la barra pegajosa se
 quedaba debajo del pie en escritorio, y el botón del carrito dependía de tres
 `<span>` anidados para tener nombre accesible—. En la 16 destapó otros tres, y
 los tres eran del mismo tipo: el código de recogida de un pedido **ya pagado** se
