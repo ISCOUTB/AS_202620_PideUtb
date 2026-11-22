@@ -511,7 +511,8 @@ La flecha 5 —el webhook entrante— **no se tocó**: esa integración sí exis
 
 Sobre el **bus sin suscriptores**: el informe lo da por documentado y así sigue.
 ADR-0010 lo declara como costura con contrato y sin uso, y
-`test_el_evento_se_pierde_si_no_hay_nadie_escuchando` lo vigila.
+`test_el_evento_se_pierde_si_no_hay_nadie_escuchando` lo vigila (desde ADR-0012 se llama
+`test_quien_escucha_los_pagos_es_prescindible`).
 
 ### 8.4 Contribución de todos: lo que el repositorio puede decir, y lo que no
 
@@ -522,6 +523,9 @@ ADR-0010 lo declara como costura con contrato y sin uso, y
 | `Santiago-C0 <sjcm082005@gmail.com>` | 89 |
 | `daniarriet <162816064+daniarriet@users.noreply.github.com>` | 65 |
 | `ruddy2000utb-droid <ruddy2000utb@gmail.com>` | 46 |
+
+*Al 22/11/2026 la misma orden da 102, 73 y 55 (230 commits); la tabla queda como
+estaba en la fecha de esta respuesta.*
 
 Eso es lo que el repositorio acredita: **qué firmas aparecen y con qué volumen**.
 El emparejamiento de cada firma con un integrante de la nómina no está en el

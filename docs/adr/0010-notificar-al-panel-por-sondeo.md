@@ -162,7 +162,8 @@ decisiones:
 Lo que sí se acepta de esta alternativa es su crítica, y se responde: la trampa
 se desactiva **nombrándola** —aquí y en
 [arc42 §8.6](../arc42/arc42.md#consistencia)— y con una prueba que falla el día
-que deje de ser verdad (`test_el_evento_se_pierde_si_no_hay_nadie_escuchando`).
+que deje de ser verdad (`test_el_evento_se_pierde_si_no_hay_nadie_escuchando`; desde
+ADR-0012, `test_quien_escucha_los_pagos_es_prescindible`).
 Esa prueba es lo que impide que esta decisión se herede sin revisarla: el día que
 aparezca un suscriptor, falla y obliga a volver aquí.
 
@@ -203,7 +204,8 @@ Cada una es comprobable:
 
 - **Que aparezca un segundo suscriptor del canal.** Entonces el bus en proceso
   pasa a ser una limitación real y hay que decidir transporte.
-  Vigilado por `test_el_evento_se_pierde_si_no_hay_nadie_escuchando`.
+  Vigilado por `test_quien_escucha_los_pagos_es_prescindible`, que hasta ADR-0012 se llamaba
+  `test_el_evento_se_pierde_si_no_hay_nadie_escuchando` y exigía cero suscriptores.
 - **Que haya más de un proceso de API.** Es la condición que rompe el bus en
   proceso, y rompe también `GET /metricas`
   ([arc42 §8.6](../arc42/arc42.md#consistencia)). Hoy hay uno.

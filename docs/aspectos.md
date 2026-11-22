@@ -41,10 +41,12 @@ distintos, sin que una medición de una sola capa obligara a ponerlos juntos.
 
 El término que lo incumplía **desapareció por construcción** con
 [ADR-0008](adr/0008-despliegue-en-el-servidor-del-laboratorio.md): los
-contenedores del servidor del laboratorio no se duermen. Queda **remedir el
-escenario entero en el entorno nuevo**, que es trabajo de S14: hasta entonces lo
-honesto es decir que el obstáculo conocido ya no está, no que el escenario esté
-verificado allí.
+contenedores del servidor del laboratorio no se duermen. El escenario entero
+**se remidió en la S14** ([`evidencia-s14.md`](evidencia-s14.md),
+[arc42 §10.7](arc42/arc42.md#evaluacion)): con el sondeo bajado a 5 000 ms, la
+cadena consume 5 320 ms en el peor caso y deja 4,68 s para la persona. La red se
+midió contra el despliegue del laboratorio; el servidor, en un portátil contra
+PostgreSQL, que es 4,5 veces más lento que producción.
 
 ESC-02 tiene línea base medida y protegida por una prueba de regresión, pero no
 prueba de carga.

@@ -847,10 +847,11 @@ nadie ejecutaba el guion. Está en [§7.6](#despliegue-deuda) con su mitigación
   broker real esto se resuelve con persistencia del canal; el contrato ya está
   escrito para que ese cambio sea sustituir el transporte y no renegociar la
   integración.
-- El registro de idempotencia vive en memoria, igual que el resto del estado
-  ([V-09](../violaciones.md#v-09)). Con más de una instancia desplegada, dos
-  réplicas podrían procesar el mismo evento. Es la misma deuda que bloquea el
-  despliegue real y se cierra con el mismo trabajo.
+- La idempotencia ya no vive en memoria. Desde la S8
+  ([V-09](../violaciones.md#v-09)) el estado está en PostgreSQL, y confirmar un
+  pago es un `UPDATE … WHERE estado = 'pendiente_pago'`: si dos réplicas
+  procesaran el mismo evento, solo una generaría código. Lo que sigue en
+  memoria es el bus de eventos ([R-03](#riesgos)).
 
 ------------------------------------------------------------------------
 
@@ -1796,10 +1797,9 @@ Los requisitos de calidad se expresan mediante escenarios verificables.
 Cada escenario contiene seis partes: **fuente, estímulo, artefacto,
 entorno, respuesta y medida de respuesta**.
 
-Los valores numéricos indicados en estos escenarios son **objetivos
-iniciales de calidad**. Todavía no representan resultados
-experimentales; posteriormente podrán comprobarse mediante pruebas del
-sistema.
+Los valores numéricos de estos escenarios nacieron como **objetivos
+iniciales de calidad**. Desde la S14 cada uno está medido contra su umbral
+en [§10.7](#evaluacion), con el método y los límites de cada cifra.
 
 <a id="arbol-utilidad"></a>
 
@@ -2140,7 +2140,7 @@ solo se vigila leyendo esta tabla se hereda sin revisarse.
 |---|---|---|---|---|
 | **R-01** | ~~El margen de ESC-03 está agotado~~ · **Cerrado en la S14.** Medido, incumplía; se bajó el sondeo a 5 s | Quedaban **1,68 s** para la persona · ahora **4,68 s** | — | `medir_esc03.py` devuelve error si deja de cumplirse · `test_escenarios_de_calidad.py` fija el intervalo por los dos lados |
 | **R-02** | **scrypt protege menos de lo que ADR-0007 afirma**, y no hay límite de intentos | 100 ms medidos en el portátil · ~35 ms en producción. **Confirmado en la S14** por una segunda operación: el portátil es 4,5× más lento que el contenedor ([§10.7](#evaluacion)) | Alto: es la única barrera contra probar contraseñas en serie | Ninguna automática. Ligado a R-07: las dos correcciones se estorban |
-| **R-03** | **El bus de eventos en proceso fallaría en silencio con más de un proceso** de API | Hoy: 1 proceso | Alto *si ocurre*: un panel no se enteraría de que no se entera | `test_el_evento_se_pierde_si_no_hay_nadie_escuchando` obliga a revisar al aparecer un suscriptor |
+| **R-03** | **El bus de eventos en proceso fallaría en silencio con más de un proceso** de API | Hoy: 1 proceso | Alto *si ocurre*: un panel no se enteraría de que no se entera | `test_quien_escucha_los_pagos_es_prescindible` obliga a revisar si se suscribe algo de lo que dependa el negocio |
 | **R-04** | **`GET /metricas` dejaría de significar lo que dice** con más de un proceso: la ventana es por proceso y no agregable | Hoy: 1 proceso | Medio: se decide con esas cifras, incluida la de no cachear | Ninguna automática. Declarado en [§8.6](#consistencia) |
 | **R-05** | **Un proceso por servicio, sin redundancia.** `restart: unless-stopped` recupera, pero no evita la caída | 1 réplica de cada uno | Medio: la cuota de 4 contenedores impide duplicar | `GET /health` y el chequeo del compose |
 | **R-06** | **Un proxy que no controlamos filtra clientes automatizados.** Si la pasarela usara un agente filtrado, sus avisos no llegarían y sería indistinguible de «el evento no llegó» | `Python-urllib` recibe `403` en una sola petición | Medio: el pedido queda en `pendiente_pago`, estado honesto y consultable | Medido en [§7.2](#despliegue-topologia). No mitigable desde aquí: ver fallo 9 de [§6.7](#fallos-parciales) |
@@ -2283,7 +2283,7 @@ que hay que resolver con un número delante.
 |---|---|---|---|
 | **D-01** | **No se puede ejecutar el despliegue en local**: no hay Docker en la máquina de desarrollo | Cinco defectos de configuración llegaron a producción invisibles para 282 pruebas ([§7.6](#despliegue-deuda)) | Instalar Docker y correr `deploy/compose.lab.yaml`. Los cinco se habrían visto en treinta segundos |
 | **D-02** | **El canal de eventos solo tiene suscriptores prescindibles** (correo y aviso, [ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md)) | Quien lea `publicar(...)` puede creer que algo depende de eso | Evaluado en [ADR-0010](../adr/0010-notificar-al-panel-por-sondeo.md): se conserva como costura, y la trampa se desactiva nombrándola |
-| **D-03** | **ESC-03 no se ha vuelto a medir en la plataforma nueva.** La medición de ~0,7 s en caliente es de Render | No se sabe si el escenario se cumple hoy, solo que debería | Remedir en la S14, que es donde toca |
+| **D-03** | ~~ESC-03 no se ha vuelto a medir en la plataforma nueva.~~ **Pagada en la S14.** Con la red medida contra el despliegue del laboratorio y el servidor contra PostgreSQL, la cadena consume 5 320 ms en el peor caso y deja 4,68 s para la persona, tras bajar el sondeo a 5 000 ms ([§10.7](#evaluacion)) | — | Se repite con `backend/scripts/medir_esc03.py`. Desde el 22/11/2026 `test_medicion_esc03.py` comprueba en cada construcción que el guion sigue hablando el contrato vigente |
 | **D-04** | **No hay forma de restablecer una contraseña en producción.** La cuenta inicial se siembra una vez | Una contraseña perdida deja el panel inaccesible sin tocar la base | Se analiza en la S13 |
 
 D-01 es la que explica a las demás. El patrón está en
