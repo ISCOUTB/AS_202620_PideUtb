@@ -904,6 +904,12 @@ function controlDeCantidad(item) {
     agregar.textContent = "+";
     agregar.setAttribute("aria-label", "Agregar " + item.nombre);
     agregar.addEventListener("click", () => cambiarCantidad(item, +1));
+
+    // Sin estar en el carrito, lo único que puede apagarlo es el tope de su
+    // tipo: 4 comidas de otros productos ya cierran la puerta a una quinta.
+    const motivo = motivoParaNoAgregar(item);
+    agregar.disabled = motivo !== null;
+    if (motivo) agregar.title = motivo;
     return agregar;
   }
 
@@ -927,27 +933,149 @@ function controlDeCantidad(item) {
   mas.setAttribute("aria-label", "Agregar otro " + item.nombre);
   mas.addEventListener("click", () => cambiarCantidad(item, +1));
 
-  // 50 es el tope que el contrato declara por línea: pasarlo daría 422, así
-  // que el botón se apaga antes en vez de dejar pedir algo que la API
-  // rechazará.
-  mas.disabled = enCarrito.cantidad >= 50;
+  // Se apaga al llegar al tope del producto o al de su tipo, antes de dejar
+  // pedir algo que la API rechazaría (ADR-0014).
+  const motivo = motivoParaNoAgregar(item);
+  mas.disabled = motivo !== null;
+  if (motivo) mas.title = motivo;
 
   grupo.append(menos, cuenta, mas);
   return grupo;
 }
 
 function cambiarCantidad(item, delta) {
+  // El «+» ya está apagado cuando se llega a un tope; esto cubre el doble toque
+  // que llega antes de que se vuelva a pintar.
+  if (delta > 0 && motivoParaNoAgregar(item) !== null) return;
+
   const actual = carrito.get(item.item_id);
   const cantidad = (actual ? actual.cantidad : 0) + delta;
 
   if (cantidad <= 0) {
     carrito.delete(item.item_id);
   } else {
-    carrito.set(item.item_id, { item, cantidad: Math.min(cantidad, 50) });
+    carrito.set(item.item_id, { item, cantidad });
   }
 
   dibujarCarta();
   dibujarNavegacion();
+}
+
+// --------------------------------------------------------------------------
+// Los topes del pedido y su demora (ADR-0014)
+//
+// Hasta el 22/11/2026 se podían pedir 50 de cada producto, y se pagó un pedido
+// de más de 800 000 pesos. Ahora: 4 de un mismo producto, y 4 comidas, 4
+// bebidas y 4 acompañantes por pedido. Quien decide es la API, que rechaza lo
+// que se pase; el sitio apaga el «+» antes, con la copia de `config.js`.
+// --------------------------------------------------------------------------
+
+const NOMBRE_DEL_TIPO = { comida: "comidas", bebida: "bebidas", acompanante: "acompañantes" };
+
+/** Cuántas unidades hay en el carrito de un tipo: comidas, bebidas o acompañantes. */
+function cuantasDelTipo(tipo) {
+  let cuantas = 0;
+  for (const linea of carrito.values()) {
+    if (linea.item.tipo === tipo) cuantas += linea.cantidad;
+  }
+  return cuantas;
+}
+
+/**
+ * Por qué no se puede añadir otro de este producto, o `null` si se puede.
+ *
+ * Un producto sin `tipo` solo tiene el tope por producto: es lo mismo que hace
+ * la API con una categoría que el catálogo no clasifica.
+ */
+function motivoParaNoAgregar(item) {
+  const enCarrito = carrito.get(item.item_id);
+  if ((enCarrito ? enCarrito.cantidad : 0) >= CONFIG.MAXIMO_POR_PRODUCTO) {
+    return `Máximo ${CONFIG.MAXIMO_POR_PRODUCTO} de cada producto`;
+  }
+
+  const maximo = item.tipo ? CONFIG.MAXIMO_POR_TIPO[item.tipo] : undefined;
+  if (maximo !== undefined && cuantasDelTipo(item.tipo) >= maximo) {
+    return `Máximo ${maximo} ${NOMBRE_DEL_TIPO[item.tipo]} por pedido`;
+  }
+  return null;
+}
+
+/**
+ * Los minutos que puede tardar el pedido, para avisarlo antes de pagar.
+ *
+ * Solo cuentan las comidas, que son lo que se cocina: 15 min con una y 5 más
+ * por cada comida adicional. Es una estimación por tamaño; no sabe cuántos
+ * pedidos tiene el mostrador delante.
+ */
+function minutosEstimados() {
+  const comidas = cuantasDelTipo("comida");
+  return CONFIG.MINUTOS_BASE_DEL_PEDIDO + CONFIG.MINUTOS_POR_COMIDA_EXTRA * Math.max(comidas - 1, 0);
+}
+
+/**
+ * Dice qué topes alcanzó el carrito, en la carta y en «Tu pedido».
+ *
+ * El «+» apagado no se explica solo, y en el teléfono no hay puntero para leer
+ * su `title`: esta línea es la que dice por qué ya no se puede añadir más.
+ */
+function dibujarNotaDeTopes() {
+  const alcanzados = [];
+  for (const [tipo, maximo] of Object.entries(CONFIG.MAXIMO_POR_TIPO)) {
+    if (cuantasDelTipo(tipo) >= maximo) alcanzados.push(`${maximo} ${NOMBRE_DEL_TIPO[tipo]}`);
+  }
+  const algunProductoAlTope = [...carrito.values()].some(
+    (linea) => linea.cantidad >= CONFIG.MAXIMO_POR_PRODUCTO
+  );
+
+  let texto = "";
+  if (alcanzados.length > 0) {
+    texto = `Llegaste al máximo de ${alcanzados.join(", ")} por pedido.`;
+  } else if (algunProductoAlTope) {
+    texto = `De cada producto se piden como máximo ${CONFIG.MAXIMO_POR_PRODUCTO}.`;
+  }
+
+  for (const nota of document.querySelectorAll(".nota-topes")) {
+    nota.textContent = texto;
+    nota.classList.toggle("oculto", texto === "");
+  }
+}
+
+/**
+ * Pregunta antes de pagar, con lo que puede tardar el pedido.
+ *
+ * Devuelve una promesa con `true` si se sigue y `false` si se vuelve al pedido.
+ * Cerrar con Esc cuenta como volver: quien no decidió no ha dicho que sí.
+ */
+function confirmarLaDemora() {
+  const dialogo = $("dialogo-demora");
+  const minutos = document.createElement("strong");
+  minutos.textContent = `${minutosEstimados()} minutos`;
+
+  const hora = $("hora-recogida").value;
+  if ($("recogida-hora").checked && hora) {
+    $("texto-demora").replaceChildren(
+      "Prepararlo toma unos ", minutos, `. Lo programaste para las ${hora}.`
+    );
+  } else {
+    $("texto-demora").replaceChildren(
+      "Tu pedido puede demorarse unos ", minutos, " en estar listo."
+    );
+  }
+
+  return new Promise((resolver) => {
+    const terminar = (seguir) => {
+      if (dialogo.open) dialogo.close();
+      resolver(seguir);
+    };
+    $("seguir-con-el-pago").onclick = () => terminar(true);
+    $("volver-al-pedido").onclick = () => terminar(false);
+    dialogo.oncancel = (evento) => {
+      evento.preventDefault();
+      terminar(false);
+    };
+    dialogo.showModal();
+    $("seguir-con-el-pago").focus();
+  });
 }
 
 function totalDelCarrito() {
@@ -985,6 +1113,11 @@ let unidadesPintadas = 0;
 function dibujarNavegacion() {
   const unidades = unidadesDelCarrito();
   const enPantalla = (p) => $(`pantalla-${p}`).classList.contains("activa");
+
+  // Acá y no en cada sitio que toca el carrito: esta función se llama después
+  // de cada cambio —añadir, quitar, vaciar al pagar o al hacer otro pedido—, y
+  // la nota de topes tiene que seguirlos todos.
+  dibujarNotaDeTopes();
 
   // --- El botón central: el carrito -----------------------------------
   const carrito = $("ver-pedido");
@@ -1196,6 +1329,17 @@ function dibujarResumenDelCarrito() {
   // No se repite aquí la cuenta de productos: las líneas de arriba ya dicen
   // qué hay y cuánto de cada cosa, y una fila «3 productos» sin cifra al lado
   // dibujaba una línea vacía en la rejilla.
+  //
+  // La demora va antes del total y a la vista desde que se abre el pedido: el
+  // diálogo de antes de pagar la repite, pero no debería ser la primera vez que
+  // se ve (ADR-0014).
+  const dtDemora = document.createElement("dt");
+  dtDemora.textContent = "Tiempo estimado";
+  const ddDemora = document.createElement("dd");
+  ddDemora.id = "demora-estimada";
+  ddDemora.textContent = `~${minutosEstimados()} min`;
+  resumen.append(dtDemora, ddDemora);
+
   const dtTotal = document.createElement("dt");
   dtTotal.className = "total";
   dtTotal.textContent = "Total";
@@ -1245,6 +1389,15 @@ function volverALaCarta() {
 async function pagarCarrito() {
   if (metodoElegido === null || carrito.size === 0) return;
   if (!datosDelPedidoEnOrden()) return;
+
+  // Antes de crear nada, cuánto puede tardar y si se quiere seguir (ADR-0014).
+  // Solo para un pedido nuevo: reintentar el cobro de uno que ya existe no
+  // cambia su demora, y preguntar otra vez sería ruido.
+  const esUnPedidoNuevo = !(pedidoActual !== null && pedidoActual.estado === "pendiente_pago");
+  if (esUnPedidoNuevo) {
+    if ($("dialogo-demora").open) return; // un doble toque no abre dos
+    if (!(await confirmarLaDemora())) return;
+  }
 
   limpiarError();
   const boton = $("pagar");

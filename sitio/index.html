@@ -145,6 +145,11 @@
          aparecer aquí sin tocar el marcado. -->
     <div id="categorias" class="categorias" role="group" aria-label="Filtrar por categoría"></div>
 
+    <!-- Aparece cuando el carrito llega a un tope (ADR-0014): 4 de un mismo
+         producto, o 4 comidas, 4 bebidas o 4 acompañantes. El «+» ya está
+         apagado; esto dice por qué. -->
+    <p class="nota-topes oculto" role="status"></p>
+
     <ul id="lista-items" class="items catalogo"></ul>
 
     <!-- Las descripciones dicen lo que lleva el plato, no la receta: alguien con
@@ -160,6 +165,8 @@
     <h2>Tu pedido</h2>
 
     <ul id="lineas-pedido" class="items lineas"></ul>
+
+    <p class="nota-topes oculto" role="status"></p>
 
     <dl id="resumen-pedido" class="resumen"></dl>
 
@@ -289,6 +296,20 @@
 
   <!-- Errores -->
   <div id="error" class="error oculto" role="alert"></div>
+
+  <!-- Antes de crear el pedido: cuánto puede tardar, y si se quiere seguir
+       (ADR-0014). Sale siempre, para que nadie pague sin saber cuánto va a
+       esperar en su hora de almuerzo. Reutiliza el estilo del diálogo de
+       entrega del panel. -->
+  <dialog id="dialogo-demora" aria-labelledby="titulo-demora">
+    <h2 id="titulo-demora">Antes de pagar</h2>
+    <p id="texto-demora"></p>
+    <p>¿Seguro que quieres seguir con el pago?</p>
+    <div class="acciones">
+      <button id="seguir-con-el-pago" type="button">Sí, seguir con el pago</button>
+      <button id="volver-al-pedido" type="button" class="secundario">Volver al pedido</button>
+    </div>
+  </dialog>
 
 </main>
 

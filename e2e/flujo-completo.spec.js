@@ -45,6 +45,16 @@ async function abrirLaCarta(page) {
   return productos;
 }
 
+/**
+ * Acepta el aviso de demora que sale antes de pagar (ADR-0014).
+ *
+ * Sale en todo pedido nuevo, así que cada pago por la interfaz pasa por aquí;
+ * lo que dice y qué pasa al volver se comprueba aparte.
+ */
+async function confirmarLaDemora(page) {
+  await page.getByRole("button", { name: "Sí, seguir con el pago" }).click();
+}
+
 /** Escribe el correo del comprobante, sin el cual el formulario no deja pagar. */
 async function escribirElCorreo(page) {
   await page.locator("#correo-cliente").fill(CORREO);
@@ -119,6 +129,7 @@ async function pagarUnProducto(page, request) {
   await page.getByText("Nequi", { exact: true }).click();
   await escribirElCorreo(page);
   await page.locator("#pagar").click();
+  await confirmarLaDemora(page);
 
   await aprobarElCobro(page, request);
 
@@ -166,6 +177,7 @@ test.describe("El recorrido del cliente", () => {
     // --- El cobro -------------------------------------------------------
     await escribirElCorreo(page);
     await pagar.click();
+    await confirmarLaDemora(page);
     await expect(page.getByText(/Esperando la confirmación del pago/)).toBeVisible();
 
     // --- La pasarela confirma --------------------------------------------
@@ -208,6 +220,7 @@ test.describe("El recorrido del cliente", () => {
     await page.getByText("Tarjeta", { exact: true }).click();
     await escribirElCorreo(page);
     await page.locator("#pagar").click();
+    await confirmarLaDemora(page);
 
     await aprobarElCobro(page, request);
 
@@ -257,6 +270,7 @@ test.describe("El recorrido del cliente", () => {
     await page.getByText("Tarjeta", { exact: true }).click();
     await escribirElCorreo(page);
     await page.locator("#pagar").click();
+    await confirmarLaDemora(page);
 
     const enlace = page.locator("#ir-a-pasarela");
     await expect(enlace).toBeVisible({ timeout: 20_000 });
@@ -295,6 +309,7 @@ test.describe("El recorrido del cliente", () => {
     await page.getByText("Nequi", { exact: true }).click();
     await escribirElCorreo(page);
     await page.locator("#pagar").click();
+    await confirmarLaDemora(page);
 
     const enlace = page.locator("#ir-a-pasarela");
     await expect(enlace).toBeVisible({ timeout: 20_000 });
@@ -408,6 +423,7 @@ test.describe("El recorrido del cliente", () => {
     await page.getByText("Nequi", { exact: true }).click();
     await expect(page.locator("#correo-cliente")).toHaveValue(CORREO);
     await page.locator("#pagar").click();
+    await confirmarLaDemora(page);
     await aprobarElCobro(page, request);
 
     const segundo = page.locator(".codigo-canje");
@@ -770,6 +786,101 @@ test.describe("La carta", () => {
   });
 });
 
+test.describe("Los topes del pedido y su demora", () => {
+  // ADR-0014. Hasta la 5.0.0 se podían pedir 50 de cada producto, y se pagó un
+  // pedido de más de 800 000 pesos. Ahora: 4 por producto, y 4 comidas, 4
+  // bebidas y 4 acompañantes por pedido.
+
+  /** Nombres de los productos de un tipo que se pueden pedir, según la carta pintada. */
+  function productosDelTipo(page, tipo) {
+    return page.evaluate(
+      (t) => cartaCompleta.filter((i) => i.tipo === t && i.disponible).map((i) => i.nombre),
+      tipo
+    );
+  }
+
+  /** El botón de la carta, no el de los sugeridos ni el de sus copias del desfile. */
+  function enLaCarta(page, etiqueta) {
+    return page.locator("#lista-items").getByRole("button", { name: etiqueta, exact: true });
+  }
+
+  test("de un mismo producto se piden como máximo 4", async ({ page }) => {
+    await abrirLaCarta(page);
+    const [bebida] = await productosDelTipo(page, "bebida");
+
+    await enLaCarta(page, `Agregar ${bebida}`).click();
+    for (let i = 0; i < 3; i++) await enLaCarta(page, `Agregar otro ${bebida}`).click();
+
+    await expect(enLaCarta(page, `Agregar otro ${bebida}`)).toBeDisabled();
+    await expect(page.locator("#carrito-chapa")).toHaveText("4");
+  });
+
+  test("cuatro comidas repartidas cierran las demás comidas, pero no las bebidas", async ({
+    page,
+  }) => {
+    // El ejemplo del cliente: 2 + 2 caben; una quinta comida, de cualquier
+    // producto, ya no. Las bebidas tienen su propio tope y siguen abiertas.
+    await abrirLaCarta(page);
+    const [a, b, c] = await productosDelTipo(page, "comida");
+    const [bebida] = await productosDelTipo(page, "bebida");
+
+    await enLaCarta(page, `Agregar ${a}`).click();
+    await enLaCarta(page, `Agregar otro ${a}`).click();
+    await enLaCarta(page, `Agregar ${b}`).click();
+    await enLaCarta(page, `Agregar otro ${b}`).click();
+
+    await expect(enLaCarta(page, `Agregar ${c}`)).toBeDisabled();
+    await expect(enLaCarta(page, `Agregar otro ${a}`)).toBeDisabled();
+    await expect(enLaCarta(page, `Agregar ${bebida}`)).toBeEnabled();
+    await expect(page.locator("#pantalla-carta .nota-topes")).toHaveText(
+      "Llegaste al máximo de 4 comidas por pedido."
+    );
+
+    // Quitar una vuelve a abrir la puerta.
+    await enLaCarta(page, `Quitar uno de ${a}`).click();
+    await expect(enLaCarta(page, `Agregar ${c}`)).toBeEnabled();
+    await expect(page.locator("#pantalla-carta .nota-topes")).toBeHidden();
+  });
+
+  test("antes de pagar se avisa la demora, y volver no crea el pedido", async ({ page }) => {
+    await abrirLaCarta(page);
+    const [a, b] = await productosDelTipo(page, "comida");
+    await enLaCarta(page, `Agregar ${a}`).click();
+    await enLaCarta(page, `Agregar ${b}`).click();
+
+    // Dos comidas: 15 min de base y 5 por la segunda.
+    await page.getByRole("button", { name: /Ver mi pedido/ }).click();
+    await expect(page.locator("#demora-estimada")).toHaveText("~20 min");
+
+    await page.getByText("Nequi", { exact: true }).click();
+    await escribirElCorreo(page);
+
+    const creados = [];
+    page.on("request", (peticion) => {
+      if (peticion.method() === "POST" && /\/v1\/pedidos$/.test(peticion.url())) {
+        creados.push(peticion.url());
+      }
+    });
+
+    await page.locator("#pagar").click();
+    const dialogo = page.locator("#dialogo-demora");
+    await expect(dialogo).toBeVisible();
+    await expect(dialogo).toContainText("20 minutos");
+    await expect(dialogo).toContainText("¿Seguro que quieres seguir con el pago?");
+
+    await page.getByRole("button", { name: "Volver al pedido" }).click();
+    await expect(dialogo).toBeHidden();
+    await expect(page.locator("#pantalla-pedido")).toHaveClass(/activa/);
+    expect(creados).toEqual([]);
+
+    // Y aceptar sí lo crea.
+    await page.locator("#pagar").click();
+    await confirmarLaDemora(page);
+    await expect(page.getByText(/Esperando la confirmación del pago/)).toBeVisible();
+    expect(creados).toHaveLength(1);
+  });
+});
+
 test.describe("La hora de recogida", () => {
   test("se puede programar, y sale en el billete", async ({ page, request }) => {
     // Depende del reloj de verdad, porque de verdad lo valida la API. Fuera del
@@ -797,6 +908,7 @@ test.describe("La hora de recogida", () => {
     await page.getByText("Nequi", { exact: true }).click();
     await escribirElCorreo(page);
     await page.locator("#pagar").click();
+    await confirmarLaDemora(page);
 
     await aprobarElCobro(page, request);
 
