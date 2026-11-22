@@ -11,7 +11,7 @@ from functools import lru_cache
 from zoneinfo import ZoneInfo
 
 from app.menu import repository
-from app.menu.contracts import ItemDisponible
+from app.menu.contracts import ItemDisponible, TipoDeProducto
 from app.menu.models import ItemMenu
 from app.usuarios import service as cuentas_service
 
@@ -39,6 +39,22 @@ _SUGERIDOS_POR_DEFECTO = "108,103,111,102"
 
 class EstablecimientoNoEncontradoError(Exception):
     """El establecimiento consultado no existe en el contexto Cuentas."""
+
+
+#: Qué tipo de producto es cada categoría de la carta (ADR-0014).
+#:
+#: Es una tabla y no una columna de la base porque las categorías ya son un dato
+#: de este contexto y son pocas: cinco, cargadas por migraciones. Una categoría
+#: que no esté aquí no tiene tipo, y sus productos solo tienen el tope de 4 por
+#: producto. Que todas las de la carta real estén es lo que comprueba
+#: `test_cada_categoria_de_la_carta_tiene_tipo`.
+TIPO_POR_CATEGORIA: dict[str, TipoDeProducto] = {
+    "Asados": TipoDeProducto.COMIDA,
+    "Hamburguesas y perros": TipoDeProducto.COMIDA,
+    "Bebidas": TipoDeProducto.BEBIDA,
+    "Adiciones": TipoDeProducto.ACOMPANANTE,
+    "Salsas": TipoDeProducto.ACOMPANANTE,
+}
 
 
 def _ahora() -> time:
@@ -116,6 +132,7 @@ def _publicar(item: ItemMenu, ahora: time | None = None) -> ItemDisponible:
         disponible=disponible,
         imagen=item.imagen,
         categoria=item.categoria,
+        tipo=TIPO_POR_CATEGORIA.get(item.categoria) if item.categoria else None,
         descripcion=item.descripcion,
         precio_antes_centavos=item.precio_centavos if hay_descuento else None,
         promocion_hasta=(

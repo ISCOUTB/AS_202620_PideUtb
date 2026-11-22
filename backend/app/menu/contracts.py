@@ -15,7 +15,21 @@ hacia el mundo exterior. Son dos superficies negociadas distintas, con dos
 públicos distintos, y por eso pueden evolucionar a ritmos distintos: la forma
 que se publica por HTTP vive en `menu.esquemas_api`.
 """
+from enum import Enum
+
 from pydantic import BaseModel, Field
+
+
+class TipoDeProducto(str, Enum):
+    """Para qué se pide un producto, que es lo que limita cuánto se pide de él.
+
+    Lo decide el Catálogo a partir de la categoría, porque las categorías son
+    suyas. Pedidos solo cuenta cuánto hay de cada tipo (ADR-0014).
+    """
+
+    COMIDA = "comida"
+    BEBIDA = "bebida"
+    ACOMPANANTE = "acompanante"
 
 
 class ItemDisponible(BaseModel):
@@ -38,6 +52,11 @@ class ItemDisponible(BaseModel):
 
     imagen: str | None = None
     categoria: str | None = None
+
+    #: Comida, bebida o acompañante. Nulo si la categoría no tiene tipo: entonces
+    #: el producto solo tiene el tope por producto, no el de su tipo.
+    tipo: TipoDeProducto | None = None
+
     descripcion: str | None = None
 
     #: Precio normal, **solo mientras la promoción está en curso**. Existe para

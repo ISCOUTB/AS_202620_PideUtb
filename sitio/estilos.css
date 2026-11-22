@@ -1485,6 +1485,24 @@ button.secundario {
 }
 
 /* ===========================================================================
+   LOS TOPES DEL PEDIDO
+   ===========================================================================
+
+   Una línea que dice por qué el «+» se apagó: 4 de un mismo producto, o 4
+   comidas, 4 bebidas o 4 acompañantes por pedido (ADR-0014). Ámbar por lo
+   mismo que el aviso del correo: no ha salido nada mal, es un límite que
+   conviene saber. Va en la carta y en «Tu pedido», que es donde se toca el «+». */
+
+.nota-topes {
+  margin: var(--e3) 0;
+  padding: var(--e2) var(--e3);
+  background: var(--ambar-niebla);
+  border-radius: var(--radio);
+  color: var(--ambar);
+  font-weight: 500;
+}
+
+/* ===========================================================================
    ERRORES
    =========================================================================== */
 

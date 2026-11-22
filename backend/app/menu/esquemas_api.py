@@ -19,7 +19,7 @@ verifica `tests/test_contrato_api.py`.
 """
 from pydantic import BaseModel, Field
 
-from app.menu.contracts import ItemDisponible
+from app.menu.contracts import ItemDisponible, TipoDeProducto
 
 
 class ItemMenuResponse(BaseModel):
@@ -36,6 +36,9 @@ class ItemMenuResponse(BaseModel):
     #: `null`, en vez de distinguir entre «ausente» y «vacío».
     imagen: str | None
     categoria: str | None
+    #: Comida, bebida o acompañante: lo que el sitio necesita para apagar el «+»
+    #: antes de que la API rechace el pedido por pasarse del tope de su tipo.
+    tipo: TipoDeProducto | None
     descripcion: str | None
 
     #: Precio normal, solo mientras la promoción está en curso, para que la
@@ -56,6 +59,7 @@ class ItemMenuResponse(BaseModel):
             disponible=item.disponible,
             imagen=item.imagen,
             categoria=item.categoria,
+            tipo=item.tipo,
             descripcion=item.descripcion,
             precio_antes_centavos=item.precio_antes_centavos,
             promocion_hasta=item.promocion_hasta,

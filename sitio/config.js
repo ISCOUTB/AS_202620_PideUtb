@@ -63,6 +63,20 @@ const CONFIG = {
   // persona, y `panel.js` refresca su cola cada 5000 ms. Preguntar más rápido
   // que eso no puede enterarse de nada antes de que exista.
   MS_ENTRE_CONSULTAS_DE_SEGUIMIENTO: 5000,
+
+  // Cuánto se puede pedir (ADR-0014). Los decide la API, que rechaza lo que se
+  // pase; estos son una copia para apagar el «+» antes de que lo haga.
+  // `test_el_sitio_conoce_los_mismos_topes` falla si se separan de los de
+  // `backend/app/pedidos/service.py`.
+  MAXIMO_POR_PRODUCTO: 4,
+  MAXIMO_POR_TIPO: { comida: 4, bebida: 4, acompanante: 4 },
+
+  // Cuánto puede tardar un pedido, para avisarlo antes de pagar (ADR-0014).
+  // Solo las comidas suman: 15 min con una y 5 más por cada comida adicional,
+  // así que el pedido más grande —4 comidas— anda por los 30 min. Es una
+  // estimación por tamaño, no mira cuántos pedidos tiene el mostrador.
+  MINUTOS_BASE_DEL_PEDIDO: 15,
+  MINUTOS_POR_COMIDA_EXTRA: 5,
 };
 
 CONFIG.API = ["localhost", "127.0.0.1", ""].includes(location.hostname)

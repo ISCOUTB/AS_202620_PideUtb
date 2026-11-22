@@ -192,7 +192,7 @@ Con el entorno virtual ya activado (ver paso anterior):
 pytest
 ```
 
-**749 pruebas**, agrupadas por lo que protegen:
+**761 pruebas**, agrupadas por lo que protegen:
 
 | Archivo | Qué protege |
 |---|---|
@@ -219,15 +219,17 @@ pytest
 | `tests/test_comprobante.py` | Qué dice el correo, cuándo sale, y que un fallo suyo nunca toque el pedido |
 | `tests/test_avisos_push.py` | Quién puede pedir el aviso, a qué servicios se escribe y que salga una sola vez |
 | `tests/test_carta_y_pwa.py` | Los sugeridos, las gaseosas, las descripciones y que el Service Worker no se interponga |
+| `tests/test_topes_del_pedido.py` | Los topes del pedido: 4 por producto y 4 comidas, 4 bebidas y 4 acompañantes; que cada categoría de la carta real tenga tipo, y que el sitio use los mismos topes (ADR-0014) |
+| `tests/test_medicion_esc03.py` | Que el guion que mide ESC-03 siga hablando el contrato vigente, aunque no corra en CI |
 
-Las tres últimas son las **pruebas de contrato**, y llevan **20 casos negativos**
+Las tres primeras en negrita son las **pruebas de contrato**, y llevan **20 casos negativos**
 —roturas introducidas a propósito— porque una prueba de contrato que no puede
 ponerse en rojo no demuestra nada. Cómo reproducir un fallo:
 [`docs/api/README.md` §3](docs/api/README.md#run-en-rojo).
 
 ### El recorrido con navegador
 
-Las 749 pruebas de arriba montan la aplicación en memoria. Ninguna toca un
+Las 761 pruebas de arriba montan la aplicación en memoria. Ninguna toca un
 botón, así que ninguna puede ver si el botón está donde se alcanza con el pulgar
 o si el carrito se vacía al pagar. Para eso está `e2e/`:
 
@@ -238,14 +240,14 @@ npx playwright install chromium
 npx playwright test
 ```
 
-**62 pruebas** en dos tamaños de pantalla, contra el sitio y la API que estén
+**68 pruebas** en dos tamaños de pantalla, contra el sitio y la API que estén
 levantados (`PIDEUTB_SITIO` y `PIDEUTB_API`, por defecto los locales). Las
 del mostrador se saltan si no hay `PIDEUTB_MOSTRADOR_CORREO` y
 `PIDEUTB_MOSTRADOR_CONTRASENA`: necesitan una sesión de verdad para mover un
 pedido por la máquina de estados.
 
 No es un lujo: el rediseño de la semana 15 destapó tres defectos que ninguna de
-las 749 podía ver —el carrito seguía lleno después de pagar, la barra pegajosa se
+las 761 podía ver —el carrito seguía lleno después de pagar, la barra pegajosa se
 quedaba debajo del pie en escritorio, y el botón del carrito dependía de tres
 `<span>` anidados para tener nombre accesible—. En la 16 destapó otros tres, y
 los tres eran del mismo tipo: el código de recogida de un pedido **ya pagado** se

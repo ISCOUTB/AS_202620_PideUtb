@@ -14,7 +14,7 @@ openapi: 3.1.0
 
 info:
   title: PideUTB API
-  version: 5.0.0
+  version: 6.0.0
   summary: Pedidos de comida dentro del campus universitario.
   description: |
     Superficie **síncrona** de PideUTB: consulta de menú, creación y consulta
@@ -286,6 +286,13 @@ paths:
         Desde la 5.0.0 el correo es **obligatorio**: sin `correo_cliente` la
         petición responde `422`. Es a donde llega el comprobante con el código
         para recoger ([ADR-0013](../adr/0013-correo-obligatorio-para-el-comprobante.md)).
+
+        Desde la 6.0.0 un pedido tiene **topes**: hasta 4 unidades de un mismo
+        producto, y hasta 4 comidas, 4 bebidas y 4 acompañantes en total. Pasar
+        el de un producto responde `422` (lo dice el esquema); pasar el de un
+        tipo responde `409`, porque depende de `tipo` en el catálogo y la
+        petición está bien formada
+        ([ADR-0014](../adr/0014-topes-del-pedido-y-demora-estimada.md)).
       requestBody:
         required: true
         content:
@@ -857,6 +864,7 @@ components:
         - disponible
         - imagen
         - categoria
+        - tipo
         - descripcion
         - precio_antes_centavos
         - promocion_hasta
@@ -908,6 +916,15 @@ components:
           description: |
             Agrupación para los filtros de la carta. `null` = el producto solo
             aparece en «Todas».
+        tipo:
+          type: [string, "null"]
+          enum: [comida, bebida, acompanante, null]
+          description: |
+            Para qué se pide el producto, que es lo que limita cuánto se pide de
+            él: un pedido lleva como máximo 4 comidas, 4 bebidas y 4
+            acompañantes. Lo deriva el catálogo de la categoría. `null` = sin
+            tipo: el producto solo tiene el tope de 4 unidades. Desde la 6.0.0
+            ([ADR-0014](../adr/0014-topes-del-pedido-y-demora-estimada.md)).
         descripcion:
           type: [string, "null"]
         precio_antes_centavos:
@@ -1006,13 +1023,16 @@ components:
         cantidad:
           type: integer
           minimum: 1
-          maximum: 50
+          maximum: 4
           default: 1
           description: |
-            El máximo existe para que un error de tecleo no genere un pedido
-            imposible de preparar (`docs/violaciones.md`, V-03). Bajarlo en el
-            futuro sería un cambio incompatible: dejaría de aceptarse una
-            petición que hoy es válida.
+            Hasta 4 unidades de un mismo producto. **Era 50 hasta la 5.0.0**, y
+            bajarlo es el cambio incompatible que motiva la 6.0.0: con 50 se
+            llegó a pagar un pedido de más de 800 000 pesos, imposible de
+            preparar en una hora de almuerzo
+            ([ADR-0014](../adr/0014-topes-del-pedido-y-demora-estimada.md)). El
+            máximo nació para que un error de tecleo no genere un pedido
+            imposible (`docs/violaciones.md`, V-03).
 
     CrearPedidoRequest:
       type: object

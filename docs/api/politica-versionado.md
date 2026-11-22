@@ -221,7 +221,26 @@ exigir su token). En las dos, lo viejo no era anterior: era la puerta abierta.
 | **3.2.0** | `/v1` | Soportada | [`historial/openapi-3.2.0.yaml`](historial/openapi-3.2.0.yaml) | Compatible. Nueva operación `obtenerIntentoDePago`, para distinguir un pago rechazado de uno que aún no ha confirmado ([R-11](../arc42/arc42.md#riesgos)). |
 | **4.0.0** | `/v1` | Anterior | [`historial/openapi-4.0.0.yaml`](historial/openapi-4.0.0.yaml) | **Incompatible.** `obtenerPedido` exige `X-Token-Pedido`: era público y los identificadores son secuenciales, así que cualquiera podía cosechar códigos de canje ([V-13](../violaciones.md#v-13)). El prefijo no cambió, por §5 bis. |
 | **4.1.0** | `/v1` | Anterior | [`historial/openapi-4.1.0.yaml`](historial/openapi-4.1.0.yaml) | Compatible. Hora de recogida y datos para el comprobante, opcionales, en `crearPedido`; `hora_recogida` en `Pedido`; `sugerido` en `ItemMenu` y el horario en `ListaItemsMenu`; `registrarAvisoPush` y `obtenerClavePublicaDeAvisos` ([ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md)). |
-| **5.0.0** | `/v1` | **Vigente** | [`historial/openapi-5.0.0.yaml`](historial/openapi-5.0.0.yaml) | **Incompatible.** `correo_cliente` pasa a ser obligatorio en `crearPedido`, y deja de admitir `null`. Ver abajo. |
+| **5.0.0** | `/v1` | Anterior | [`historial/openapi-5.0.0.yaml`](historial/openapi-5.0.0.yaml) | **Incompatible.** `correo_cliente` pasa a ser obligatorio en `crearPedido`, y deja de admitir `null`. Ver abajo. |
+| **6.0.0** | `/v1` | **Vigente** | [`historial/openapi-6.0.0.yaml`](historial/openapi-6.0.0.yaml) | **Incompatible.** `cantidad` baja su máximo de 50 a 4; `crearPedido` responde `409` si se pasan 4 comidas, 4 bebidas o 4 acompañantes; `ItemMenu` publica `tipo` (compatible). Ver abajo. |
+
+### El caso 6.0.0: bajar un máximo también es romper
+
+Es la regla **I-9**: una restricción de petición se estrecha, y una línea con 5
+unidades, que en la 5.0.0 creaba un pedido, ahora responde `422`. El motivo está en
+[ADR-0014](../adr/0014-topes-del-pedido-y-demora-estimada.md): con un máximo de 50 se
+pagó un pedido de más de 800 000 pesos, imposible de preparar en una hora de almuerzo.
+
+El tope por tipo —4 comidas, 4 bebidas y 4 acompañantes— no cabe en el esquema,
+porque depende de qué es cada producto. Responde `409`, un código que `crearPedido`
+ya declaraba. Que el código no sea nuevo no lo hace compatible: una petición que antes
+pasaba ahora no pasa, y por eso cuenta dentro de este mismo salto. `tipo` en
+`ItemMenu` es una adición a una respuesta, compatible por sí sola, y viaja en la misma
+versión porque es lo que el sitio necesita para respetar los topes.
+
+**El prefijo de ruta no cambia**, por el mismo razonamiento que en la 3.0.0 y la
+5.0.0: un solo consumidor declarado, desplegado en el mismo commit, que ya aplica los
+topes en su carrito.
 
 ### El caso 5.0.0: por qué un campo obligatorio obliga a subir MAYOR
 

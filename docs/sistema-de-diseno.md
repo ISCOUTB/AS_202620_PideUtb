@@ -24,8 +24,8 @@ Esta guía fija la apariencia y el comportamiento de las dos superficies de
 PideUTB: la del cliente y la del mostrador. Cada pantalla que se desarrolle debe
 ajustarse a ella.
 
-**Versión** 2.9 · 21/11/2026 · **Fundamentos** fondo cálido con color por secciones,
-vidrio en lo que flota, sugeridos que desfilan, el aviso del correo bajo el código, marca azul de la UTB y portada fotográfica, con cada
+**Versión** 2.10 · 22/11/2026 · **Fundamentos** fondo cálido con color por secciones,
+vidrio en lo que flota, sugeridos que desfilan, el aviso del correo bajo el código, los topes del pedido y su demora, marca azul de la UTB y portada fotográfica, con cada
 contraste medido y **verificado en cada
 construcción** por [`test_contraste.py`](../backend/tests/test_contraste.py) ·
 tokens vigentes en [`sitio/estilos.css`](../sitio/estilos.css) · **Alcance** las
@@ -863,6 +863,51 @@ es algo que conviene hacer, que es para lo que `--ambar` existe.
 | **Dice «revisa», no «enviado»** | El correo sale aparte y sin reintentos, y la página no se entera de si salió. Por eso nombra el spam |
 | Solo con un código vivo | Sin pagar, cancelado o entregado no hay código que buscar |
 
+<a id="c-topes"></a>
+
+### Los topes del pedido y su demora
+
+Un pedido lleva como máximo 4 unidades de un mismo producto, y 4 comidas, 4 bebidas
+y 4 acompañantes ([ADR-0014](adr/0014-topes-del-pedido-y-demora-estimada.md)). La
+API lo exige; la página lo anticipa para que nadie arme un carrito que va a ser
+rechazado.
+
+```
+┌──────────────────────────────────────┐
+│ Llegaste al máximo de 4 comidas por  │  --ambar sobre --ambar-niebla
+│ pedido.                              │
+└──────────────────────────────────────┘
+
+  Asado mixto            (−) 2 (+)      ← el «+» apagado
+
+  Tiempo estimado               ~20 min  ← en el resumen de «Tu pedido»
+  Total                        $ 50.600
+
+┌──────────────────────────────────────┐
+│ Antes de pagar                       │  el diálogo del panel
+│ Tu pedido puede demorarse unos       │
+│ 20 minutos en estar listo.           │
+│ ¿Seguro que quieres seguir con el    │
+│ pago?                                │
+│ [ Sí, seguir con el pago ]           │  primario
+│ [ Volver al pedido ]                 │  secundario
+└──────────────────────────────────────┘
+```
+
+| Regla | Por qué |
+|---|---|
+| El «+» se apaga al llegar a un tope, con el motivo en su `title` | Mejor que dejar tocar y responder con un error. En el teléfono no hay puntero para leer el `title`, y por eso existe la línea ámbar |
+| La línea ámbar dice **qué** tope se alcanzó | «4 comidas» y no «el máximo»: quien tiene 2 asados y 2 hamburguesas tiene que entender por qué no entra una tercera hamburguesa |
+| Va en la carta y en «Tu pedido» | Son los dos sitios donde se toca el «+» |
+| «Tiempo estimado» está en el resumen desde que se abre el pedido | El diálogo lo repite, pero no debería ser la primera vez que se ve |
+| El diálogo sale **siempre** en un pedido nuevo | Nadie paga sin saber cuánto va a esperar en su hora de almuerzo. Al reintentar un cobro rechazado no sale: el pedido ya existe y su demora no cambió |
+| Esc y «Volver al pedido» no crean nada | Quien no decidió no ha dicho que sí |
+| Reutiliza el `dialog` del panel | Mismo velo, mismo radio y mismos botones: un diálogo de la app se reconoce |
+
+La demora es una estimación por tamaño: 15 minutos con una comida y 5 más por cada
+comida adicional. No mira la cola del mostrador, y por eso dice «puede demorarse»
+y no «estará listo en».
+
 <a id="c-estados"></a>
 
 ### Sugeridos del día
@@ -1065,7 +1110,7 @@ Las mismas situaciones se resuelven siempre igual.
 | **Esperar algo que no depende de nosotros** | Estado consultable más sondeo. Nunca una pantalla bloqueada | Esperando la confirmación del pago, cada 3 s |
 | **Enterarse de un cambio ajeno** | Sondeo con intervalo atado a su umbral. **Seguir no es adueñarse de la pantalla**: solo lleva a lo seguido si ya se está mirando, o cuando aparece algo que se estaba esperando | La cola del mostrador, cada 5 s; el estado del pedido en el teléfono de quien pidió, también cada 5 s, sin sacar de la carta a quien está pidiendo otra cosa |
 | **Decisión que destruye algo que no se puede recuperar** | Advertencia en el sitio del botón, con lo que se va a perder a la vista, y confirmación explícita | Hoy ninguna en el teléfono. «Hacer otro pedido» lo fue hasta que el código tuvo copia en el correo, y se quitó ([ADR-0013](adr/0013-correo-obligatorio-para-el-comprobante.md)) |
-| **Acción que compromete dinero** | Resumen de lo que se va a cobrar **antes** del botón | «Tu pedido» antes de «Pagar con…» |
+| **Acción que compromete dinero** | Resumen de lo que se va a cobrar **antes** del botón, y la demora confirmada en un diálogo | «Tu pedido» con «Tiempo estimado», y «Antes de pagar» al pulsar «Pagar» ([topes y demora](#c-topes)) |
 | **Acción irreversible del mostrador** | Diálogo que nombra el pedido y pide el código | Entregar un pedido |
 | **Acción reversible** | Sin confirmación | Volver a la carta, refrescar |
 | **Algo salió mal fuera de nuestro control** | Mensaje que distingue «el servicio respondió que no puede» de «no se pudo contactar» | `503` contra fallo de red |

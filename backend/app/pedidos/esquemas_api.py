@@ -19,7 +19,10 @@ class LineaPedidoRequest(BaseModel):
     """Un producto del carrito."""
 
     item_id: int = Field(ge=1)
-    cantidad: int = Field(default=1, ge=1, le=50)
+    #: Hasta 4 del mismo producto desde la 6.0.0; antes eran 50 (ADR-0014). El
+    #: tope por tipo —4 comidas, 4 bebidas, 4 acompañantes— no cabe en un
+    #: esquema, porque depende del catálogo: lo aplica el servicio con un 409.
+    cantidad: int = Field(default=1, ge=1, le=4)
 
 
 class CrearPedidoRequest(BaseModel):

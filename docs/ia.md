@@ -841,3 +841,38 @@ cuenta lo que pasó en su momento.
 | Reescribir el dossier de la S11 y la tabla de firmas de `correcciones.md` con los datos de hoy | **Rechazada** | Son registros de su fecha. A la tabla se le añadió una nota fechada con el conteo actual, sin tocar la original |
 | Unificar los 9,94 ms de ESC-04 en arc42 con los 10,70 ms de `test_escenarios_de_calidad.py` | **Rechazada** | No son la misma cifra: 9,94 ms es el canje con código (ESC-04) y 10,70 ms la transición a «en preparación» dentro de la cadena de ESC-03 (7,96 + 10,70 = 18,7 ms) |
 | Completar el pendiente «correspondencia firma → integrante» de `correcciones.md` | **Rechazada** | Lo completa el equipo: pide nombres de personas, que no se escriben en los archivos generados |
+
+## Uso de IA para poner topes al pedido y avisar su demora (22/11/2026)
+
+Después de un pedido de más de 800 000 pesos, el cliente pidió un máximo de 4
+unidades por producto y de 4 comidas por pedido, con bebidas y acompañantes aparte.
+También pidió un aviso de cuánto puede tardar el pedido antes de pagar. Se usó un
+asistente de IA para implementarlo. El equipo decidió cómo clasificar la carta, el
+tope de bebidas y acompañantes, la fórmula de la demora y que el aviso saliera
+siempre. La decisión está en [ADR-0014](adr/0014-topes-del-pedido-y-demora-estimada.md).
+
+### Qué se aceptó
+
+| Propuesta | Por qué |
+|---|---|
+| Exigir los topes en la API, con el contrato en 6.0.0, y anticiparlos en la página | El pedido de 800 000 pesos pasó porque la API lo aceptaba. Una regla solo en el formulario se salta llamando a la API |
+| El tope por producto en el esquema (`422`) y el de tipo en el servicio (`409`) | El de tipo depende de qué es cada producto, y eso no cabe en un esquema |
+| Que el Catálogo derive el tipo de la categoría y lo publique como `tipo` | Las categorías son suyas, y Pedidos solo cuenta. Una prueba contra la carta real en PostgreSQL falla si aparece una categoría sin tipo |
+| Copiar los topes en `sitio/config.js`, con una prueba que los ata a los de la API | El «+» se apaga antes de que la API diga que no, y las dos cifras no se pueden separar sin que la construcción falle |
+| Mostrar el tiempo estimado en el resumen, y no solo en el diálogo | El diálogo lo confirma, pero no debería ser la primera vez que se ve |
+| Comprobar las pruebas nuevas con el defecto puesto | Quitar «Salsas» de la tabla de tipos rompe una; cambiar un tope en `config.js` rompe la otra |
+
+### Qué se rechazó
+
+| Propuesta | Decisión | Motivo del rechazo |
+|---|---|---|
+| Una columna `tipo` en la base con su `CHECK` | **Rechazada por ahora** | Pide una migración y tocar las dos implementaciones del repositorio por un dato que ya se deduce de la categoría. Queda como lo que cambiaría la decisión |
+| Un tope por importe del pedido | **Rechazada** | El problema es el tiempo de preparación, no el dinero |
+| Calcular la demora con la cola del mostrador | **Rechazada** | No hay datos de cuánto tarda cada plato, y el cliente pidió que creciera con el tamaño |
+| Volver a preguntar la demora al reintentar un cobro rechazado | **Rechazada** | El pedido ya existe y su demora no cambió: sería ruido |
+
+### Lo que cambia para el cliente
+
+Al llegar a un tope, el «+» se apaga y una línea dice cuál. «Tu pedido» muestra el
+tiempo estimado, y al pulsar «Pagar» se pregunta si se quiere seguir. «Volver al
+pedido» no crea nada.
