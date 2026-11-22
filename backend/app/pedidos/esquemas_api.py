@@ -45,10 +45,11 @@ class CrearPedidoRequest(BaseModel):
     #: viene. Sin este campo, el pedido se prepara de inmediato.
     hora_recogida: str | None = Field(default=None, pattern=PATRON_HORA)
 
-    #: Los dos son opcionales. Sin correo no hay comprobante, y eso es todo: se
-    #: puede pedir sin dejar ningún dato, igual que antes.
+    #: El nombre es opcional. El correo no, desde la 5.0.0: es a donde llega el
+    #: comprobante con el código para recoger, y es la copia de la compra que le
+    #: queda a quien pidió fuera de la pantalla (ADR-0013).
     nombre_cliente: str | None = Field(default=None, min_length=1, max_length=80)
-    correo_cliente: str | None = Field(default=None, max_length=254, pattern=PATRON_CORREO)
+    correo_cliente: str = Field(max_length=254, pattern=PATRON_CORREO)
 
 
 class AvisoPushRequest(BaseModel):

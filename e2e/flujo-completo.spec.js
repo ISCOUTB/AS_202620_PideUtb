@@ -17,6 +17,9 @@ const { test, expect } = require("@playwright/test");
 
 const API = process.env.PIDEUTB_API || "http://127.0.0.1:8000";
 const TOKEN_DEMO = (process.env.PIDEUTB_TOKEN_REINICIO_DEMO || "").trim();
+//: El correo es obligatorio desde la 5.0.0 del contrato (ADR-0013). Este
+//: despliegue de pruebas no tiene servidor de correo, así que no sale nada.
+const CORREO = "cliente@example.com";
 const MOSTRADOR = {
   correo: process.env.PIDEUTB_MOSTRADOR_CORREO || "",
   contrasena: process.env.PIDEUTB_MOSTRADOR_CONTRASENA || "",
@@ -40,6 +43,11 @@ async function abrirLaCarta(page) {
   await expect(productos.first()).toBeVisible({ timeout: 20_000 });
   await expect(page.locator(".esqueleto")).toHaveCount(0);
   return productos;
+}
+
+/** Escribe el correo del comprobante, sin el cual el formulario no deja pagar. */
+async function escribirElCorreo(page) {
+  await page.locator("#correo-cliente").fill(CORREO);
 }
 
 /** Qué animación lleva la fila de sugeridos y en qué estado, o `undefined`. */
@@ -109,6 +117,7 @@ async function pagarUnProducto(page, request) {
   await productos.nth(0).getByRole("button", { name: /^Agregar/ }).click();
   await page.getByRole("button", { name: /Ver mi pedido/ }).click();
   await page.getByText("Nequi", { exact: true }).click();
+  await escribirElCorreo(page);
   await page.locator("#pagar").click();
 
   await aprobarElCobro(page, request);
@@ -155,6 +164,7 @@ test.describe("El recorrido del cliente", () => {
     await expect(pagar).toContainText("Pagar");
 
     // --- El cobro -------------------------------------------------------
+    await escribirElCorreo(page);
     await pagar.click();
     await expect(page.getByText(/Esperando la confirmación del pago/)).toBeVisible();
 
@@ -169,6 +179,13 @@ test.describe("El recorrido del cliente", () => {
     await expect(codigo).toHaveText(/^[A-Z0-9]{4,}$/);
 
     await expect(page.getByRole("heading", { name: /Pago confirmado/ })).toBeVisible();
+
+    // Debajo del código, dónde queda su copia: el correo que se escribió al
+    // pedir —para que un error de tecleo se vea acá— y el spam (ADR-0013).
+    const aviso = page.locator(".aviso-correo");
+    await expect(aviso).toContainText("Revisa tu correo");
+    await expect(aviso).toContainText(CORREO);
+    await expect(aviso).toContainText("spam");
 
     // El carrito se vació al pagar. Este fue uno de los tres fallos que el
     // rediseño destapó: la barra seguía anunciando el importe de un pedido ya
@@ -189,6 +206,7 @@ test.describe("El recorrido del cliente", () => {
     await productos.nth(0).getByRole("button", { name: /^Agregar/ }).click();
     await page.getByRole("button", { name: /Ver mi pedido/ }).click();
     await page.getByText("Tarjeta", { exact: true }).click();
+    await escribirElCorreo(page);
     await page.locator("#pagar").click();
 
     await aprobarElCobro(page, request);
@@ -237,6 +255,7 @@ test.describe("El recorrido del cliente", () => {
     await productos.nth(0).getByRole("button", { name: /^Agregar/ }).click();
     await page.getByRole("button", { name: /Ver mi pedido/ }).click();
     await page.getByText("Tarjeta", { exact: true }).click();
+    await escribirElCorreo(page);
     await page.locator("#pagar").click();
 
     const enlace = page.locator("#ir-a-pasarela");
@@ -274,6 +293,7 @@ test.describe("El recorrido del cliente", () => {
     await productos.nth(0).getByRole("button", { name: /^Agregar/ }).click();
     await page.getByRole("button", { name: /Ver mi pedido/ }).click();
     await page.getByText("Nequi", { exact: true }).click();
+    await escribirElCorreo(page);
     await page.locator("#pagar").click();
 
     const enlace = page.locator("#ir-a-pasarela");
@@ -337,34 +357,88 @@ test.describe("El recorrido del cliente", () => {
     ).toBeNull();
   });
 
-  test("empezar otro pedido avisa antes de tirar un código pagado", async ({
+  test("sin correo no se puede pagar", async ({ page }) => {
+    // Desde la 5.0.0 del contrato el correo es obligatorio (ADR-0013). El
+    // formulario lo dice en el campo, y el pedido ni se crea.
+    const productos = await abrirLaCarta(page);
+    await productos.nth(0).getByRole("button", { name: /^Agregar/ }).click();
+    await page.getByRole("button", { name: /Ver mi pedido/ }).click();
+    await page.getByText("Nequi", { exact: true }).click();
+
+    const creados = [];
+    page.on("request", (peticion) => {
+      if (peticion.method() === "POST" && /\/v1\/pedidos$/.test(peticion.url())) {
+        creados.push(peticion.url());
+      }
+    });
+
+    await page.locator("#pagar").click();
+
+    // `pagarCarrito` se detiene antes de cambiar el texto del botón: si siguiera
+    // diciendo «Pagar», el pedido no se intentó crear.
+    await expect(page.locator("#pagar")).toContainText("Pagar");
+    await expect(page.locator("#pantalla-pedido")).toHaveClass(/activa/);
+    expect(
+      await page.locator("#correo-cliente").evaluate((campo) => campo.validity.valueMissing)
+    ).toBe(true);
+    expect(creados).toEqual([]);
+  });
+
+  test("hacer otro pedido no pregunta, y el código anterior sigue hasta el siguiente", async ({
     page,
     request,
   }) => {
+    // Antes había que confirmar «Ya lo anoté», y confirmar tiraba el código del
+    // teléfono. Ahora el código tiene copia en el correo (ADR-0013): el botón
+    // lleva directo a la carta, y el código sigue en «Mi código».
+    const primero = await pagarUnProducto(page, request);
+
+    await page.getByRole("button", { name: "Hacer otro pedido" }).click();
+    await expect(page.getByRole("heading", { name: "Carta" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Carrito vacío/ })).toBeDisabled();
+
+    await page.getByRole("button", { name: "Mi código" }).click();
+    await expect(page.locator(".codigo-canje")).toHaveText(primero);
+
+    // El siguiente pedido es el que lo sustituye, al crearse.
+    await page.getByRole("button", { name: "Carta" }).click();
+    await page.locator("#lista-items .item.producto").nth(1)
+      .getByRole("button", { name: /^Agregar/ }).click();
+    await page.getByRole("button", { name: /Ver mi pedido/ }).click();
+    await page.getByText("Nequi", { exact: true }).click();
+    await expect(page.locator("#correo-cliente")).toHaveValue(CORREO);
+    await page.locator("#pagar").click();
+    await aprobarElCobro(page, request);
+
+    const segundo = page.locator(".codigo-canje");
+    await expect(segundo).toBeVisible({ timeout: 20_000 });
+    await expect(segundo).not.toHaveText(primero);
+  });
+
+  test("en la carta, seguir el pedido no arrastra al código ni vacía el carrito", async ({
+    page,
+    request,
+  }) => {
+    // Lo que obligaba a confirmar «Ya lo anoté» para poder pedir otra cosa: el
+    // seguimiento devolvía a la pantalla del código cada cinco segundos, y de
+    // paso vaciaba el carrito que se estaba llenando.
     const codigo = await pagarUnProducto(page, request);
 
-    const advertencia = page.locator("#advertencia-codigo");
-    await expect(advertencia).toBeHidden();
+    await page.getByRole("button", { name: "Carta" }).click();
+    await page.locator("#lista-items .item.producto").nth(1)
+      .getByRole("button", { name: /^Agregar/ }).click();
+    await expect(page.locator("#carrito-chapa")).toHaveText("1");
 
-    await page.getByRole("button", { name: "Hacer otro pedido" }).click();
+    // Una vuelta del seguimiento, esperada entera, en vez de cinco segundos de
+    // reloj que no aseguran que haya terminado.
+    await page.evaluate(() => consultarEstado());
 
-    // Visible, y con el código dentro: la advertencia no sirve de nada si hay
-    // que cerrarla para ir a copiar lo que pide que copies.
-    await expect(advertencia).toBeVisible();
-    await expect(advertencia).toContainText(codigo);
-    await expect(page.locator(".codigo-canje")).toBeVisible();
+    await expect(page.locator("#pantalla-carta")).toHaveClass(/activa/);
+    await expect(page.locator("#carrito-chapa")).toHaveText("1");
+    expect(await page.evaluate(() => temporizadorConsulta !== null)).toBe(true);
 
-    // Echarse atrás deja todo como estaba.
-    await page.getByRole("button", { name: "Seguir viendo mi código" }).click();
-    await expect(advertencia).toBeHidden();
+    await page.getByRole("button", { name: "Mi código" }).click();
     await expect(page.locator(".codigo-canje")).toHaveText(codigo);
-
-    // Y confirmar sí empieza de cero.
-    await page.getByRole("button", { name: "Hacer otro pedido" }).click();
-    await page.getByRole("button", { name: /Ya lo anoté/ }).click();
-
-    await expect(page.getByRole("heading", { name: "Carta" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Mi código" })).toBeDisabled();
   });
 });
 
@@ -721,6 +795,7 @@ test.describe("La hora de recogida", () => {
     await page.getByText("A una hora", { exact: true }).click();
     await page.locator("#hora-recogida").fill(hora);
     await page.getByText("Nequi", { exact: true }).click();
+    await escribirElCorreo(page);
     await page.locator("#pagar").click();
 
     await aprobarElCobro(page, request);
@@ -826,7 +901,7 @@ test.describe("El mostrador y la hora", () => {
     const crear = async (extra) => {
       const creado = await (
         await request.post(`${API}/v1/pedidos`, {
-          data: { lineas: [{ item_id: 124, cantidad: 1 }], ...extra },
+          data: { lineas: [{ item_id: 124, cantidad: 1 }], correo_cliente: CORREO, ...extra },
         })
       ).json();
       const intento = await (

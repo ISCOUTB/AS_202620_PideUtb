@@ -45,7 +45,8 @@ def reloj_y_almacenamiento(monkeypatch):
 
 
 def _pedir(**campos):
-    return client.post("/v1/pedidos", json={"lineas": [{"item_id": 1}], **campos})
+    cuerpo = {"lineas": [{"item_id": 1}], "correo_cliente": "cliente@example.com", **campos}
+    return client.post("/v1/pedidos", json=cuerpo)
 
 
 def test_sin_hora_el_pedido_es_para_ya():

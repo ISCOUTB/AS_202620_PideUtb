@@ -184,19 +184,25 @@
         </div>
       </fieldset>
 
+      <!-- El correo es obligatorio desde la 5.0.0 del contrato (ADR-0013): es a
+           donde llega el comprobante con el código para recoger, y la copia de la
+           compra que queda fuera de esta pantalla. Ya no se pregunta si mandarlo. -->
       <fieldset class="metodos datos-cliente">
-        <legend>¿Te mandamos el comprobante?</legend>
+        <legend>Tu comprobante</legend>
 
         <div class="campo">
-          <label for="correo-cliente">Correo (opcional)</label>
-          <input type="email" id="correo-cliente" maxlength="254"
-                 autocomplete="email" inputmode="email" spellcheck="false">
+          <label for="correo-cliente">Correo</label>
+          <input type="email" id="correo-cliente" maxlength="254" required
+                 autocomplete="email" inputmode="email" spellcheck="false"
+                 aria-describedby="nota-correo">
         </div>
         <div class="campo">
           <label for="nombre-cliente">Nombre (opcional)</label>
           <input type="text" id="nombre-cliente" maxlength="80" autocomplete="name">
         </div>
-        <p class="nota">Solo lo usamos para enviarte el comprobante de este pedido.</p>
+        <p id="nota-correo" class="nota">
+          Ahí te llega el comprobante con tu código para recoger. Solo lo usamos para eso.
+        </p>
       </fieldset>
     </div>
 
@@ -274,26 +280,10 @@
       <p id="texto-aviso" class="nota" role="status"></p>
     </div>
 
-    <!-- La advertencia antes de tirar un código que todavía sirve.
-
-         Vive acá fuera y no dentro de `#cuerpo-resultado` a propósito: ese
-         hueco se vuelve a dibujar cuando el mostrador mueve el pedido, y esta
-         advertencia no puede desaparecer debajo del dedo de quien la está
-         leyendo solo porque la cocina acabe de empezar a preparar.
-
-         El botón que conserva el código es el primario. El que lo tira es el
-         secundario y dice en voz alta lo que hace falta haber hecho antes. -->
-    <div id="advertencia-codigo" class="advertencia oculto" role="alert">
-      <p class="advertencia-titulo">Guarda tu código antes de seguir</p>
-      <p id="advertencia-texto"></p>
-      <div class="advertencia-botones">
-        <button id="seguir-viendo-el-codigo">Seguir viendo mi código</button>
-        <button id="confirmar-nuevo-pedido" class="secundario">
-          Ya lo anoté, hacer otro pedido
-        </button>
-      </div>
-    </div>
-
+    <!-- «Hacer otro pedido» ya no pregunta si el código está anotado: el código
+         llega por correo, y el de este pedido sigue en «Mi código» hasta que se
+         haga el siguiente. El aviso de que llega al correo va debajo del código,
+         dentro de `#cuerpo-resultado` (ADR-0013). -->
     <button id="nuevo-pedido" class="secundario">Hacer otro pedido</button>
   </section>
 

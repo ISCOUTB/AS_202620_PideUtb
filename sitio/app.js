@@ -70,12 +70,16 @@ function mostrar(nombre) {
   // Lo que cambia es qué destino está marcado y cuáles se pueden pulsar, y eso
   // depende de la pantalla activa, así que se recalcula acá.
   dibujarNavegacion();
+}
 
-  // La advertencia de «vas a perder el código» pertenece a la pantalla del
-  // resultado. Irse a otra dejándola abierta y volver la encontraría a medias,
-  // preguntando por una decisión que quien vuelve ya no recuerda haber
-  // empezado a tomar.
-  if (nombre !== "resultado") cerrarLaAdvertencia();
+/**
+ * Si quien pidió está mirando su pedido: esperando el pago o en su código.
+ *
+ * Es lo que separa seguir al pedido de llevar a la persona hasta él. En la carta
+ * o en el carrito está haciendo otra cosa, y el seguimiento no se la interrumpe.
+ */
+function estaALaVista() {
+  return pantallaPuesta === "espera" || pantallaPuesta === "resultado";
 }
 
 /** Centavos de COP a texto legible. 400000 → "$4.000". */
@@ -281,6 +285,16 @@ let avisoActivado = false;
  * página»: solo lo primero merece una vibración.
  */
 let ultimoEstadoVisto = null;
+
+/**
+ * El correo al que va el comprobante del pedido en curso, para enseñarlo debajo
+ * del código: un error de tecleo se descubre ahí o no se descubre.
+ *
+ * Solo en memoria, y a propósito: es un dato personal, y lo que se guarda en el
+ * navegador (`guardarElPedido`) son datos del pedido, no de la persona. Al
+ * retomar un pedido guardado no se sabe, y el aviso dice «tu correo».
+ */
+let correoDelPedido = null;
 
 // --------------------------------------------------------------------------
 // El pedido en curso, fuera de la memoria de la pestaña
@@ -1110,7 +1124,8 @@ function dibujarDatosDelPedido() {
 /**
  * Lo que el navegador puede rechazar sin molestar a la API.
  *
- * `reportValidity` enseña el aviso nativo, en el campo que hay que corregir.
+ * `reportValidity` enseña el aviso nativo, en el campo que hay que corregir. El
+ * correo lleva `required` en el marcado: vacío no pasa, igual que mal escrito.
  */
 function datosDelPedidoEnOrden() {
   if (hayUnPedidoPorCobrar()) return true;
@@ -1249,28 +1264,29 @@ async function pagarCarrito() {
     lineas.push({ item_id: linea.item.item_id, cantidad: linea.cantidad });
   }
 
-  // Un pedido nuevo todavía no tiene cobro. Si quedaran los del anterior, lo
-  // que se guarde a continuación ataría este pedido a una referencia que no es
-  // la suya.
-  referenciaDelCobro = null;
-  urlDelCheckout = null;
-
-  // Solo lo que alguien escribió. Sin hora, se prepara de inmediato; sin correo, no
-  // hay comprobante. Pedir sin dejar ningún dato sigue siendo pedir.
-  const cuerpo = { lineas };
+  // El correo va siempre: desde la 5.0.0 del contrato es obligatorio (ADR-0013),
+  // y `datosDelPedidoEnOrden` no deja llegar acá sin él. Del resto, solo lo que
+  // alguien escribió: sin hora, se prepara de inmediato.
+  const cuerpo = { lineas, correo_cliente: $("correo-cliente").value.trim() };
   const hora = $("hora-recogida").value;
   if ($("recogida-hora").checked && hora) cuerpo.hora_recogida = hora;
-  const correo = $("correo-cliente").value.trim();
-  if (correo) cuerpo.correo_cliente = correo;
   const nombre = $("nombre-cliente").value.trim();
   if (nombre) cuerpo.nombre_cliente = nombre;
 
   try {
-    pedidoActual = await api("/v1/pedidos", {
+    const creado = await api("/v1/pedidos", {
       method: "POST",
       body: JSON.stringify(cuerpo),
     });
-    tokenDelPedido = pedidoActual.token_consulta;
+
+    // El pedido anterior se suelta acá y no antes de crear este: si crearlo
+    // falla —un producto que se agotó mientras tanto—, el código de aquel sigue
+    // en «Mi código» como estaba.
+    soltarElPedidoAnterior();
+
+    pedidoActual = creado;
+    tokenDelPedido = creado.token_consulta;
+    correoDelPedido = cuerpo.correo_cliente;
 
     // Acá, y no después de pagar. El token se entrega **una sola vez**, en esta
     // respuesta: si la pestaña se cierra entre este instante y la confirmación,
@@ -1553,6 +1569,11 @@ async function consultarEstado() {
       `/v1/pedidos/${encodeURIComponent(id)}`,
       { headers: { "X-Token-Pedido": tokenDelPedido } }
     );
+
+    // La respuesta puede llegar cuando ya hay otro pedido en curso: se pidió
+    // antes de pulsar «Pagar» en el siguiente y llega después. Sin esto, el
+    // pedido anterior pisaría al nuevo en `pedidoActual`.
+    if (pedidoActual === null || Number(pedidoActual.pedido_id) !== id) return;
     pedidoActual = pedido;
 
     // El pedido sigue en `pendiente_pago`. Eso **no** quiere decir que no haya
@@ -1579,8 +1600,18 @@ async function consultarEstado() {
     //
     // Quien decide si queda algo que esperar es `mostrarResultado`, que es
     // quien sabe en qué estado está.
-    mostrarResultado(pedido);
+    //
+    // Seguir al pedido no es adueñarse de la pantalla. Si la persona se fue a
+    // la carta a pedir otra cosa, el seguimiento continúa —y el teléfono vibra
+    // cuando esté listo—, pero no la arrastra de vuelta al código cada cinco
+    // segundos. Antes sí lo hacía, y por eso la única forma de quedarse en la
+    // carta era confirmar «Ya lo anoté» y tirar el pedido (ADR-0013).
+    mostrarResultado(pedido, { traerAlFrente: estaALaVista() });
   } catch (e) {
+    // Lo mismo que arriba: un error de un pedido que ya no es el actual no
+    // puede detener el seguimiento del que sí lo es.
+    if (pedidoActual === null || Number(pedidoActual.pedido_id) !== id) return;
+
     detenerConsultas();
     huellaDelResultado = null;
 
@@ -1588,6 +1619,10 @@ async function consultarEstado() {
     // reinicia entre una charla y la siguiente, y sin esto cada recarga
     // buscaría un pedido borrado para volver a enseñar el mismo error.
     if (e.status === 404) olvidarElPedido();
+
+    // Quien está en la carta no pidió ver este error ahora. Al tocar «Mi
+    // código» se vuelve a consultar, y si sigue fallando lo verá entonces.
+    if (!estaALaVista()) return;
 
     mostrar("resultado");
     $("titulo-resultado").textContent = "No pudimos consultar tu pedido";
@@ -1682,38 +1717,30 @@ const ESTADOS_CON_CODIGO_VIVO = new Set(
 /** Estados en los que el pedido ya no se mueve: no queda nada que esperar. */
 const ESTADOS_FINALES = new Set(["entregado", "cancelado"]);
 
-/**
- * Hay un código que alguien todavía tiene que presentar en el mostrador.
- *
- * Es la condición que convierte «Hacer otro pedido» en algo que hay que
- * confirmar. Un pedido sin pagar no tiene código; uno entregado o cancelado ya
- * gastó el suyo. Lo que no se puede perder está entre esos dos extremos.
- */
-function hayUnCodigoEnJuego() {
-  return (
-    pedidoActual !== null &&
-    Boolean(pedidoActual.codigo_canje) &&
-    ESTADOS_CON_CODIGO_VIVO.has(pedidoActual.estado)
-  );
-}
-
 //: La huella de lo último que se pintó en la pantalla del resultado.
 //:
 //: Mientras no cambie, no se repinta. **No es una optimización.** Desde que se
 //: sigue al mostrador, esta pantalla se visita cada cinco segundos: reconstruir
 //: el cuerpo en cada vuelta cancelaría la selección de quien está copiando su
-//: código y cerraría la advertencia de «vas a perderlo» por debajo del dedo.
-//: Es el mismo motivo por el que `panel.js` lleva su `huellaPintada`.
+//: código. Es el mismo motivo por el que `panel.js` lleva su `huellaPintada`.
 let huellaDelResultado = null;
 
-function mostrarResultado(pedido) {
+/**
+ * Pinta el pedido en la pantalla del resultado, y lleva a ella.
+ *
+ * Con `traerAlFrente: false` —el seguimiento, cuando la persona está en la
+ * carta— lleva la cuenta del pedido pero no cambia de pantalla: la próxima vez
+ * que se toque «Mi código» se pinta con lo último que se supo.
+ */
+function mostrarResultado(pedido, { traerAlFrente = true } = {}) {
   const respuesta = RESPUESTA_POR_ESTADO[pedido.estado];
+  const estadoAnterior = ultimoEstadoVisto;
 
   // Antes de la huella, que devuelve el control si no hay nada que repintar.
   if (
     pedido.estado === "listo_para_recoger" &&
-    ultimoEstadoVisto !== null &&
-    ultimoEstadoVisto !== pedido.estado
+    estadoAnterior !== null &&
+    estadoAnterior !== pedido.estado
   ) {
     lanzar(avisarQueEstaListo());
   }
@@ -1731,7 +1758,15 @@ function mostrarResultado(pedido) {
   // pantalla de reintento tras un cobro rechazado se repinta desde el carrito
   // (`dibujarLineasDelCarrito`), y vaciarlo antes la dejaría en blanco con el
   // pedido todavía por pagar.
-  if (pedido.estado !== "pendiente_pago") carrito.clear();
+  //
+  // **Y una sola vez, al dejar de estar pendiente**, no en cada vuelta del
+  // seguimiento. Desde que se puede volver a la carta con el pedido anterior en
+  // marcha (ADR-0013), vaciarlo en cada consulta borraría cada cinco segundos el
+  // carrito nuevo que la persona está llenando.
+  const acabaDePagarse =
+    pedido.estado !== "pendiente_pago" &&
+    (estadoAnterior === null || estadoAnterior === "pendiente_pago");
+  if (acabaDePagarse) carrito.clear();
 
   // --- ¿Queda algo que esperar? ---------------------------------------
   //
@@ -1749,6 +1784,16 @@ function mostrarResultado(pedido) {
   // `pendiente_pago` no cae en ninguna de las dos a propósito: acá se llega con
   // ese estado cuando alguien pulsó «Consultar más tarde», y encender un
   // temporizador le quitaría a ese botón lo único que hace.
+
+  // --- ¿Se le enseña ahora? -------------------------------------------
+  // Recién pagado, sí, esté donde esté: es cuando aparece el código, y quien se
+  // fue a mirar la carta mientras la pasarela confirmaba está esperando eso.
+  // Después, solo si lo está mirando. La barra se pone al día de todos modos:
+  // el carrito pudo vaciarse arriba, y «Mi código» depende de que haya pedido.
+  if (!traerAlFrente && !acabaDePagarse) {
+    dibujarNavegacion();
+    return;
+  }
 
   // --- ¿Hace falta repintar? ------------------------------------------
   const huella = `${pedido.estado}|${pedido.codigo_canje || ""}`;
@@ -1785,7 +1830,7 @@ function mostrarResultado(pedido) {
   cuerpo.append(linea);
 
   if (respuesta.mostrarCodigo && pedido.codigo_canje) {
-    cuerpo.append(dibujarElBillete(pedido, respuesta));
+    cuerpo.append(dibujarElBillete(pedido, respuesta), dibujarAvisoDelCorreo());
   }
 
   // El recibo: qué se compró y cuánto. Antes solo decía «Total pagado: …», que
@@ -2009,6 +2054,40 @@ function dibujarElBillete(pedido, respuesta) {
   return billete;
 }
 
+/**
+ * Dónde queda la copia del código: en el correo, que desde la 5.0.0 del
+ * contrato es obligatorio (ADR-0013). Ocupa el lugar de la advertencia que
+ * pedía confirmar «Ya lo anoté» antes de hacer otro pedido.
+ *
+ * Dice la dirección cuando se sabe —la escribió esta pestaña al pedir—, porque
+ * un error de tecleo se descubre ahí o no se descubre. Al retomar un pedido
+ * guardado no se sabe: la dirección no se guarda en el navegador.
+ *
+ * No afirma que el correo haya llegado. Sale aparte y sin reintentos
+ * (ADR-0012), así que nombra el spam en vez de presentarse como confirmación.
+ */
+function dibujarAvisoDelCorreo() {
+  const aviso = document.createElement("div");
+  aviso.className = "aviso-correo";
+
+  const titulo = document.createElement("p");
+  titulo.className = "aviso-correo-titulo";
+  titulo.textContent = "Revisa tu correo";
+
+  const texto = document.createElement("p");
+  if (correoDelPedido) {
+    const direccion = document.createElement("strong");
+    direccion.textContent = correoDelPedido;
+    texto.append("Tu código y tu comprobante te llegan a ", direccion, ".");
+  } else {
+    texto.append("Tu código y tu comprobante te llegan a tu correo.");
+  }
+  texto.append(" Si no los ves en unos minutos, búscalos en la carpeta de spam.");
+
+  aviso.append(titulo, texto);
+  return aviso;
+}
+
 function nota(texto) {
   const p = document.createElement("p");
   p.className = "nota";
@@ -2019,66 +2098,74 @@ function nota(texto) {
 // --------------------------------------------------------------------------
 // Hacer otro pedido sin perder el anterior
 //
-// «Hacer otro pedido» borraba el pedido en curso, su token y su código sin
-// preguntar nada. Para quien ya había pagado y no había copiado el código, eso
-// era perder lo comprado de un toque — y el toque está justo debajo del
-// código, que es donde la vista acaba de posarse.
+// Hasta el 21/11/2026, «Hacer otro pedido» con un código vivo abría una
+// advertencia, y había que confirmar «Ya lo anoté» para seguir: al empezar otro,
+// el código desaparecía del teléfono y no quedaba dónde buscarlo.
 //
-// El botón no se quita: hacer otro pedido es lo normal cuando el anterior ya se
-// recogió. Lo que se añade es un paso más, y **solo cuando hay algo que
-// perder**. Una confirmación que aparece siempre se aprende a despachar sin
-// leerla, y entonces deja de proteger de nada.
+// Desde que el correo es obligatorio (ADR-0013) ese código tiene una copia en el
+// buzón, y el botón ya no pregunta nada. Tampoco tira el pedido: lleva a la
+// carta con el carrito vacío, y el código anterior sigue en «Mi código» —y se
+// sigue su estado— hasta que se crea el siguiente pedido. Lo que se pierde de la
+// pantalla en ese momento es lo que ya está en el correo.
 // --------------------------------------------------------------------------
 
-function abrirLaAdvertencia() {
-  const fuerte = document.createElement("strong");
-  fuerte.textContent = pedidoActual.codigo_canje;
-
-  $("advertencia-texto").replaceChildren(
-    "Ya pagaste este pedido y su código es ",
-    fuerte,
-    ". Si empiezas otro, esta pantalla deja de mostrarlo: desde el teléfono no " +
-      "hay dónde volver a buscarlo, y habría que pedirlo en el mostrador."
+/**
+ * Hay un código que alguien todavía tiene que presentar en el mostrador.
+ *
+ * Un pedido sin pagar no tiene código; uno entregado o cancelado ya gastó el
+ * suyo. Es lo que decide si «Hacer otro pedido» conserva el anterior.
+ */
+function hayUnCodigoEnJuego() {
+  return (
+    pedidoActual !== null &&
+    Boolean(pedidoActual.codigo_canje) &&
+    ESTADOS_CON_CODIGO_VIVO.has(pedidoActual.estado)
   );
-
-  $("advertencia-codigo").classList.remove("oculto");
-  $("nuevo-pedido").classList.add("oculto");
-
-  // El foco va al botón que **no** destruye nada. Quien llegue acá con el
-  // teclado y pulse Intro sin leer se queda donde estaba, que es lo que
-  // habría querido.
-  $("seguir-viendo-el-codigo").focus();
 }
 
-function cerrarLaAdvertencia() {
-  $("advertencia-codigo").classList.add("oculto");
-  $("nuevo-pedido").classList.remove("oculto");
-}
-
-function empezarOtroPedido() {
-  // El temporizador primero. Desde que se sigue al pedido después de pagar hay
-  // uno en marcha casi siempre, y una vuelta suya con `pedidoActual` ya nulo
-  // tira un error de lectura sobre la pantalla de la carta.
+/**
+ * Deja de seguir al pedido en curso y borra lo que solo le servía a él.
+ *
+ * No toca `pedidoActual` ni el token: quien llama decide si los sustituye por
+ * los de un pedido recién creado o los deja en `null`.
+ */
+function soltarElPedidoAnterior() {
+  // El temporizador primero: una vuelta suya después de cambiar de pedido
+  // consultaría el que ya no es.
   detenerConsultas();
-  olvidarElPedido();
 
-  pedidoActual = null;
-  tokenDelPedido = null;
+  // Un pedido nuevo todavía no tiene cobro. Si quedaran los del anterior, lo
+  // que se guarde a continuación ataría este pedido a una referencia que no es
+  // la suya.
   referenciaDelCobro = null;
   urlDelCheckout = null;
   huellaDelResultado = null;
-  avisoActivado = false;
   ultimoEstadoVisto = null;
+  avisoActivado = false;
+  correoDelPedido = null;
   $("bloque-aviso").classList.add("oculto");
+}
+
+function hacerOtroPedido() {
+  // Sin código que conservar —sin pagar, cancelado o ya entregado— el pedido
+  // anterior no le sirve a nadie. Y uno sin pagar no puede quedarse: «Pagar»
+  // reabre el cobro del pedido pendiente en vez de crear otro, así que cobraría
+  // aquel con el carrito de este.
+  if (!hayUnCodigoEnJuego()) {
+    soltarElPedidoAnterior();
+    olvidarElPedido();
+    pedidoActual = null;
+    tokenDelPedido = null;
+  }
+
   $("recogida-ya").checked = true;
   $("hora-recogida").value = "";
 
   // El carrito se vacía: sin esto el pedido siguiente empezaría con lo que la
-  // persona acaba de pagar y recoger.
+  // persona acaba de pagar.
   carrito.clear();
   metodoElegido = null;
 
-  cerrarLaAdvertencia();
   dibujarNavegacion();
   limpiarError();
   lanzar(cargarCarta());
@@ -2230,22 +2317,6 @@ $("dejar-de-esperar").addEventListener("click", () => {
   mostrarResultado(pedidoActual);
 });
 
-$("nuevo-pedido").addEventListener("click", () => {
-  if (hayUnCodigoEnJuego()) {
-    abrirLaAdvertencia();
-    return;
-  }
-  empezarOtroPedido();
-});
-
-$("confirmar-nuevo-pedido").addEventListener("click", empezarOtroPedido);
-
-$("seguir-viendo-el-codigo").addEventListener("click", () => {
-  cerrarLaAdvertencia();
-  // El foco vuelve al botón desde el que se abrió. Sin esto se queda en un
-  // botón que acaba de desaparecer, y el tabulador siguiente empieza desde
-  // arriba del documento.
-  $("nuevo-pedido").focus();
-});
+$("nuevo-pedido").addEventListener("click", hacerOtroPedido);
 
 lanzar(comprobarSalud());

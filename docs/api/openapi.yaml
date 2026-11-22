@@ -14,7 +14,7 @@ openapi: 3.1.0
 
 info:
   title: PideUTB API
-  version: 4.1.0
+  version: 5.0.0
   summary: Pedidos de comida dentro del campus universitario.
   description: |
     Superficie **síncrona** de PideUTB: consulta de menú, creación y consulta
@@ -282,6 +282,10 @@ paths:
         Desde la 4.1.0 se puede programar la hora de recogida. Una hora que ya
         pasó, o que cae fuera del horario del establecimiento, responde `409`:
         la petición está bien formada, lo que no encaja es la hora.
+
+        Desde la 5.0.0 el correo es **obligatorio**: sin `correo_cliente` la
+        petición responde `422`. Es a donde llega el comprobante con el código
+        para recoger ([ADR-0013](../adr/0013-correo-obligatorio-para-el-comprobante.md)).
       requestBody:
         required: true
         content:
@@ -1012,7 +1016,7 @@ components:
 
     CrearPedidoRequest:
       type: object
-      required: [lineas]
+      required: [lineas, correo_cliente]
       properties:
         lineas:
           type: array
@@ -1039,20 +1043,21 @@ components:
           maxLength: 80
           description: Para el comprobante. Opcional. Desde la 4.1.0.
         correo_cliente:
-          type: [string, "null"]
+          type: string
           maxLength: 254
           pattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
           description: |
-            A dónde mandar el comprobante cuando se confirme el pago. Opcional:
-            sin él no se manda nada y el pedido funciona igual. **Es un dato
-            personal y no lo devuelve ninguna operación** (arc42 §8.8). Desde la
-            4.1.0.
+            A dónde mandar el comprobante, con el código para recoger, cuando se
+            confirme el pago. **Obligatorio desde la 5.0.0**: en la 4.1.0 era
+            opcional y admitía `null`. **Es un dato personal y no lo devuelve
+            ninguna operación** (arc42 §8.8).
       examples:
         - lineas:
             - item_id: 1
               cantidad: 2
             - item_id: 2
               cantidad: 1
+          correo_cliente: ana@example.com
         - lineas:
             - item_id: 101
               cantidad: 1

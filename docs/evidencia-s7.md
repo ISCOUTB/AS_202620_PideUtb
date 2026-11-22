@@ -44,10 +44,10 @@ efectiva es `prefix` del router más el path del decorador.
 | `/v1/sesiones` (DELETE) · L206 — *2.0.0* | `usuarios/router.py:16` `/v1/sesiones` | `:45-46` `""` | ✔ |
 | `/v1/pedidos` (POST) · L266 | `pedidos/router.py:24` `/v1/pedidos` | `:27-28` `""` | ✔ |
 | `/v1/pedidos` (GET) · L266 | `pedidos/router.py:24` `/v1/pedidos` | `:135-136` `""` | ✔ |
-| `/v1/pedidos/{pedido_id}/estado` · L362 | `pedidos/router.py:24` `/v1/pedidos` | `:173-174` `"/{pedido_id}/estado"` | ✔ |
-| `/v1/pedidos/{pedido_id}` · L504 | `pedidos/router.py:24` `/v1/pedidos` | `:61-62` `"/{pedido_id}"` | ✔ |
-| `/v1/pagos/intentos` · L541 | `pagos/router.py:21` `/v1/pagos` | `:24-25` `"/intentos"` | ✔ |
-| `/v1/pagos/eventos` · L617 | `pagos/router.py:21` `/v1/pagos` | `:63-64` `"/eventos"` | ✔ |
+| `/v1/pedidos/{pedido_id}/estado` · L366 | `pedidos/router.py:24` `/v1/pedidos` | `:173-174` `"/{pedido_id}/estado"` | ✔ |
+| `/v1/pedidos/{pedido_id}` · L508 | `pedidos/router.py:24` `/v1/pedidos` | `:61-62` `"/{pedido_id}"` | ✔ |
+| `/v1/pagos/intentos` · L545 | `pagos/router.py:21` `/v1/pagos` | `:24-25` `"/intentos"` | ✔ |
+| `/v1/pagos/eventos` · L621 | `pagos/router.py:21` `/v1/pagos` | `:63-64` `"/eventos"` | ✔ |
 
 **10 paths declarados, 12 operaciones implementadas, ninguna de más.**
 `/v1/pedidos` y `/v1/sesiones` aparecen dos veces cada uno porque tienen dos

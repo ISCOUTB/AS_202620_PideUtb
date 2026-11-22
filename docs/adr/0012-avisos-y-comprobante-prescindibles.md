@@ -4,6 +4,12 @@
 
 Aceptada — 04/11/2026
 
+> **Modificada en parte el 21/11/2026 por
+> [ADR-0013](0013-correo-obligatorio-para-el-comprobante.md): el correo del cliente
+> deja de ser opcional.** Lo demás sigue vigente: las dos salidas son prescindibles,
+> sin cola ni reintentos. ADR-0013 explica por qué un correo obligatorio no es el
+> «comprobante obligatorio» que esta decisión dejó como motivo para cambiarla.
+
 ## Contexto
 
 El cliente pidió dos cosas que cambian la forma del sistema, aunque se vean como
@@ -46,6 +52,9 @@ esa pantalla se entera sola del estado cada cinco segundos.
   (`PU-000123`) y el pie aclara que no la reemplaza.
 - **El correo y el nombre son opcionales.** Pedir sin dejar ningún dato sigue siendo
   pedir. Ninguna respuesta de la API los devuelve, ni siquiera la cola del mostrador.
+  *Desde el 21/11/2026 el correo es obligatorio
+  ([ADR-0013](0013-correo-obligatorio-para-el-comprobante.md), contrato 5.0.0). El
+  nombre sigue siendo opcional, y ninguno de los dos sale por la API.*
 
 ### El aviso
 

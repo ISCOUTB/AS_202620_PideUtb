@@ -18,7 +18,7 @@ client = TestClient(app)
 
 
 def test_crear_pedido_exitoso():
-    respuesta = client.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 2}]})
+    respuesta = client.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 2}], "correo_cliente": "cliente@example.com"})
 
     assert respuesta.status_code == 201
     cuerpo = respuesta.json()
@@ -30,14 +30,14 @@ def test_crear_pedido_exitoso():
 
 
 def test_crear_pedido_item_no_encontrado():
-    respuesta = client.post("/v1/pedidos", json={"lineas": [{"item_id": 999, "cantidad": 1}]})
+    respuesta = client.post("/v1/pedidos", json={"lineas": [{"item_id": 999, "cantidad": 1}], "correo_cliente": "cliente@example.com"})
 
     assert respuesta.status_code == 404
 
 
 def test_crear_pedido_item_no_disponible():
     # item_id 3 (Empanada) está marcado como no disponible en el seed.
-    respuesta = client.post("/v1/pedidos", json={"lineas": [{"item_id": 3, "cantidad": 1}]})
+    respuesta = client.post("/v1/pedidos", json={"lineas": [{"item_id": 3, "cantidad": 1}], "correo_cliente": "cliente@example.com"})
 
     assert respuesta.status_code == 409
 
@@ -56,7 +56,7 @@ def test_crear_pedido_item_no_disponible():
 
 def _crear() -> dict:
     respuesta = client.post(
-        "/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}]}
+        "/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": 1}], "correo_cliente": "cliente@example.com"}
     )
     assert respuesta.status_code == 201, respuesta.text
     return respuesta.json()

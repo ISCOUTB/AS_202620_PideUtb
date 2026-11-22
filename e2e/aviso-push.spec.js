@@ -20,7 +20,7 @@ const API = process.env.PIDEUTB_API || "http://127.0.0.1:8000";
 async function abrirUnPedidoPagado(page, request) {
   const pedido = await (
     await request.post(`${API}/v1/pedidos`, {
-      data: { lineas: [{ item_id: 124, cantidad: 1 }] },
+      data: { lineas: [{ item_id: 124, cantidad: 1 }], correo_cliente: "cliente@example.com" },
     })
   ).json();
   const intento = await (

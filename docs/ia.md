@@ -760,3 +760,39 @@ para implementarlo.
 En el teléfono la fila ya no se arrastra con el dedo mientras desfila: se para al
 tocarla y vuelve a andar al soltarla. Todos los sugeridos están también en la carta,
 justo debajo.
+
+## Uso de IA para volver obligatorio el correo del comprobante (21/11/2026)
+
+El equipo pidió que el correo dejara de ser opcional, para que todo cliente tenga el
+respaldo de su compra y su código de recogida. Con eso, también pidió quitar la
+confirmación «Ya lo anoté» antes de hacer otro pedido, volver a la carta con
+normalidad, y avisar debajo del código que llega al correo y que conviene revisar el
+spam. Se usó un asistente de IA para implementarlo. La decisión está en
+[ADR-0013](adr/0013-correo-obligatorio-para-el-comprobante.md).
+
+### Qué se aceptó
+
+| Propuesta | Por qué |
+|---|---|
+| Exigir el correo también en la API, con el contrato en 5.0.0 | Una regla que solo vive en el formulario se salta llamando a la API. El salto de MAYOR es barato con un solo consumidor, y se hizo como pide la política: base congelada y la rotura señalada |
+| Conservar el código anterior en «Mi código» hasta que se cree el siguiente pedido | El equipo lo eligió entre dos opciones. Si un correo falla, el código no desaparece del teléfono de un toque |
+| Soltar el pedido anterior solo si no tiene código vivo | Uno sin pagar no puede quedarse: «Pagar» reabriría su cobro con el carrito nuevo |
+| Que el seguimiento no saque a nadie de la carta | Al revisar el flujo apareció un defecto previo: cada cinco segundos devolvía a la pantalla del código y vaciaba el carrito. Era la verdadera razón por la que no se podía volver a la carta |
+| Descartar respuestas tardías de un pedido que ya no es el actual | Sin eso, una consulta del pedido anterior que llegara después de crear el nuevo lo pisaría |
+| Enseñar la dirección en el aviso, sin guardarla en el navegador | Un error de tecleo se descubre ahí. Guardarla dejaría un dato personal en un teléfono que puede ser prestado |
+| Comprobar cada prueba nueva con el defecto puesto | Las dos que cuidan la carta fallaron al volver a poner el comportamiento anterior, y pasaron al quitarlo |
+
+### Qué se rechazó
+
+| Propuesta | Decisión | Motivo del rechazo |
+|---|---|---|
+| Exigir el correo solo en el formulario | **Rechazada** | La regla quedaría a merced de quien llame a la API, y el contrato diría lo contrario de lo que pide el negocio |
+| Una cola con reintentos para el correo, ya que ahora es obligatorio | **Rechazada** | Lo obligatorio es el campo, no la entrega. El código sigue en la pantalla, en «Mi código» y en la cola del mostrador |
+| Mandar un código de verificación al correo antes de pagar | **Rechazada** | Añade un paso y una espera a un recorrido que tiene que caber en un minuto |
+| Decir «Te enviamos el comprobante» | **Rechazada** | La página no sabe si el correo salió. El aviso dice «revisa» y nombra el spam |
+
+### Lo que cambia para el cliente
+
+Sin correo no se puede pagar: el navegador lo dice en el propio campo. Después de
+pagar, «Hacer otro pedido» lleva directo a la carta, y el código anterior sigue a un
+toque en «Mi código» hasta que se hace el siguiente.
