@@ -818,3 +818,26 @@ lo vio porque el guion pide PostgreSQL y no corre en CI.
 | Propuesta | Decisión | Motivo del rechazo |
 |---|---|---|
 | Correr la medición contra el PostgreSQL del CI y exigir su veredicto | **Rechazada** | Los runners compartidos dan tiempos que varían de una ejecución a otra, y el veredicto haría intermitente la construcción. Lo que se rompió fue el contrato, no la latencia, y eso se comprueba en memoria |
+
+## Uso de IA para poner al día textos que habían dejado de ser ciertos (22/11/2026)
+
+En la misma revisión para la sustentación, el asistente encontró textos que afirmaban
+en presente algo que ya no era verdad. Se corrigieron sin reescribir lo que solo
+cuenta lo que pasó en su momento.
+
+### Qué se aceptó
+
+| Propuesta | Por qué |
+|---|---|
+| Dar el nombre actual de la prueba que vigila el canal de eventos (`test_quien_escucha_los_pagos_es_prescindible`) donde se citaba el antiguo como vigente | ADR-0009, ADR-0010, arc42 R-03 y `correcciones.md` remitían a una prueba que ya no existe con ese nombre. Donde el texto es histórico, se deja el nombre viejo y se añade el nuevo |
+| Marcar D-03 como pagada y actualizar `docs/aspectos.md` | Ambos decían que ESC-03 faltaba por remedir, y se remidió en la S14: 5 320 ms en el peor caso, 4,68 s para la persona |
+| Remitir la introducción de arc42 §10 a la evaluación de §10.7 | Decía que los umbrales aún no tenían resultados experimentales, y los cinco están medidos |
+| Corregir arc42 §6.6 | Decía que la idempotencia vive en memoria, y desde la S8 (V-09) es un `UPDATE … WHERE estado = 'pendiente_pago'` en PostgreSQL |
+
+### Qué se rechazó
+
+| Propuesta | Decisión | Motivo del rechazo |
+|---|---|---|
+| Reescribir el dossier de la S11 y la tabla de firmas de `correcciones.md` con los datos de hoy | **Rechazada** | Son registros de su fecha. A la tabla se le añadió una nota fechada con el conteo actual, sin tocar la original |
+| Unificar los 9,94 ms de ESC-04 en arc42 con los 10,70 ms de `test_escenarios_de_calidad.py` | **Rechazada** | No son la misma cifra: 9,94 ms es el canje con código (ESC-04) y 10,70 ms la transición a «en preparación» dentro de la cadena de ESC-03 (7,96 + 10,70 = 18,7 ms) |
+| Completar el pendiente «correspondencia firma → integrante» de `correcciones.md` | **Rechazada** | Lo completa el equipo: pide nombres de personas, que no se escriben en los archivos generados |

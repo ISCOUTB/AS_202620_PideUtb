@@ -170,7 +170,8 @@ Cada una es comprobable, no una intuición:
   `POST /v1/pedidos` bajo carga, habría un argumento medido.
 - **Que aparezca un segundo consumidor del canal de eventos** que no sea este
   sistema. Hoy no hay ninguno, y hay una prueba que lo vigila
-  (`test_el_evento_se_pierde_si_no_hay_nadie_escuchando`).
+  (`test_quien_escucha_los_pagos_es_prescindible`, que hasta ADR-0012 se llamaba
+  `test_el_evento_se_pierde_si_no_hay_nadie_escuchando`).
 - **Que el equipo crezca** hasta que dos personas se estorben en el mismo
   repositorio. Con tres, no ocurre.
 - **Que una integración saliente de verdad aparezca.** Hoy no existe ninguna

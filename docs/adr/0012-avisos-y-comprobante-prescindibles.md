@@ -24,7 +24,7 @@ estaba escrita para obligar a parar a pensar:
 1. [ADR-0009](0009-no-extraer-un-servicio.md) dice que una integración saliente de
    verdad es una de las cosas que cambiarían la decisión de no extraer servicios.
    Estas son las dos primeras.
-2. `test_el_evento_se_pierde_si_no_hay_nadie_escuchando` exigía cero suscriptores
+2. `test_el_evento_se_pierde_si_no_hay_nadie_escuchando` (hoy `test_quien_escucha_los_pagos_es_prescindible`) exigía cero suscriptores
    en `pedidos-pagados`, y avisaba de que el día que apareciera uno había que
    decidir si hacía falta un *outbox*.
 3. [arc42 §8.8](../arc42/arc42.md) decía que `pedidos` no guarda nada de una
