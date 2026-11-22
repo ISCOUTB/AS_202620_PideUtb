@@ -14,7 +14,7 @@ tiempo que la cola tarda en mostrarlo **cuenta dentro del plazo**.
 
 La cadena completa tiene cuatro tramos, y solo dos ocurren en el servidor:
 
-    [1] espera al siguiente sondeo   hasta 8 000 ms   (sitio/panel.js)
+    [1] espera al siguiente sondeo   hasta 5 000 ms   (sitio/panel.js)
     [2] GET /v1/pedidos               red + servidor
     [3] la persona ve y pulsa         ???
     [4] POST /{id}/estado             red + servidor
@@ -67,6 +67,16 @@ RUTA_PANEL = Path(__file__).resolve().parents[2] / "sitio" / "panel.js"
 #: Ida y vuelta de red medida contra el despliegue, conexión reutilizada.
 RTT_MEDIDO_MS = 150.8
 
+#: Un pedido como lo crea el sitio con el contrato vigente: una lista de líneas
+#: (desde la 3.0.0) y el correo del comprobante (obligatorio desde la 5.0.0).
+#:
+#: Hasta el 22/11/2026 el guion mandaba `{"item_id": 1, "cantidad": 1}`, el
+#: formato de la 2.x. La API lo rechazaba con 422 y la medición de ESC-03 no se
+#: podía repetir. Nadie lo vio porque el guion no corre en CI: pide PostgreSQL.
+#: Desde entonces `tests/test_medicion_esc03.py` lo ejecuta en memoria, así que
+#: un cambio de contrato que lo rompa también rompe la construcción.
+PEDIDO = {"lineas": [{"item_id": 1, "cantidad": 1}], "correo_cliente": "medicion@example.com"}
+
 MOSTRADOR = UsuarioAutenticado(
     usuario_id=1,
     correo="medicion@utb.edu.co",
@@ -105,7 +115,7 @@ def resumen(nombre: str, muestras: list[float]) -> dict[str, float]:
 
 def _pedido_pagado(client: TestClient) -> int:
     """Un pedido en `pagado`, por la vía legítima."""
-    respuesta = client.post(RUTA_PEDIDOS, json={"item_id": 1, "cantidad": 1})
+    respuesta = client.post(RUTA_PEDIDOS, json=PEDIDO)
     if respuesta.status_code != 201:
         raise SystemExit(f"No se pudo crear el pedido: {respuesta.status_code} {respuesta.text}")
     pedido_id = respuesta.json()["pedido_id"]
