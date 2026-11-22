@@ -796,3 +796,25 @@ spam. Se usó un asistente de IA para implementarlo. La decisión está en
 Sin correo no se puede pagar: el navegador lo dice en el propio campo. Después de
 pagar, «Hacer otro pedido» lleva directo a la carta, y el código anterior sigue a un
 toque en «Mi código» hasta que se hace el siguiente.
+
+## Uso de IA al preparar la sustentación: la medición de ESC-03 no se podía repetir (22/11/2026)
+
+Al revisar el repositorio para la sustentación, un asistente de IA encontró que
+`backend/scripts/medir_esc03.py` seguía creando pedidos con el formato de la 2.x
+(`{"item_id": 1, "cantidad": 1}`). Desde el carrito (contrato 3.0.0) la API los
+rechazaba con 422, así que la medición que sostiene ESC-03 no se podía repetir. Nadie
+lo vio porque el guion pide PostgreSQL y no corre en CI.
+
+### Qué se aceptó
+
+| Propuesta | Por qué |
+|---|---|
+| Mandar el pedido como lo manda el sitio hoy: `lineas` y `correo_cliente` | Es el contrato vigente (5.0.0). Repetida contra PostgreSQL en local, la medición deja 4,67 s para la persona, en línea con los 4,68 s de la semana 14 |
+| Una prueba que ejecuta la cadena del guion en memoria en cada construcción | No mide nada; comprueba que el guion habla el contrato de hoy. Sin el arreglo falla con el mismo 422 |
+| Corregir el comentario que daba 8 000 ms como espera del sondeo | El cálculo ya leía el valor de `panel.js`; el texto se había quedado en el de antes de la semana 14 |
+
+### Qué se rechazó
+
+| Propuesta | Decisión | Motivo del rechazo |
+|---|---|---|
+| Correr la medición contra el PostgreSQL del CI y exigir su veredicto | **Rechazada** | Los runners compartidos dan tiempos que varían de una ejecución a otra, y el veredicto haría intermitente la construcción. Lo que se rompió fue el contrato, no la latencia, y eso se comprueba en memoria |
