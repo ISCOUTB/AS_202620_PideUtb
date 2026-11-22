@@ -1780,6 +1780,7 @@ arquitectura sin abrir nada.
 | [ADR-0010](../adr/0010-notificar-al-panel-por-sondeo.md) | Notificar al panel por sondeo, y conservar el canal de eventos como costura sin suscriptores | [ESC-03](#esc-03) | Aceptada — revisa ADR-0003 con evidencia de producción; el intervalo bajó a 5 s en la S14 |
 | [ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md) | Avisar al cliente y mandarle el comprobante como salidas prescindibles, sin cola ni reintentos | [ESC-05](#esc-05) | Aceptada — revisa ADR-0009 y ADR-0010; el correo opcional lo modifica ADR-0013 |
 | [ADR-0013](../adr/0013-correo-obligatorio-para-el-comprobante.md) | Pedir siempre el correo, para que el código de recogida tenga una copia fuera de la pantalla | [ESC-05](#esc-05) | Aceptada — modifica en parte ADR-0012; contrato 5.0.0 |
+| [ADR-0014](../adr/0014-topes-del-pedido-y-demora-estimada.md) | Poner topes al pedido por producto y por tipo, y avisar su demora antes de pagar | [ESC-03](#esc-03) | Aceptada — revisa V-03 tras un pedido de más de 800 000 pesos; contrato 6.0.0 |
 | [ADR-0011](../adr/0011-un-solo-esquema-para-los-cuatro-contextos.md) | Guardar los cuatro contextos en un solo esquema con integridad referencial cruzada, que es la decisión de datos más cara de deshacer | [ESC-02](#esc-02) | Aceptada — pone precio a la reversión que ADR-0009 deja abierta |
 
 *(Este índice se amplía en cada entrega a medida que surgen nuevas

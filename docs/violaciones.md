@@ -139,6 +139,12 @@ Un pedido de importe negativo es un abono a favor del comprador.
 superior evita pedidos que ningún establecimiento puede atender. Pydantic
 responde `422` sin lógica adicional.
 
+**Revisión del 22/11/2026.** El tope de 50 no bastaba: el 21/11/2026 se pagó
+un pedido de más de 800 000 pesos, imposible de preparar en una hora de
+almuerzo. Desde la 6.0.0 se piden como máximo 4 de cada producto, y 4 comidas,
+4 bebidas y 4 acompañantes por pedido
+([ADR-0014](adr/0014-topes-del-pedido-y-demora-estimada.md)).
+
 **Prueba:** `tests/test_propiedad_datos.py::test_cantidad_fuera_de_rango_se_rechaza`
 
 ---
