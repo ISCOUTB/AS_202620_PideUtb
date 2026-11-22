@@ -44,6 +44,11 @@ def crear_pedido(datos: CrearPedidoRequest) -> PedidoResponse:
         raise HTTPException(status_code=409, detail=str(e))
     except service.ItemRepetidoError as e:
         raise HTTPException(status_code=409, detail=str(e))
+    except service.LimiteDelPedidoError as e:
+        # 409 y no 422, igual que un producto agotado: la petición está bien
+        # formada, lo que no cabe es la suma de sus comidas, bebidas o
+        # acompañantes, y eso depende del catálogo (ADR-0014).
+        raise HTTPException(status_code=409, detail=str(e))
     except service.CarritoVacioError as e:
         # 422 y no 409: un carrito vacío es una petición mal formada, no un
         # estado del sistema que impida la operación.

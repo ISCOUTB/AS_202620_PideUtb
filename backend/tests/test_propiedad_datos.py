@@ -44,8 +44,10 @@ def test_pedido_en_establecimiento_inactivo_se_rechaza():
 
 
 def test_cantidad_fuera_de_rango_se_rechaza():
-    """V-03: cantidad cero o negativa producía totales absurdos."""
-    for cantidad in (0, -5, 51):
+    """V-03: cantidad cero o negativa producía totales absurdos.
+
+    El tope de arriba bajó de 50 a 4 en la 6.0.0 (ADR-0014): 5 ya es demasiado."""
+    for cantidad in (0, -5, 5, 51):
         respuesta = client.post("/v1/pedidos", json={"lineas": [{"item_id": 1, "cantidad": cantidad}], "correo_cliente": "cliente@example.com"})
         assert respuesta.status_code == 422, f"cantidad={cantidad} debería rechazarse"
 

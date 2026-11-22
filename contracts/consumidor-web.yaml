@@ -41,7 +41,11 @@ descripcion: >
 # El salto de `4.x` a `5.x` lo motivó el comprobante: el correo pasó a ser
 # obligatorio al crear el pedido (ADR-0013), y este sitio lo exige en el
 # formulario antes de mandarlo.
-version_contrato_requerida: "5.x"
+#
+# El salto de `5.x` a `6.x` lo motivaron los topes del pedido (ADR-0014): de un
+# mismo producto se piden como máximo 4, no 50. Este sitio apaga el «+» al llegar
+# al tope de cada producto y de cada tipo, con los valores de `sitio/config.js`.
+version_contrato_requerida: "6.x"
 
 operaciones:
   consultarSalud:
@@ -78,6 +82,9 @@ operaciones:
       # Desde la 4.1.0: la sección de sugeridos, y entre qué horas se ofrece
       # programar la recogida.
       - items[].sugerido
+      # Desde la 6.0.0: comida, bebida o acompañante, para apagar el «+» al
+      # llegar al tope de cada tipo antes de que la API lo rechace.
+      - items[].tipo
       - hora_apertura
       - hora_cierre
     codigos_manejados: ["200", "404"]

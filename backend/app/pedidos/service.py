@@ -21,6 +21,7 @@ from zoneinfo import ZoneInfo
 
 from app.eventos import CANAL_PEDIDO_LISTO, CANAL_PEDIDO_PAGADO, publicar
 from app.menu import service as catalogo_service
+from app.menu.contracts import TipoDeProducto
 from app.pedidos import repository
 from app.pedidos.contracts import (
     ComprobanteDePedido,
@@ -178,6 +179,36 @@ class ItemRepetidoError(Exception):
     """El mismo producto dos veces en el mismo carrito."""
 
 
+class LimiteDelPedidoError(Exception):
+    """El pedido pide más de lo que se puede preparar a tiempo (ADR-0014)."""
+
+
+#: Cuánto se puede pedir de un mismo producto (ADR-0014).
+#:
+#: Era 50 hasta el 22/11/2026, y permitió un pedido de más de 800 000 pesos que
+#: ningún mostrador prepara en una hora de almuerzo. `sitio/config.js` lo copia
+#: para apagar el «+» antes de que la API diga que no, y
+#: `test_el_sitio_conoce_los_mismos_topes` impide que las dos cifras se separen.
+MAXIMO_POR_PRODUCTO = 4
+
+#: Cuánto se puede pedir de cada tipo en un mismo pedido (ADR-0014).
+#:
+#: Las comidas son lo que tarda: cuatro es lo que cabe en el tiempo de un
+#: almuerzo. Bebidas y acompañantes no cuentan contra las comidas, pero tienen su
+#: propio tope, así que el pedido más grande es 4 + 4 + 4.
+MAXIMO_POR_TIPO: dict[TipoDeProducto, int] = {
+    TipoDeProducto.COMIDA: 4,
+    TipoDeProducto.BEBIDA: 4,
+    TipoDeProducto.ACOMPANANTE: 4,
+}
+
+_NOMBRE_DEL_TIPO = {
+    TipoDeProducto.COMIDA: "comidas",
+    TipoDeProducto.BEBIDA: "bebidas",
+    TipoDeProducto.ACOMPANANTE: "acompañantes",
+}
+
+
 def _hora_de_recogida(hora: str, establecimiento_id: int) -> datetime:
     """Convierte `HH:MM` en un instante de hoy, o explica por qué no se puede.
 
@@ -227,6 +258,11 @@ def crear_pedido(
     no a medias. Un pedido parcial sería peor que ninguno — el cliente pagaría
     por algo distinto de lo que pidió.
 
+    Desde la 6.0.0 hay topes (ADR-0014): 4 de un mismo producto, y 4 comidas,
+    4 bebidas y 4 acompañantes por pedido. A diferencia del correo, estos sí se
+    aplican aquí y no solo en la frontera HTTP: el tope por tipo depende del
+    catálogo, y el esquema de la petición no lo puede ver.
+
     Sin hora de recogida, el pedido se prepara de inmediato. El correo lo exige
     la API desde la 5.0.0 (`CrearPedidoRequest`, ADR-0013), y aquí sigue
     admitiendo `None` a propósito: la regla vive en la frontera HTTP, y los
@@ -245,8 +281,16 @@ def crear_pedido(
             "de añadirlo otra vez"
         )
 
+    # La API ya lo rechaza con 422 por el esquema; esto cubre a quien llame desde
+    # dentro del proceso, que no pasa por él.
+    if any(cantidad > MAXIMO_POR_PRODUCTO for _, cantidad in lineas_pedidas):
+        raise LimiteDelPedidoError(
+            f"De un mismo producto se piden como máximo {MAXIMO_POR_PRODUCTO}"
+        )
+
     lineas: list[LineaPedido] = []
     establecimiento_id: int | None = None
+    por_tipo: dict[TipoDeProducto, int] = {}
 
     for item_id, cantidad in lineas_pedidas:
         item = catalogo_service.obtener_item(item_id)
@@ -268,6 +312,9 @@ def crear_pedido(
                 "Un pedido no puede mezclar productos de dos establecimientos"
             )
 
+        if item.tipo is not None:
+            por_tipo[item.tipo] = por_tipo.get(item.tipo, 0) + cantidad
+
         lineas.append(
             LineaPedido(
                 item_id=item.item_id,
@@ -277,6 +324,16 @@ def crear_pedido(
                 total_linea_centavos=item.precio_centavos * cantidad,
             )
         )
+
+    # El tope es por tipo y no por línea: 2 asados y 2 hamburguesas son 4
+    # comidas, y uno más ya no cabe aunque cada línea por separado cupiera.
+    for tipo, cuantas in por_tipo.items():
+        maximo = MAXIMO_POR_TIPO[tipo]
+        if cuantas > maximo:
+            raise LimiteDelPedidoError(
+                f"Un pedido lleva como máximo {maximo} {_NOMBRE_DEL_TIPO[tipo]}, "
+                f"y este lleva {cuantas}"
+            )
 
     # El establecimiento se DERIVA de los ítems, y quien dice si está operando
     # es el contexto Cuentas, su único escritor (ADR-0002).
