@@ -60,9 +60,9 @@ la clase de cosa que no se quiere descubrir con el público delante.
 
 Viven en `platos/` y las pide la **base de datos**, no la hoja de estilos:
 `menu_items.imagen` guarda la ruta relativa y `app.js` la mete en un `<img>`.
-Son 40 para 44 productos: las gaseosas de sabor llevan la misma foto en sus dos
-tamaños. Solo uno sigue sin foto, la salsa de la casa, y dibuja el marcador con la
-inicial, que está diseñado para eso.
+Son 41 para 44 productos: las gaseosas de sabor llevan la misma foto en sus dos
+tamaños. Desde `016` todos tienen foto. El marcador con la inicial sigue en el
+código para el producto nuevo que llegue sin ella.
 
 ### Por qué 144 × 144
 
@@ -138,8 +138,12 @@ decidió quitarla del sitio por cómo se veía; la licencia pide darla donde se 
 la foto, así que, si el sitio deja de ser un proyecto académico, lo que
 corresponde es volver a ponerla o sustituir estas tres fotos.
 
-Lo que **no** se buscó es la salsa de la casa. Nadie sabe de qué color es, y
-cualquier foto sería inventarse la salsa.
+Lo que **no** se buscó es la salsa de la casa. Nadie sabía de qué color era, y
+cualquier foto habría sido inventarse la salsa.
+
+**La mandó el equipo el 23/11/2026**, y `016` se la puso. Llegó sobre blanco y sin
+marca de agua, así que se trató como las otras doce del equipo: se recortó el
+blanco que sobraba y se encuadró con el plato al 94 % del lado.
 
 ### Reemplazar una, aquí, es pasar por una migración
 

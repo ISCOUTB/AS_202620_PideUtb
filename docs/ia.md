@@ -876,3 +876,15 @@ siempre. La decisión está en [ADR-0014](adr/0014-topes-del-pedido-y-demora-est
 Al llegar a un tope, el «+» se apaga y una línea dice cuál. «Tu pedido» muestra el
 tiempo estimado, y al pulsar «Pagar» se pregunta si se quiere seguir. «Volver al
 pedido» no crea nada.
+
+## Uso de IA para ponerle foto a la salsa de la casa (23/11/2026)
+
+El equipo mandó la foto de la salsa de la casa, el único producto de la carta que
+seguía sin foto. Se usó un asistente de IA para incorporarla. La foto la eligió el
+equipo, que es quien sabe cómo es la salsa: lo que se rechazó antes fue buscarla sin
+saberlo.
+
+| Propuesta | Decisión | Por qué |
+|---|---|---|
+| Recortar el blanco y encuadrarla a 144 × 144, con el plato al 94 % del lado | **Aceptada** | Es el criterio de las demás miniaturas, en `sitio/fotos/LEEME.md` |
+| Ponérsela con una migración nueva, `016` | **Aceptada** | `012` ya está aplicada y no se edita, y un archivo nuevo con nombre nuevo evita que se sirva una copia vieja |
