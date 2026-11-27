@@ -838,8 +838,29 @@ function dibujarItem(item) {
     return fila;
   }
 
+  // Cuando quedan pocas se dice cuántas, con la misma etiqueta que «Agotado»:
+  // es la misma noticia un rato antes. Solo hasta cinco, porque «quedan 40» no
+  // cambia la decisión de nadie, y nulo no se anuncia: es «sin cuenta», no
+  // «sin unidades» (ADR-0015).
+  if (quedanPocas(item)) {
+    const etiqueta = document.createElement("span");
+    etiqueta.className = "etiqueta-agotado";
+    etiqueta.textContent = `Quedan ${item.unidades_hoy}`;
+    fila.append(etiqueta);
+  }
+
   fila.append(controlDeCantidad(item));
   return fila;
+}
+
+const MAXIMO_QUE_SE_ANUNCIA = 5;
+
+function quedanPocas(item) {
+  return (
+    typeof item.unidades_hoy === "number" &&
+    item.unidades_hoy > 0 &&
+    item.unidades_hoy <= MAXIMO_QUE_SE_ANUNCIA
+  );
 }
 
 /**
@@ -989,8 +1010,17 @@ function cuantasDelTipo(tipo) {
  */
 function motivoParaNoAgregar(item) {
   const enCarrito = carrito.get(item.item_id);
-  if ((enCarrito ? enCarrito.cantidad : 0) >= CONFIG.MAXIMO_POR_PRODUCTO) {
+  const cantidad = enCarrito ? enCarrito.cantidad : 0;
+  if (cantidad >= CONFIG.MAXIMO_POR_PRODUCTO) {
     return `Máximo ${CONFIG.MAXIMO_POR_PRODUCTO} de cada producto`;
+  }
+
+  // Lo que queda hoy también es un tope, y es el único que no viene de
+  // `config.js`: lo fija el mostrador y llega con la carta (ADR-0015). Si la
+  // carta ya está vieja y alguien se pasa igual, el 409 de `crearPedido` trae
+  // este mismo mensaje desde la API.
+  if (typeof item.unidades_hoy === "number" && cantidad >= item.unidades_hoy) {
+    return `Solo quedan ${item.unidades_hoy}`;
   }
 
   const maximo = item.tipo ? CONFIG.MAXIMO_POR_TIPO[item.tipo] : undefined;
@@ -1026,12 +1056,21 @@ function dibujarNotaDeTopes() {
   const algunProductoAlTope = [...carrito.values()].some(
     (linea) => linea.cantidad >= CONFIG.MAXIMO_POR_PRODUCTO
   );
+  // El producto del carrito que ya se llevó todo lo que quedaba hoy, si hay
+  // alguno: su «+» está apagado por otro motivo que los topes, y hay que decirlo.
+  const sinMasUnidades = [...carrito.values()].find(
+    (linea) =>
+      typeof linea.item.unidades_hoy === "number" &&
+      linea.cantidad >= linea.item.unidades_hoy
+  );
 
   let texto = "";
   if (alcanzados.length > 0) {
     texto = `Llegaste al máximo de ${alcanzados.join(", ")} por pedido.`;
   } else if (algunProductoAlTope) {
     texto = `De cada producto se piden como máximo ${CONFIG.MAXIMO_POR_PRODUCTO}.`;
+  } else if (sinMasUnidades) {
+    texto = `Solo quedan ${sinMasUnidades.item.unidades_hoy} de ${sinMasUnidades.item.nombre}.`;
   }
 
   for (const nota of document.querySelectorAll(".nota-topes")) {

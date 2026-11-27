@@ -85,6 +85,11 @@ operaciones:
       # Desde la 6.0.0: comida, bebida o acompañante, para apagar el «+» al
       # llegar al tope de cada tipo antes de que la API lo rechace.
       - items[].tipo
+      # Desde la 6.1.0: cuántas quedan hoy, o `null` si el producto no lleva
+      # cuenta (ADR-0015). El sitio pinta «Quedan N» cuando son pocas y apaga el
+      # «+» al llegar a ese número; si llega tarde, el 409 de `crearPedido` ya
+      # trae el mensaje.
+      - items[].unidades_hoy
       - hora_apertura
       - hora_cierre
     codigos_manejados: ["200", "404"]
@@ -213,6 +218,20 @@ operaciones:
     # transición no corresponde, o el código de canje no coincide. En los dos
     # casos la acción es refrescar la cola y leer el mensaje, no reintentar.
     codigos_manejados: ["200", "401", "403", "404", "409", "422"]
+
+  fijarInventarioDelDia:
+    proposito: >
+      Escribir cuántas unidades hay hoy de cada producto, para que la carta no
+      deje pagar lo que no hay (ADR-0015). Es nueva en la 6.1.0. El panel manda
+      el número que el mostrador cuenta en la vitrina, o `null` para dejar de
+      contar ese producto, y pinta lo que la API devuelve.
+    campos_enviados: [unidades_hoy]
+    campos_leidos: [item_id, unidades_hoy, disponible]
+    # El `404` también llega cuando el ítem es de otro establecimiento: la API
+    # no confirma que exista. El panel lo trata como «ya no está en tu carta» y
+    # vuelve a pedirla. El `422` es un número fuera de rango, que el formulario
+    # ya impide.
+    codigos_manejados: ["200", "401", "403", "404", "422"]
 
 # Valores de `EstadoPedido` que este consumidor sabe interpretar, con lo que
 # hace ante cada uno. La lista debe ser EXHAUSTIVA respecto del enum del

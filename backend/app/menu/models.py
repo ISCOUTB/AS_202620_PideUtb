@@ -63,3 +63,11 @@ class ItemMenu(BaseModel):
     #: combo agotado a las 2:45 no está disponible aunque la franja esté
     #: abierta.
     solo_en_promocion: bool = False
+
+    # --- Inventario del día (ADR-0015) ---------------------------------------
+
+    #: Unidades que quedan hoy. **Nulo = sin control de inventario**, que es el
+    #: comportamiento de siempre: se vende sin descontar nada. Cero sí significa
+    #: algo —se agotó— y por eso no se usa cero para los dos casos. Lo fija el
+    #: mostrador cada mañana y lo descuenta cada pedido que se crea.
+    unidades_hoy: int | None = Field(default=None, ge=0)

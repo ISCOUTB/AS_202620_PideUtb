@@ -192,7 +192,7 @@ Con el entorno virtual ya activado (ver paso anterior):
 pytest
 ```
 
-**762 pruebas**, agrupadas por lo que protegen:
+**793 pruebas**, agrupadas por lo que protegen:
 
 | Archivo | Qué protege |
 |---|---|
@@ -220,6 +220,7 @@ pytest
 | `tests/test_avisos_push.py` | Quién puede pedir el aviso, a qué servicios se escribe y que salga una sola vez |
 | `tests/test_carta_y_pwa.py` | Los sugeridos, las gaseosas, las descripciones y que el Service Worker no se interponga |
 | `tests/test_topes_del_pedido.py` | Los topes del pedido: 4 por producto y 4 comidas, 4 bebidas y 4 acompañantes; que cada categoría de la carta real tenga tipo, y que el sitio use los mismos topes (ADR-0014) |
+| `tests/test_inventario_diario.py` | El inventario del día: que un pedido descuente lo que reserva y lo devuelva al cancelar, que un carrito que no alcanza no descuente nada, que dos pedidos a la vez por la última unidad no la vendan dos veces, y quién puede fijar el conteo (ADR-0015) |
 | `tests/test_medicion_esc03.py` | Que el guion que mide ESC-03 siga hablando el contrato vigente, aunque no corra en CI |
 
 Las tres primeras en negrita son las **pruebas de contrato**, y llevan **20 casos negativos**
@@ -229,7 +230,7 @@ ponerse en rojo no demuestra nada. Cómo reproducir un fallo:
 
 ### El recorrido con navegador
 
-Las 762 pruebas de arriba montan la aplicación en memoria. Ninguna toca un
+Las 793 pruebas de arriba montan la aplicación en memoria. Ninguna toca un
 botón, así que ninguna puede ver si el botón está donde se alcanza con el pulgar
 o si el carrito se vacía al pagar. Para eso está `e2e/`:
 

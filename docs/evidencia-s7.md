@@ -36,18 +36,18 @@ efectiva es `prefix` del router más el path del decorador.
 
 | Path en `openapi.yaml` | Prefijo del router | Path del decorador | Ruta resultante |
 |---|---|---|---|
-| `/health` · L89 | — | `main.py:139-140` `@app.get("/health")` | `/health` ✔ |
-| `/metricas` · L122 | — | `main.py:180-181` `@app.get("/metricas")` | `/metricas` ✔ |
-| `/v1/menu/items/{item_id}` · L148 | `menu/router.py:20` `/v1/menu` | `:23-24` `"/items/{item_id}"` | ✔ |
-| `/v1/menu/establecimientos/{establecimiento_id}/items` · L172 | `menu/router.py:20` `/v1/menu` | `:35-36` `"/establecimientos/{establecimiento_id}/items"` | ✔ |
-| `/v1/sesiones` (POST) · L206 — *2.0.0* | `usuarios/router.py:16` `/v1/sesiones` | `:19-20` `""` | ✔ |
-| `/v1/sesiones` (DELETE) · L206 — *2.0.0* | `usuarios/router.py:16` `/v1/sesiones` | `:45-46` `""` | ✔ |
-| `/v1/pedidos` (POST) · L266 | `pedidos/router.py:24` `/v1/pedidos` | `:27-28` `""` | ✔ |
-| `/v1/pedidos` (GET) · L266 | `pedidos/router.py:24` `/v1/pedidos` | `:135-136` `""` | ✔ |
-| `/v1/pedidos/{pedido_id}/estado` · L373 | `pedidos/router.py:24` `/v1/pedidos` | `:178-179` `"/{pedido_id}/estado"` | ✔ |
-| `/v1/pedidos/{pedido_id}` · L515 | `pedidos/router.py:24` `/v1/pedidos` | `:66-67` `"/{pedido_id}"` | ✔ |
-| `/v1/pagos/intentos` · L552 | `pagos/router.py:21` `/v1/pagos` | `:24-25` `"/intentos"` | ✔ |
-| `/v1/pagos/eventos` · L628 | `pagos/router.py:21` `/v1/pagos` | `:63-64` `"/eventos"` | ✔ |
+| `/health` · L92 | — | `main.py:139-140` `@app.get("/health")` | `/health` ✔ |
+| `/metricas` · L125 | — | `main.py:180-181` `@app.get("/metricas")` | `/metricas` ✔ |
+| `/v1/menu/items/{item_id}` · L151 | `menu/router.py:26` `/v1/menu` | `:29-30` `"/items/{item_id}"` | ✔ |
+| `/v1/menu/establecimientos/{establecimiento_id}/items` · L239 | `menu/router.py:26` `/v1/menu` | `:41-42` `"/establecimientos/{establecimiento_id}/items"` | ✔ |
+| `/v1/sesiones` (POST) · L273 — *2.0.0* | `usuarios/router.py:16` `/v1/sesiones` | `:19-20` `""` | ✔ |
+| `/v1/sesiones` (DELETE) · L273 — *2.0.0* | `usuarios/router.py:16` `/v1/sesiones` | `:45-46` `""` | ✔ |
+| `/v1/pedidos` (POST) · L333 | `pedidos/router.py:24` `/v1/pedidos` | `:27-28` `""` | ✔ |
+| `/v1/pedidos` (GET) · L333 | `pedidos/router.py:24` `/v1/pedidos` | `:135-136` `""` | ✔ |
+| `/v1/pedidos/{pedido_id}/estado` · L440 | `pedidos/router.py:24` `/v1/pedidos` | `:178-179` `"/{pedido_id}/estado"` | ✔ |
+| `/v1/pedidos/{pedido_id}` · L582 | `pedidos/router.py:24` `/v1/pedidos` | `:66-67` `"/{pedido_id}"` | ✔ |
+| `/v1/pagos/intentos` · L619 | `pagos/router.py:21` `/v1/pagos` | `:24-25` `"/intentos"` | ✔ |
+| `/v1/pagos/eventos` · L695 | `pagos/router.py:21` `/v1/pagos` | `:63-64` `"/eventos"` | ✔ |
 
 **10 paths declarados, 12 operaciones implementadas, ninguna de más.**
 `/v1/pedidos` y `/v1/sesiones` aparecen dos veces cada uno porque tienen dos
