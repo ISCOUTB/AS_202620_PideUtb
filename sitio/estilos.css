@@ -1588,9 +1588,7 @@ button.secundario {
 /* --- La cola ------------------------------------------------------------
    Cada pedido es una tarjeta, igual que en la carta: el mostrador y el cliente
    miran el mismo objeto y conviene que se parezca. Lo que cambia es que acá
-   las líneas se envuelven, porque un pedido trae productos y botones. */
-
-.pedido { flex-wrap: wrap; gap: var(--e3) var(--e4); }
+   la tarjeta se pone de pie: la regla está más abajo, en «El tablero». */
 
 /* El código con el que se entregó un pedido. Monoespaciado y espaciado como el
    billete del cliente, pero pequeño y gris: es un registro, no una llave. */
@@ -1771,6 +1769,7 @@ input.codigo-canje {
    columna de 400 px la fila con los botones al lado no cabía. */
 .pedido {
   flex-direction: column;
+  flex-wrap: wrap;
   align-items: stretch;
   gap: var(--e3);
   padding: var(--e4);

@@ -665,7 +665,7 @@ const FORMA_DEL_QR = /^pideutb:(\d{1,9}):([A-Z0-9]{6})$/;
 
 const hayLectorDeCodigos =
   typeof BarcodeDetector === "function" &&
-  Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  typeof navigator.mediaDevices?.getUserMedia === "function";
 
 /** Lo que dice un QR nuestro, o `null` si es cualquier otra cosa. */
 function interpretarQR(texto) {
@@ -711,7 +711,9 @@ function escanearQR() {
     estado.textContent = "Abriendo la cámara…";
     dialogo.showModal();
 
-    (async () => {
+    // Lo que sigue es asíncrono y la promesa de fuera ya está devuelta: se
+    // lanza con `lanzar`, para que un fallo inesperado se vea y no se pierda.
+    lanzar((async () => {
       try {
         // La trasera si la hay: en una tablet es la que apunta al cliente.
         flujo = await navigator.mediaDevices.getUserMedia({
@@ -755,7 +757,7 @@ function escanearQR() {
           leyendo = false;
         }
       }, 200);
-    })();
+    })());
   });
 }
 

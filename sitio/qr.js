@@ -1,6 +1,6 @@
 // El código QR del billete, dibujado en el navegador y sin dependencias.
 //
-// Es el mismo algoritmo que `backend/scripts/generar_qr.py`, línea por línea:
+// Es el mismo algoritmo que `backend/scripts/generar_qr.py`, paso por paso:
 // modo byte, nivel de corrección Q, versiones 1 a 6. Está duplicado a propósito
 // y no servido por la API: el código de recogida ya está en el teléfono, y
 // pedirle al servidor una imagen de un dato que la pantalla ya tiene sería una
@@ -41,6 +41,8 @@ const QR = (() => {
   const ALINEACION = { 1: [], 2: [6, 18], 3: [6, 22], 4: [6, 26], 5: [6, 30], 6: [6, 34] };
 
   const NIVEL_Q = 0b11;
+
+  const datosDe = (grupos) => grupos.reduce((suma, [bloques, cw]) => suma + bloques * cw, 0);
 
   // --- GF(256) ---------------------------------------------------------------
 
@@ -90,17 +92,14 @@ const QR = (() => {
 
   function versionPara(bytes) {
     for (const version of Object.keys(BLOQUES_Q).map(Number).sort((a, b) => a - b)) {
-      const [, grupos] = BLOQUES_Q[version];
-      const datosCw = grupos.reduce((suma, [bloques, cw]) => suma + bloques * cw, 0);
+      const datosCw = datosDe(BLOQUES_Q[version][1]);
       if (bytes.length <= Math.floor((datosCw * 8 - 12) / 8)) return version;
     }
     throw new Error(`${bytes.length} caracteres no caben en un QR de nivel Q hasta la versión 6`);
   }
 
-  function codificar(bytes, version) {
-    const [ecPorBloque, grupos] = BLOQUES_Q[version];
-    const datosCw = grupos.reduce((suma, [bloques, cw]) => suma + bloques * cw, 0);
-
+  /** Modo byte, con su terminador y su relleno, ya partido en codewords. */
+  function aCodewords(bytes, datosCw) {
     const bits = [];
     const meter = (valor, cuantos) => {
       for (let i = cuantos - 1; i >= 0; i--) bits.push((valor >> i) & 1);
@@ -114,13 +113,21 @@ const QR = (() => {
     while (bits.length % 8) bits.push(0);
 
     const relleno = [0xec, 0x11];
-    for (let i = 0; bits.length < datosCw * 8; i++) meter(relleno[i % 2], 8);
+    let vuelta = 0;
+    while (bits.length < datosCw * 8) {
+      meter(relleno[vuelta % 2], 8);
+      vuelta += 1;
+    }
 
     const codewords = [];
     for (let i = 0; i < bits.length; i += 8) {
-      codewords.push(parseInt(bits.slice(i, i + 8).join(""), 2));
+      codewords.push(Number.parseInt(bits.slice(i, i + 8).join(""), 2));
     }
+    return codewords;
+  }
 
+  /** Reparto en bloques con su corrección, y el entrelazado final. */
+  function entrelazar(codewords, grupos, ecPorBloque) {
     const bloquesDatos = [];
     const bloquesEc = [];
     let desde = 0;
@@ -133,6 +140,8 @@ const QR = (() => {
       }
     }
 
+    // Un codeword de cada bloque por vuelta: una mancha sobre el código
+    // reparte el daño entre bloques en vez de destruir uno entero.
     const salida = [];
     const masLargo = Math.max(...bloquesDatos.map((b) => b.length));
     for (let i = 0; i < masLargo; i++) {
@@ -144,58 +153,64 @@ const QR = (() => {
     return salida;
   }
 
+  function codificar(bytes, version) {
+    const [ecPorBloque, grupos] = BLOQUES_Q[version];
+    return entrelazar(aCodewords(bytes, datosDe(grupos)), grupos, ecPorBloque);
+  }
+
   // --- De codewords a matriz ------------------------------------------------
 
-  function matrizVacia(version) {
-    const lado = 17 + 4 * version;
-    const m = Array.from({ length: lado }, () => new Array(lado).fill(null));
-    const reservado = Array.from({ length: lado }, () => new Array(lado).fill(false));
-
-    const buscador = (fila, columna) => {
-      for (let i = -1; i < 8; i++) {
-        for (let j = -1; j < 8; j++) {
-          const f = fila + i;
-          const c = columna + j;
-          if (f < 0 || f >= lado || c < 0 || c >= lado) continue;
-          const borde = (i === 0 || i === 6) && j >= 0 && j <= 6;
-          const costado = (j === 0 || j === 6) && i >= 0 && i <= 6;
-          const centro = i >= 2 && i <= 4 && j >= 2 && j <= 4;
-          m[f][c] = borde || costado || centro ? 1 : 0;
-          reservado[f][c] = true;
-        }
+  function ponerBuscador(m, reservado, fila, columna) {
+    const lado = m.length;
+    for (let i = -1; i < 8; i++) {
+      for (let j = -1; j < 8; j++) {
+        const f = fila + i;
+        const c = columna + j;
+        if (f < 0 || f >= lado || c < 0 || c >= lado) continue;
+        const borde = (i === 0 || i === 6) && j >= 0 && j <= 6;
+        const costado = (j === 0 || j === 6) && i >= 0 && i <= 6;
+        const centro = i >= 2 && i <= 4 && j >= 2 && j <= 4;
+        m[f][c] = borde || costado || centro ? 1 : 0;
+        reservado[f][c] = true;
       }
-    };
-    buscador(0, 0);
-    buscador(0, lado - 7);
-    buscador(lado - 7, 0);
+    }
+  }
 
+  function ponerAlineacion(m, reservado, version) {
+    const lado = m.length;
     const centros = ALINEACION[version];
+    const chocaConBuscador = (fila, columna) =>
+      (fila === 6 && columna === 6) ||
+      (fila === 6 && columna === lado - 7) ||
+      (fila === lado - 7 && columna === 6);
+
     for (const fila of centros) {
       for (const columna of centros) {
-        if (
-          (fila === 6 && columna === 6) ||
-          (fila === 6 && columna === lado - 7) ||
-          (fila === lado - 7 && columna === 6)
-        ) continue;
+        if (chocaConBuscador(fila, columna)) continue;
         for (let i = -2; i <= 2; i++) {
           for (let j = -2; j <= 2; j++) {
             const anillo = Math.max(Math.abs(i), Math.abs(j));
-            m[fila + i][columna + j] = anillo !== 1 ? 1 : 0;
+            m[fila + i][columna + j] = anillo === 1 ? 0 : 1;
             reservado[fila + i][columna + j] = true;
           }
         }
       }
     }
+  }
 
+  function ponerSincronizacionYFormato(m, reservado) {
+    const lado = m.length;
     for (let i = 8; i < lado - 8; i++) {
       const valor = i % 2 === 0 ? 1 : 0;
       if (!reservado[6][i]) { m[6][i] = valor; reservado[6][i] = true; }
       if (!reservado[i][6]) { m[i][6] = valor; reservado[i][6] = true; }
     }
 
+    // El módulo que siempre vale 1.
     m[lado - 8][8] = 1;
     reservado[lado - 8][8] = true;
 
+    // Y el espacio de la cadena de formato, que se rellena al final.
     for (let i = 0; i < 9; i++) {
       reservado[8][i] = true;
       reservado[i][8] = true;
@@ -204,29 +219,44 @@ const QR = (() => {
       reservado[8][lado - 1 - i] = true;
       reservado[lado - 1 - i][8] = true;
     }
+  }
+
+  /** La matriz con los patrones fijos puestos, y qué celdas quedan libres. */
+  function matrizVacia(version) {
+    const lado = 17 + 4 * version;
+    const m = Array.from({ length: lado }, () => new Array(lado).fill(null));
+    const reservado = Array.from({ length: lado }, () => new Array(lado).fill(false));
+
+    ponerBuscador(m, reservado, 0, 0);
+    ponerBuscador(m, reservado, 0, lado - 7);
+    ponerBuscador(m, reservado, lado - 7, 0);
+    ponerAlineacion(m, reservado, version);
+    ponerSincronizacionYFormato(m, reservado);
 
     return [m, reservado];
   }
 
+  /** Zigzag de dos columnas desde abajo a la derecha. */
   function colocar(m, reservado, codewords) {
     const lado = m.length;
     const bits = [];
     for (const cw of codewords) for (let i = 7; i >= 0; i--) bits.push((cw >> i) & 1);
     let siguiente = 0;
-    let columna = lado - 1;
+
+    const escribir = (fila, c) => {
+      if (reservado[fila][c]) return;
+      m[fila][c] = siguiente < bits.length ? bits[siguiente] : 0;
+      siguiente += 1;
+    };
+
     let arriba = true;
-    while (columna > 0) {
-      if (columna === 6) columna -= 1;
+    for (let columna = lado - 1; columna > 0; columna -= 2) {
+      if (columna === 6) columna -= 1;   // la línea de sincronización no cuenta como columna
       for (let paso = 0; paso < lado; paso++) {
         const fila = arriba ? lado - 1 - paso : paso;
-        for (const desplazamiento of [0, 1]) {
-          const c = columna - desplazamiento;
-          if (reservado[fila][c]) continue;
-          m[fila][c] = siguiente < bits.length ? bits[siguiente] : 0;
-          siguiente += 1;
-        }
+        escribir(fila, columna);
+        escribir(fila, columna - 1);
       }
-      columna -= 2;
       arriba = !arriba;
     }
   }
@@ -242,53 +272,78 @@ const QR = (() => {
     (f, c) => (((f + c) % 2) + ((f * c) % 3)) % 2 === 0,
   ];
 
-  function penalizacion(m) {
-    const lado = m.length;
-    let total = 0;
-    const columnas = m[0].map((_, c) => m.map((fila) => fila[c]));
+  // Las cuatro reglas del estándar, que miden lo difícil que será de leer.
 
-    for (const lineas of [m, columnas]) {
-      for (const linea of lineas) {
-        let racha = 1;
-        let anterior = linea[0];
-        for (const valor of linea.slice(1)) {
-          if (valor === anterior) {
-            racha += 1;
-          } else {
-            if (racha >= 5) total += 3 + (racha - 5);
-            racha = 1;
-            anterior = valor;
-          }
+  /** 1: rachas de cinco o más del mismo color. */
+  function penalizarRachas(lineas) {
+    let total = 0;
+    for (const linea of lineas) {
+      let racha = 0;
+      let anterior = null;
+      for (const valor of linea) {
+        if (valor === anterior) {
+          racha += 1;
+          continue;
         }
         if (racha >= 5) total += 3 + (racha - 5);
+        racha = 1;
+        anterior = valor;
       }
+      if (racha >= 5) total += 3 + (racha - 5);
     }
-
-    for (let f = 0; f < lado - 1; f++) {
-      for (let c = 0; c < lado - 1; c++) {
-        if (m[f][c] === m[f][c + 1] && m[f][c] === m[f + 1][c] && m[f][c] === m[f + 1][c + 1]) total += 3;
-      }
-    }
-
-    const patrones = ["10111010000", "00001011101"];
-    for (const lineas of [m, columnas]) {
-      for (const linea of lineas) {
-        const texto = linea.join("");
-        for (let i = 0; i < lado - 10; i++) {
-          if (patrones.includes(texto.slice(i, i + 11))) total += 40;
-        }
-      }
-    }
-
-    const oscuros = m.reduce((suma, fila) => suma + fila.reduce((s, v) => s + v, 0), 0);
-    const porcentaje = Math.floor((oscuros * 100) / (lado * lado));
-    total += 10 * Math.min(
-      Math.floor(Math.abs(porcentaje - 50) / 5),
-      Math.floor(Math.abs(porcentaje - 50 + 4) / 5)
-    );
     return total;
   }
 
+  /** 2: bloques de 2×2 del mismo color. */
+  function penalizarBloques(m) {
+    const lado = m.length;
+    let total = 0;
+    for (let f = 0; f < lado - 1; f++) {
+      for (let c = 0; c < lado - 1; c++) {
+        const v = m[f][c];
+        if (v === m[f][c + 1] && v === m[f + 1][c] && v === m[f + 1][c + 1]) total += 3;
+      }
+    }
+    return total;
+  }
+
+  /** 3: el patrón que se confunde con un buscador. */
+  const PATRONES_DE_BUSCADOR = new Set(["10111010000", "00001011101"]);
+
+  function penalizarBuscadoresFalsos(lineas) {
+    let total = 0;
+    for (const linea of lineas) {
+      const texto = linea.join("");
+      for (let i = 0; i + 11 <= texto.length; i++) {
+        if (PATRONES_DE_BUSCADOR.has(texto.slice(i, i + 11))) total += 40;
+      }
+    }
+    return total;
+  }
+
+  /** 4: desequilibrio entre claros y oscuros. */
+  function penalizarDesequilibrio(m) {
+    const lado = m.length;
+    const oscuros = m.reduce((suma, fila) => suma + fila.reduce((s, v) => s + v, 0), 0);
+    const porcentaje = Math.floor((oscuros * 100) / (lado * lado));
+    return 10 * Math.min(
+      Math.floor(Math.abs(porcentaje - 50) / 5),
+      Math.floor(Math.abs(porcentaje - 50 + 4) / 5)
+    );
+  }
+
+  function penalizacion(m) {
+    const columnas = m[0].map((_, c) => m.map((fila) => fila[c]));
+    const lineas = m.concat(columnas);
+    return (
+      penalizarRachas(lineas) +
+      penalizarBloques(m) +
+      penalizarBuscadoresFalsos(lineas) +
+      penalizarDesequilibrio(m)
+    );
+  }
+
+  /** BCH(15,5) de los cinco bits de formato, con su XOR final. */
   function formato(mascara) {
     const datos = (NIVEL_Q << 3) | mascara;
     let resto = datos << 10;
@@ -321,15 +376,18 @@ const QR = (() => {
     const [m, reservado] = matrizVacia(version);
     colocar(m, reservado, codewords);
 
+    // Se prueban las ocho máscaras y gana la de menor penalización. No es
+    // opcional: el estándar lo exige, y una máscara mala produce un código que
+    // algunos lectores no enfocan.
     let mejor = null;
-    let mejorPuntos = null;
+    let mejorPuntos = Infinity;
     MASCARAS.forEach((mascara, indice) => {
       const intento = m.map((fila, f) =>
         fila.map((celda, c) => (!reservado[f][c] && mascara(f, c) ? celda ^ 1 : celda))
       );
       escribirFormato(intento, indice);
       const puntos = penalizacion(intento);
-      if (mejorPuntos === null || puntos < mejorPuntos) {
+      if (puntos < mejorPuntos) {
         mejor = intento;
         mejorPuntos = puntos;
       }
@@ -362,17 +420,18 @@ const QR = (() => {
     fondo.setAttribute("fill", "#ffffff");
     svg.appendChild(fondo);
 
+    // Un rectángulo por racha horizontal de módulos oscuros, no uno por módulo.
     const trazo = [];
     matriz.forEach((fila, f) => {
       let c = 0;
       while (c < lado) {
-        if (fila[c]) {
-          const inicio = c;
-          while (c < lado && fila[c]) c += 1;
-          trazo.push(`M${inicio + margen} ${f + margen}h${c - inicio}v1h-${c - inicio}z`);
-        } else {
+        if (!fila[c]) {
           c += 1;
+          continue;
         }
+        const inicio = c;
+        while (c < lado && fila[c]) c += 1;
+        trazo.push(`M${inicio + margen} ${f + margen}h${c - inicio}v1h-${c - inicio}z`);
       }
     });
     const modulos = document.createElementNS(ns, "path");
