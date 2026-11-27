@@ -17,7 +17,7 @@ C4Container
     Person(admin, "Administrador")
 
     System_Boundary(pideutb, "PideUTB") {
-        Container(frontend, "Frontend Web", "HTML, CSS, JavaScript", "Interfaz web consumida por los tres roles: consulta de menú, pedidos, gestión de estados.")
+        Container(frontend, "Frontend Web", "HTML, CSS, JavaScript", "Interfaz web consumida por los tres roles: consulta de menú, pedidos, tablero del mostrador. Dibuja el QR del código y lo lee con la cámara (BarcodeDetector), sin bibliotecas.")
         Container(api, "API PideUTB", "FastAPI (Python) — monolito modular", "Expone /v1 según docs/api/openapi.yaml. Cuatro módulos de dominio que solo se comunican por funciones públicas de servicio (ADR-0001).")
         ContainerDb(db, "Base de datos", "PostgreSQL 16 · contenedor con volumen", "Pedidos, intentos de pago, carta, cuentas y sesiones. No publica puertos: solo la alcanza la API por la red interna del equipo.")
     }
@@ -27,7 +27,7 @@ C4Container
     System_Ext(push, "Servicios de push", "De Google, Apple, Mozilla y Microsoft: despiertan al teléfono.")
 
     Rel(usuario, frontend, "Consulta menús, pide, paga y recoge", "HTTPS · HTML/JSON · síncrono")
-    Rel(establecimiento, frontend, "Gestiona productos y estados de pedido", "HTTPS · HTML/JSON · síncrono")
+    Rel(establecimiento, frontend, "Fija el inventario del día, mueve los pedidos por el tablero y entrega tecleando o escaneando el QR", "HTTPS · HTML/JSON · síncrono")
     Rel(admin, frontend, "Administra la plataforma", "HTTPS · HTML/JSON · síncrono")
 
     Rel(frontend, api, "Consume la API v1", "HTTPS · JSON (REST) · síncrono")

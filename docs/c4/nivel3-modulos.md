@@ -45,6 +45,7 @@ graph TD
     PANEL["Panel del establecimiento<br/><i>suscriptor previsto</i>"]
 
     P -->|"SÍNCRONO en proceso<br/>menu.service.obtener_item() → ItemDisponible"| M
+    P -->|"SÍNCRONO en proceso<br/>menu.service.reservar_unidades() / liberar_unidades()<br/><i>ADR-0015</i>"| M
     P -->|"SÍNCRONO en proceso<br/>usuarios.service.establecimiento_esta_activo()"| U
     PG -->|"SÍNCRONO en proceso<br/>pedidos.service.confirmar_pago() → PedidoPublicado"| P
     P -->|"ASÍNCRONO · publica pedido.pagado"| BUS
@@ -61,6 +62,14 @@ Pedidos y no al revés, porque el dato que cambia —el estado del pedido y su
 código de canje— pertenece a Pedidos. Si Pagos escribiera el pedido
 directamente habría dos escritores del mismo dato, que es exactamente la
 violación que ADR-0002 cerró.
+
+**Y nótese que `pedidos` tampoco escribe el inventario.** Desde la S17 cada
+producto puede tener un conteo de unidades del día
+([ADR-0015](../adr/0015-inventario-diario-por-producto.md)). Lo fija el mostrador
+por HTTP contra `menu.router`, y lo descuenta y lo devuelve `pedidos` **pidiéndoselo**
+a `menu.service` —`reservar_unidades` al crear el pedido, `liberar_unidades` al
+cancelarlo—. La columna vive en `menu_items`, y la escribe solo Catálogo: es la
+misma flecha que `obtener_item`, en la misma dirección y por la misma razón.
 
 **Y nótese que el bus no devuelve nada.** El publicador no sabe si hay
 suscriptores ni si tuvieron éxito: es la propiedad que distingue publicar un
