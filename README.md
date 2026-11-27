@@ -192,7 +192,7 @@ Con el entorno virtual ya activado (ver paso anterior):
 pytest
 ```
 
-**793 pruebas**, agrupadas por lo que protegen:
+**800 pruebas**, agrupadas por lo que protegen:
 
 | Archivo | Qué protege |
 |---|---|
@@ -212,9 +212,10 @@ pytest
 | `tests/test_promociones.py` | La franja de 2:30 a 3:30, en sus bordes y contra los dos productos reales |
 | `tests/test_migraciones.py` | Que una migración aplicada no se pueda editar: el contenedor entraría en bucle de reinicio |
 | `tests/test_contraste.py` | Que cada color siga siendo legible sobre la superficie donde cae, **y que los números de la hoja y de la guía de diseño sean esos números** |
-| `tests/test_qr.py` | Que el QR de la charla se pueda leer: tabla de formato del estándar, ida y vuelta, y Reed-Solomon |
+| `tests/test_qr.py` | Que el QR de la charla se pueda leer: tabla de formato del estándar, ida y vuelta, y Reed-Solomon; y que `sitio/qr.js`, el del billete, dibuje la misma matriz que el de Python (ADR-0016) |
 | `tests/test_demo.py` | Que el reinicio de la demo no exista salvo donde alguien lo haya encendido |
 | `tests/test_panel_mostrador.py` | La cola del mostrador y el canje con código |
+| `tests/test_metodos_http.py` | Que nada que cambie el sistema entre por `GET`: toda ruta `GET` es una lectura declarada, y el sitio no pide por `GET` nada que escriba |
 | `tests/test_recogida_programada.py` | Que la hora de recogida sea opcional, futura y dentro del horario |
 | `tests/test_comprobante.py` | Qué dice el correo, cuándo sale, y que un fallo suyo nunca toque el pedido |
 | `tests/test_avisos_push.py` | Quién puede pedir el aviso, a qué servicios se escribe y que salga una sola vez |
@@ -230,7 +231,7 @@ ponerse en rojo no demuestra nada. Cómo reproducir un fallo:
 
 ### El recorrido con navegador
 
-Las 793 pruebas de arriba montan la aplicación en memoria. Ninguna toca un
+Las 800 pruebas de arriba montan la aplicación en memoria. Ninguna toca un
 botón, así que ninguna puede ver si el botón está donde se alcanza con el pulgar
 o si el carrito se vacía al pagar. Para eso está `e2e/`:
 
