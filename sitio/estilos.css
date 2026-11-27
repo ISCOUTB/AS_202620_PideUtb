@@ -1876,6 +1876,52 @@ input.codigo-canje {
   color: var(--carbon);
 }
 
+/* --- El inventario del día (ADR-0015) ------------------------------------
+   Una fila por producto: el nombre, el conteo en un campo corto y «Guardar».
+   El campo es corto a propósito —tres cifras— y el botón existe para que un
+   número a medio escribir no salga solo hacia la API. */
+
+.inventario .nota { margin: 0 0 var(--e3); }
+
+.inventario-fila {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  flex-wrap: wrap;
+}
+
+.inventario-fila .item-datos { flex: 1 1 12rem; }
+
+.inventario-fila .campo { flex-direction: row; align-items: center; gap: var(--e2); }
+
+.inventario-fila input {
+  font: inherit;
+  width: 5.5rem;
+  min-height: 44px;
+  padding: var(--e2) var(--e3);
+  text-align: center;
+  color: var(--carbon);
+  background: var(--papel);
+  border: 1.5px solid var(--linea-fuerte);
+  border-radius: var(--radio-chico);
+}
+
+.inventario-fila input:focus {
+  outline: none;
+  border-color: var(--azul);
+  box-shadow: var(--foco);
+}
+
+.inventario-fila button {
+  width: auto;
+  min-height: 44px;
+  margin-top: 0;
+  padding: var(--e2) var(--e4);
+}
+
+/* Lo que queda hoy, junto al nombre: la misma pastilla que la carta enseña. */
+.inventario-fila .etiqueta-agotado { margin-top: 0; margin-left: var(--e2); }
+
 /* --- La cámara (ADR-0016) ------------------------------------------------- */
 
 #dialogo-camara { max-width: 22rem; }
