@@ -14,7 +14,7 @@ openapi: 3.1.0
 
 info:
   title: PideUTB API
-  version: 6.0.0
+  version: 6.1.0
   summary: Pedidos de comida dentro del campus universitario.
   description: |
     Superficie **síncrona** de PideUTB: consulta de menú, creación y consulta
@@ -68,7 +68,10 @@ tags:
       de `/v1`**: existen para que la plataforma de despliegue compruebe si el
       proceso está vivo, y pueden cambiar sin bump de versión mayor.
   - name: menu
-    description: Contexto Catálogo — consulta de ítems por establecimiento.
+    description: |
+      Contexto Catálogo — consulta de ítems por establecimiento y, desde la
+      6.1.0, el conteo del día que fija el mostrador
+      ([ADR-0015](../adr/0015-inventario-diario-por-producto.md)).
   - name: pedidos
     description: Contexto Pedidos — creación y consulta de pedidos.
   - name: pagos
@@ -164,6 +167,70 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ItemMenu"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "422":
+          $ref: "#/components/responses/ErrorDeValidacion"
+
+  /v1/menu/items/{item_id}/inventario:
+    post:
+      operationId: fijarInventarioDelDia
+      security:
+        - SesionDeMostrador: []
+      tags: [menu]
+      summary: Fija cuántas unidades hay hoy de un ítem del establecimiento de la sesión.
+      description: |
+        El mostrador cuenta lo que tiene en la vitrina y lo escribe aquí. A
+        partir de ese momento cada pedido descuenta sus unidades al crearse y
+        las devuelve si se cancela; cuando el conteo llega a cero el ítem se
+        publica con `disponible: false`. Nuevo en la 6.1.0
+        ([ADR-0015](../adr/0015-inventario-diario-por-producto.md)).
+
+        `unidades_hoy: null` **apaga** el control del producto, que vuelve a
+        venderse sin descontar nada, como se vendían todos antes de esta
+        versión. El número se escribe **tal cual**, no se suma a lo que había:
+        es también la forma de corregir una reserva que quedó retenida en un
+        pedido que nadie pagó, porque esas no caducan.
+
+        Es un sub-recurso con nombre y no un `PATCH` sobre el ítem, por
+        coherencia con `/estado` en Pedidos: `PATCH` sugeriría que el precio o
+        el nombre también se pueden cambiar desde el mostrador, y lo único que
+        puede tocar es el conteo del día. La forma de la ruta dice qué está
+        permitido.
+
+        **El establecimiento sale de la sesión, no de la petición.** Un ítem de
+        otro establecimiento responde `404` y no `403`: confirmar que existe
+        permitiría recorrer la carta ajena probando identificadores.
+      parameters:
+        - $ref: "#/components/parameters/ItemId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InventarioDelDiaRequest"
+      responses:
+        "200":
+          description: El ítem con su conteo nuevo, ya resuelto como lo vería la carta.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemMenu"
+        "401":
+          description: Falta la sesión o ya no es válida.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDeNegocio"
+        "403":
+          description: |
+            La sesión es válida pero no alcanza: un rol sin permiso para operar
+            un mostrador. Un **ítem** de otro establecimiento responde `404`,
+            no `403`, por lo dicho arriba.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorDeNegocio"
         "404":
           $ref: "#/components/responses/NoEncontrado"
         "422":
@@ -869,6 +936,7 @@ components:
         - precio_antes_centavos
         - promocion_hasta
         - sugerido
+        - unidades_hoy
       properties:
         item_id:
           type: integer
@@ -899,9 +967,10 @@ components:
         disponible:
           type: boolean
           description: |
-            Si el producto se puede pedir **ahora**. Combina las dos cosas que
-            lo impiden: que el mostrador lo haya marcado agotado, y que esté
-            fuera de su franja de promoción si solo se vende dentro de ella.
+            Si el producto se puede pedir **ahora**. Combina las tres cosas que
+            lo impiden: que el mostrador lo haya marcado agotado, que esté
+            fuera de su franja de promoción si solo se vende dentro de ella, y
+            que su conteo del día (`unidades_hoy`) haya llegado a cero.
         imagen:
           type: [string, "null"]
           description: |
@@ -952,6 +1021,16 @@ components:
           description: |
             Si hoy se sugiere este producto. No dice si se puede pedir: para eso
             está `disponible`. Desde la 4.1.0.
+        unidades_hoy:
+          type: [integer, "null"]
+          minimum: 0
+          description: |
+            Cuántas unidades quedan hoy, o `null` si el mostrador no lleva la
+            cuenta de este producto, que es como se vendían todos antes de la
+            6.1.0. Cuando vale `0`, `disponible` ya viene en `false`. Se publica
+            para que la carta pueda avisar «quedan 2» y apagar el «+» antes de
+            que `crearPedido` responda `409`; quien decide si alcanza es la API
+            ([ADR-0015](../adr/0015-inventario-diario-por-producto.md)).
       examples:
         - item_id: 101
           establecimiento_id: 5
@@ -960,10 +1039,12 @@ components:
           disponible: true
           imagen: fotos/costillitas-de-cerdo-ahumadas.webp
           categoria: Asados
+          tipo: comida
           descripcion: null
           precio_antes_centavos: null
           promocion_hasta: null
           sugerido: false
+          unidades_hoy: null
         # El mismo producto, consultado dentro y fuera de su franja.
         - item_id: 120
           establecimiento_id: 5
@@ -972,10 +1053,12 @@ components:
           disponible: true
           imagen: null
           categoria: Hamburguesas y perros
+          tipo: comida
           descripcion: null
           precio_antes_centavos: 2420000
           promocion_hasta: "15:30"
           sugerido: false
+          unidades_hoy: null
         - item_id: 120
           establecimiento_id: 5
           nombre: Combo hamburguesa pollo
@@ -983,10 +1066,48 @@ components:
           disponible: true
           imagen: null
           categoria: Hamburguesas y perros
+          tipo: comida
           descripcion: null
           precio_antes_centavos: null
           promocion_hasta: null
           sugerido: false
+          unidades_hoy: null
+        # Un producto con conteo del día: quedan dos.
+        - item_id: 102
+          establecimiento_id: 5
+          nombre: Alitas en BBQ de tamarindo
+          precio_centavos: 2240000
+          disponible: true
+          imagen: fotos/platos/alitas-bbq-tamarindo.webp
+          categoria: Asados
+          tipo: comida
+          descripcion: null
+          precio_antes_centavos: null
+          promocion_hasta: null
+          sugerido: false
+          unidades_hoy: 2
+
+    InventarioDelDiaRequest:
+      type: object
+      description: |
+        Cuántas unidades hay hoy de un producto, según el mostrador. Un solo
+        campo a propósito: la forma de la petición dice qué está permitido
+        tocar, igual que `CambiarEstadoRequest` con el estado.
+      required: [unidades_hoy]
+      properties:
+        unidades_hoy:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 999
+          description: |
+            `null` apaga el control: el producto vuelve a venderse sin descontar.
+            `0` lo deja agotado. El tope de 999 no es un dato del negocio sino
+            un freno a un error de tecleo: ningún mostrador del campus prepara
+            mil unidades de nada en un día.
+      examples:
+        - unidades_hoy: 12
+        - unidades_hoy: 0
+        - unidades_hoy: null
 
     ListaItemsMenu:
       type: object

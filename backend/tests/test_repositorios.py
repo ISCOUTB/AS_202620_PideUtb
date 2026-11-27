@@ -200,6 +200,63 @@ def test_el_establecimiento_inactivo_se_lee_como_inactivo(implementacion):
 
 
 # ---------------------------------------------------------------------------
+# Catálogo: el inventario del día es su única escritura (ADR-0015)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def sin_conteo_al_terminar(implementacion):
+    """Devuelve la semilla a «sin cuenta» en la implementación que esté activa.
+
+    Depende de `implementacion` para que su limpieza corra **antes** de que esa
+    fixture cierre el pool: contra PostgreSQL la carta no se reconstruye entre
+    pruebas, y un conteo que se quedara escrito cambiaría lo que ve la siguiente.
+    """
+    yield
+    for item_id in (1, 2):
+        menu_repo.fijar_unidades(item_id, None)
+
+
+def test_descontar_devolver_y_fijar_unidades_dicen_lo_mismo(implementacion, sin_conteo_al_terminar):
+    """El ciclo completo del conteo, con las mismas cifras en las dos."""
+    assert menu_repo.fijar_unidades(1, 3).unidades_hoy == 3
+
+    assert menu_repo.descontar_unidades([(1, 2)]) is None
+    assert menu_repo.buscar_por_id(1).unidades_hoy == 1
+
+    # No alcanza: dice qué y cuánto queda, y no toca nada.
+    assert menu_repo.descontar_unidades([(1, 2)]) == ("Arepa de huevo", 1)
+    assert menu_repo.buscar_por_id(1).unidades_hoy == 1
+
+    menu_repo.devolver_unidades([(1, 2)])
+    assert menu_repo.buscar_por_id(1).unidades_hoy == 3
+
+    # Nulo apaga la cuenta: descontar y devolver pasan sin escribir.
+    assert menu_repo.fijar_unidades(1, None).unidades_hoy is None
+    assert menu_repo.descontar_unidades([(1, 99)]) is None
+    menu_repo.devolver_unidades([(1, 99)])
+    assert menu_repo.buscar_por_id(1).unidades_hoy is None
+
+
+def test_descontar_es_todo_o_nada_entre_lineas(implementacion, sin_conteo_al_terminar):
+    """Si la segunda línea no alcanza, la primera tampoco se descuenta.
+
+    Contra PostgreSQL es el `rollback` de la transacción; en memoria, comprobar
+    todo antes de escribir. Dos mecanismos, el mismo resultado observable.
+    """
+    menu_repo.fijar_unidades(1, 3)
+    menu_repo.fijar_unidades(2, 1)
+
+    assert menu_repo.descontar_unidades([(1, 2), (2, 2)]) == ("Jugo de mango", 1)
+
+    assert menu_repo.buscar_por_id(1).unidades_hoy == 3
+    assert menu_repo.buscar_por_id(2).unidades_hoy == 1
+
+
+def test_fijar_unidades_de_un_item_inexistente_devuelve_none(implementacion):
+    assert menu_repo.fijar_unidades(9999, 5) is None
+
+
+# ---------------------------------------------------------------------------
 # Pedidos
 # ---------------------------------------------------------------------------
 

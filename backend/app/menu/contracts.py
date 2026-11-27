@@ -72,3 +72,9 @@ class ItemDisponible(BaseModel):
     #: Si hoy se sugiere este producto. No dice si se puede pedir: para eso está
     #: `disponible`, y la carta solo enseña los sugeridos que se puedan pedir.
     sugerido: bool = False
+
+    #: Cuántas unidades quedan hoy, o nulo si el mostrador no lleva la cuenta de
+    #: este producto (ADR-0015). Cuando vale cero, `disponible` ya viene en
+    #: falso: quien venda no tiene que mirar los dos. Se publica para que la
+    #: carta pueda decir «quedan 2» antes de que el pedido choque con la API.
+    unidades_hoy: int | None = Field(default=None, ge=0)

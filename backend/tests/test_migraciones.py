@@ -72,6 +72,7 @@ HUELLAS = {
     "014_precios_del_documento.sql": "197168f07a43f70f",
     "015_salsa_de_tomate.sql": "12b00bd408b92771",
     "016_foto_salsa_de_la_casa.sql": "031248b721cb5832",
+    "017_inventario_diario.sql": "cd4894ac03de9527",
 }
 
 

@@ -41,6 +41,26 @@ class EstablecimientoNoEncontradoError(Exception):
     """El establecimiento consultado no existe en el contexto Cuentas."""
 
 
+class UnidadesInsuficientesError(Exception):
+    """Se pidieron más unidades de un producto de las que quedan hoy (ADR-0015).
+
+    El mensaje está pensado para leerse en la pantalla de quien pidió, y por eso
+    dice el nombre del producto y cuántas quedan, no un identificador. Pedidos lo
+    reenvía tal cual dentro de su propio error de disponibilidad.
+    """
+
+    def __init__(self, item_nombre: str, quedan: int):
+        self.item_nombre = item_nombre
+        self.quedan = quedan
+        if quedan == 0:
+            mensaje = f"'{item_nombre}' se agotó"
+        elif quedan == 1:
+            mensaje = f"Solo queda 1 de '{item_nombre}'"
+        else:
+            mensaje = f"Solo quedan {quedan} de '{item_nombre}'"
+        super().__init__(mensaje)
+
+
 #: Qué tipo de producto es cada categoría de la carta (ADR-0014).
 #:
 #: Es una tabla y no una columna de la base porque las categorías ya son un dato
@@ -120,9 +140,15 @@ def _publicar(item: ItemMenu, ahora: time | None = None) -> ItemDisponible:
     hay_descuento = en_franja and item.precio_promocional_centavos is not None
     precio = item.precio_promocional_centavos if hay_descuento else item.precio_centavos
 
-    # Dos cosas distintas impiden pedir: que el mostrador lo tenga agotado, y
-    # que el producto solo se venda en una franja que ahora está cerrada.
-    disponible = item.disponible and (not item.solo_en_promocion or en_franja)
+    # Tres cosas distintas impiden pedir: que el mostrador lo haya marcado
+    # agotado, que el producto solo se venda en una franja que ahora está
+    # cerrada, y que su conteo del día haya llegado a cero (ADR-0015). Nulo no
+    # cuenta: es «sin control», no «sin unidades».
+    disponible = (
+        item.disponible
+        and (not item.solo_en_promocion or en_franja)
+        and item.unidades_hoy != 0
+    )
 
     return ItemDisponible(
         item_id=item.id,
@@ -141,6 +167,7 @@ def _publicar(item: ItemMenu, ahora: time | None = None) -> ItemDisponible:
             else None
         ),
         sugerido=item.id in _sugeridos(),
+        unidades_hoy=item.unidades_hoy,
     )
 
 
@@ -208,3 +235,67 @@ def listar_items_de_establecimiento(
         publicados = [item for item in publicados if item.disponible]
 
     return publicados
+
+
+# ---------------------------------------------------------------------------
+# Inventario del día (ADR-0015)
+#
+# Catálogo es el único escritor de `menu_items`, así que el descuento vive aquí
+# y Pedidos lo **pide** por estas funciones, igual que Pagos pide a Pedidos que
+# confirme un pago en vez de escribir su estado. Las tres reciben pares
+# `(item_id, cantidad)` y no líneas de pedido: Catálogo no sabe qué es un
+# pedido, y no tiene por qué saberlo.
+# ---------------------------------------------------------------------------
+
+
+def reservar_unidades(lineas: list[tuple[int, int]]) -> None:
+    """Descuenta las unidades de un pedido que se va a crear, o no descuenta nada.
+
+    Lanza `UnidadesInsuficientesError` si alguna línea pide más de lo que queda,
+    y entonces **ninguna** línea se descontó: un carrito con un producto que no
+    alcanza se rechaza entero, por el mismo motivo que `crear_pedido` valida todo
+    antes de escribir. Los productos sin cuenta (`unidades_hoy` nulo) pasan sin
+    tocarse.
+
+    La atomicidad frente a otro pedido simultáneo es del repositorio, no de
+    esta función: aquí no hay nada que comprobar antes, porque cualquier
+    comprobación previa sería la ventana que se quiere cerrar.
+    """
+    faltante = repository.descontar_unidades(lineas)
+    if faltante is not None:
+        nombre, quedan = faltante
+        raise UnidadesInsuficientesError(nombre, quedan)
+
+
+def liberar_unidades(lineas: list[tuple[int, int]]) -> None:
+    """Devuelve a la carta las unidades de un pedido que ya no se va a preparar.
+
+    Es la pareja de `reservar_unidades`, y Pedidos la llama en dos momentos: al
+    cancelar, y si guardar el pedido falló después de reservar. Solo suma donde
+    hay cuenta; un producto que pasó a nulo entre medias no recupera nada.
+    """
+    repository.devolver_unidades(lineas)
+
+
+def fijar_unidades_del_dia(
+    item_id: int, unidades: int | None, *, establecimiento_id: int
+) -> ItemDisponible | None:
+    """El mostrador dice cuántas unidades hay hoy, y ese número manda.
+
+    Devuelve el ítem publicado con el conteo nuevo, o `None` si el ítem no
+    existe **o es de otro establecimiento**. Es la misma política que
+    `pedidos.service.avanzar_estado`: distinguir «no existe» de «no es tuyo»
+    confirmaría que existe, y permitiría recorrer la carta ajena probando
+    identificadores. A quien atiende un mostrador no le sirve de nada saber que
+    el 143 es de otro.
+
+    `None` como valor apaga el control del producto; cero lo deja agotado. Y
+    como escribe el número tal cual, es también la forma de corregir una reserva
+    retenida por un pedido que nadie pagó (ADR-0015).
+    """
+    item = repository.buscar_por_id(item_id)
+    if item is None or item.establecimiento_id != establecimiento_id:
+        return None
+
+    actualizado = repository.fijar_unidades(item_id, unidades)
+    return None if actualizado is None else _publicar(actualizado)
