@@ -49,6 +49,12 @@ class ItemMenuResponse(BaseModel):
     promocion_hasta: str | None
     sugerido: bool
 
+    #: Cuántas quedan hoy, o `null` si este producto no lleva cuenta
+    #: (ADR-0015). Requerido y anulable como los demás. Es lo que le permite a
+    #: la carta avisar «quedan 2» y apagar el «+» antes de que `crearPedido`
+    #: responda `409`; quien decide si alcanza sigue siendo la API.
+    unidades_hoy: int | None
+
     @classmethod
     def desde_contrato(cls, item: ItemDisponible) -> "ItemMenuResponse":
         return cls(
@@ -64,7 +70,24 @@ class ItemMenuResponse(BaseModel):
             precio_antes_centavos=item.precio_antes_centavos,
             promocion_hasta=item.promocion_hasta,
             sugerido=item.sugerido,
+            unidades_hoy=item.unidades_hoy,
         )
+
+
+class InventarioDelDiaRequest(BaseModel):
+    """Cuántas unidades hay hoy de un producto, según el mostrador.
+
+    Es lo único que el mostrador puede escribir del catálogo por HTTP, y el
+    cuerpo tiene un solo campo a propósito: la forma de la petición dice qué
+    está permitido tocar, igual que `CambiarEstadoRequest` con el estado.
+
+    `null` **apaga** el control: el producto vuelve a venderse sin descontar,
+    que es como se vendían todos antes de la 6.1.0. Cero lo deja agotado. El
+    tope de 999 no es un dato del negocio sino un freno a un error de tecleo:
+    ningún mostrador del campus prepara mil unidades de nada en un día.
+    """
+
+    unidades_hoy: int | None = Field(ge=0, le=999)
 
 
 class ListaItemsMenuResponse(BaseModel):

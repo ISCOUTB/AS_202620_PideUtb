@@ -222,7 +222,21 @@ exigir su token). En las dos, lo viejo no era anterior: era la puerta abierta.
 | **4.0.0** | `/v1` | Anterior | [`historial/openapi-4.0.0.yaml`](historial/openapi-4.0.0.yaml) | **Incompatible.** `obtenerPedido` exige `X-Token-Pedido`: era público y los identificadores son secuenciales, así que cualquiera podía cosechar códigos de canje ([V-13](../violaciones.md#v-13)). El prefijo no cambió, por §5 bis. |
 | **4.1.0** | `/v1` | Anterior | [`historial/openapi-4.1.0.yaml`](historial/openapi-4.1.0.yaml) | Compatible. Hora de recogida y datos para el comprobante, opcionales, en `crearPedido`; `hora_recogida` en `Pedido`; `sugerido` en `ItemMenu` y el horario en `ListaItemsMenu`; `registrarAvisoPush` y `obtenerClavePublicaDeAvisos` ([ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md)). |
 | **5.0.0** | `/v1` | Anterior | [`historial/openapi-5.0.0.yaml`](historial/openapi-5.0.0.yaml) | **Incompatible.** `correo_cliente` pasa a ser obligatorio en `crearPedido`, y deja de admitir `null`. Ver abajo. |
-| **6.0.0** | `/v1` | **Vigente** | [`historial/openapi-6.0.0.yaml`](historial/openapi-6.0.0.yaml) | **Incompatible.** `cantidad` baja su máximo de 50 a 4; `crearPedido` responde `409` si se pasan 4 comidas, 4 bebidas o 4 acompañantes; `ItemMenu` publica `tipo` (compatible). Ver abajo. |
+| **6.0.0** | `/v1` | Soportada | [`historial/openapi-6.0.0.yaml`](historial/openapi-6.0.0.yaml) | **Incompatible.** `cantidad` baja su máximo de 50 a 4; `crearPedido` responde `409` si se pasan 4 comidas, 4 bebidas o 4 acompañantes; `ItemMenu` publica `tipo` (compatible). Ver abajo. |
+| **6.1.0** | `/v1` | **Vigente** | [`historial/openapi-6.1.0.yaml`](historial/openapi-6.1.0.yaml) | Compatible. Inventario diario: `unidades_hoy` en `ItemMenu`, y la operación nueva `fijarInventarioDelDia` con la que el mostrador fija el conteo. `crearPedido` responde `409` —código que ya declaraba— cuando no alcanzan las unidades ([ADR-0015](../adr/0015-inventario-diario-por-producto.md)). |
+
+### El caso 6.1.0: un `409` que no rompe, aunque el de la 6.0.0 sí rompió
+
+Conviene decir por qué este es MENOR cuando el tope por tipo de la 6.0.0, que
+también respondía `409` con un código ya declarado, contó como rotura. La
+diferencia está en **qué peticiones cambian de resultado**. El tope por tipo
+rechazaba desde el primer despliegue una petición que la 5.0.0 aceptaba —5
+comidas—, sin que nadie hiciera nada. El inventario no rechaza ninguna hasta
+que un mostrador fija un conteo, y entonces rechaza por el **estado del
+recurso**, que es exactamente lo que `409` significaba ya para un producto
+agotado: la carta de quien no cuenta se vende igual que en la 6.0.0, petición
+por petición. Lo demás es aditivo —un campo anulable en una respuesta y una
+operación nueva—, que §2 clasifica como MENOR.
 
 ### El caso 6.0.0: bajar un máximo también es romper
 

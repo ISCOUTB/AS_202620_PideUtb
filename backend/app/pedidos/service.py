@@ -348,6 +348,21 @@ def crear_pedido(
         else None
     )
 
+    # Las unidades se reservan **después de todas las validaciones y antes de
+    # guardar** (ADR-0015). Después de validar, para que un carrito que iba a
+    # ser rechazado por la hora o por los topes no toque el inventario; antes de
+    # guardar, porque es el Catálogo quien dice si alcanza, y lo dice de forma
+    # atómica: dos pedidos a la vez por la última arepa, y solo uno la obtiene.
+    #
+    # El error se relanza como «no disponible» con el mismo mensaje. Para quien
+    # pidió es la misma situación que un producto agotado —no se puede, y se le
+    # dice por qué— y así el router responde 409 sin saber que existe el
+    # inventario.
+    try:
+        catalogo_service.reservar_unidades(lineas_pedidas)
+    except catalogo_service.UnidadesInsuficientesError as e:
+        raise ItemNoDisponibleError(str(e)) from e
+
     # El identificador lo asigna el almacenamiento, no este servicio. Antes lo
     # pedía a un contador en memoria del proceso, y con dos instancias
     # desplegadas las dos habrían empezado por 1: era el ejemplo concreto de
@@ -358,15 +373,28 @@ def crear_pedido(
     # `token_urlsafe(24)` son 192 bits. Es más de lo que haría falta: lo que
     # protege no es un secreto de larga vida, sino un identificador que no se
     # pueda adivinar partiendo del número de pedido, que sí es secuencial.
-    pedido = repository.crear(
-        establecimiento_id=establecimiento_id,
-        lineas=lineas,
-        total_centavos=sum(l.total_linea_centavos for l in lineas),
-        token_consulta=secrets.token_urlsafe(24),
-        hora_recogida=programada,
-        nombre_cliente=nombre_cliente.strip() or None if nombre_cliente else None,
-        correo_cliente=correo_cliente,
-    )
+    #
+    # Reservar y guardar son dos escrituras de dos contextos, y **no comparten
+    # transacción**: cada repositorio abre la suya, y compartirla sería leer la
+    # tabla ajena por la puerta de atrás (ADR-0001). Así que si guardar falla
+    # después de reservar, se compensa devolviendo las unidades. Se reserva
+    # primero y no al revés a propósito: si la compensación también fallara, lo
+    # que quedaría es una unidad retenida de más, que el mostrador corrige con
+    # un número; al revés quedaría un pedido pagable sin unidades detrás, que
+    # es vender lo que no hay, y es justo lo que esto existe para impedir.
+    try:
+        pedido = repository.crear(
+            establecimiento_id=establecimiento_id,
+            lineas=lineas,
+            total_centavos=sum(l.total_linea_centavos for l in lineas),
+            token_consulta=secrets.token_urlsafe(24),
+            hora_recogida=programada,
+            nombre_cliente=nombre_cliente.strip() or None if nombre_cliente else None,
+            correo_cliente=correo_cliente,
+        )
+    except Exception:
+        catalogo_service.liberar_unidades(lineas_pedidas)
+        raise
 
     # **El único sitio donde el token sale.**
     return _publicar(pedido, con_token=True)
@@ -682,6 +710,20 @@ def avanzar_estado(
     elif guardado.estado is EstadoPedido.CANCELADO:
         # Ya nunca va a estar listo, así que la dirección no le sirve a nadie.
         repository.tomar_aviso_push(guardado.id)
+
+        # Y lo que tenía reservado vuelve a la carta (ADR-0015). Después de
+        # persistir, como el evento: la cancelación ya ocurrió y la cantidad
+        # sale de las líneas guardadas, no de lo que pidió la petición.
+        #
+        # Es el **único** camino de vuelta. Un pedido en `pendiente_pago` que
+        # nadie termina de pagar retiene sus unidades: no hay caducidad, y es una
+        # decisión y no un olvido —el mostrador puede corregir el conteo en
+        # cualquier momento con `fijarInventarioDelDia`, y una caducidad
+        # automática liberaría la arepa de quien está terminando de pagar en la
+        # pasarela.
+        catalogo_service.liberar_unidades(
+            [(l.item_id, l.cantidad) for l in guardado.lineas]
+        )
 
     return _publicar(guardado)
 
