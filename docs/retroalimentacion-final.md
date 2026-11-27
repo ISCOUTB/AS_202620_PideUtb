@@ -78,7 +78,7 @@ ADR-0017.
 | Prueba de métodos HTTP y ADR de devoluciones | [#56](https://github.com/ISCOUTB/AS_202620_PideUtb/pull/56) | `149af3e` | `test_metodos_http.py` (5 pruebas) |
 | Inventario diario por producto: API, migración, contrato 6.1.0 y carta | [#57](https://github.com/ISCOUTB/AS_202620_PideUtb/pull/57) | `9d7ce5a` | `test_inventario_diario.py`, `test_migraciones.py` (huella de `017`), `test_contrato_api.py` y `test_compatibilidad_contrato.py` contra la 6.1.0, `test_expectativas_consumidor.py` |
 | El mostrador fija el inventario desde el panel | [#58](https://github.com/ISCOUTB/AS_202620_PideUtb/pull/58) | `1c40dbf` | Las de `test_escenarios_de_calidad.py` y `test_metodos_http.py` que inspeccionan `panel.js` |
-| arc42, C4, aspectos, README y este informe | {{PR_DOCS}} | {{COMMITS_DOCS}} | `test_evidencia.py` (citas de línea del arc42, recalculadas) |
+| arc42, C4, aspectos, README y este informe | [#59](https://github.com/ISCOUTB/AS_202620_PideUtb/pull/59) | `4b52afa` y los que siguen en esa PR | `test_evidencia.py` (citas de línea del arc42, recalculadas) |
 
 Pruebas del backend: **800** (eran 763 antes de esta entrega). Recorridos
 con navegador: 68, sin cambios.
@@ -112,7 +112,11 @@ El índice completo está en [arc42 §9](arc42/arc42.md#seccion-9).
 
 ## 7. Evidencia de ausencia de regresiones
 
-{{EVIDENCIA_RUN}}
+Construcción de `master` con todo el código de esta entrega fusionado (`b10213c`, tras la
+PR #58): [run 46029364619](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/46029364619),
+en verde. Las anteriores, una por fusión: [`cfb4e60`](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/46028592156)
+tras #57 y [`4546d24`](https://github.com/ISCOUTB/AS_202620_PideUtb/actions/runs/46027730720)
+tras #55. Producción sirve el contrato 6.1.0 desde la fusión de #57.
 
 Las 16 comprobaciones de cada PR —pytest en dos versiones de Python, contrato,
 dependencias, imagen del sitio, recorrido con navegador y SonarCloud— pasaron antes
