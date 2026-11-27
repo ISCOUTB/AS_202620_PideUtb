@@ -335,3 +335,68 @@ def test_cada_bloque_es_un_codeword_valido(texto):
             f"el bloque {indice} de «{texto[:20]}» no es un codeword válido: "
             f"syndromes {syndromes}. Un lector lo daría por dañado."
         )
+
+
+# ---------------------------------------------------------------------------
+# La copia del sitio
+# ---------------------------------------------------------------------------
+#
+# `sitio/qr.js` es el mismo algoritmo, portado para dibujar el QR del billete en
+# el navegador (ADR-0016). Dos copias de un codificador son dos sitios donde
+# equivocarse, y la del navegador no la cubren las pruebas de arriba. Esta la
+# ejecuta con Node —que CI tiene, y un portátil puede no tener— y exige que la
+# matriz sea **idéntica** a la de Python para los mismos textos: no parecida,
+# idéntica, porque las máscaras se eligen por penalización y una diferencia de
+# un módulo cambia cuál gana.
+
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
+_SITIO = Path(__file__).resolve().parents[2] / "sitio"
+
+_PUENTE_NODE = r"""
+const fs = require("fs");
+const vm = require("vm");
+const contexto = { TextEncoder };
+vm.createContext(contexto);
+vm.runInContext(fs.readFileSync(process.argv[2], "utf8") + "\nthis.QR = QR;", contexto);
+const salida = {};
+for (const texto of JSON.parse(process.argv[3])) {
+  salida[texto] = contexto.QR.construir(texto).map((fila) => fila.join("")).join("\n");
+}
+process.stdout.write(JSON.stringify(salida));
+"""
+
+_TEXTOS_DEL_BILLETE = [
+    "pideutb:1:ACD7K2",
+    "pideutb:12345:ZZZZZZ",
+    "https://pideutb.iscoutb.dev",
+    "x" * 74,
+]
+
+
+def test_el_qr_del_sitio_dibuja_la_misma_matriz_que_python(tmp_path):
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Sin Node en esta máquina; CI sí lo tiene.")
+
+    puente = tmp_path / "puente.cjs"
+    puente.write_text(_PUENTE_NODE, encoding="utf-8")
+    resultado = subprocess.run(
+        [node, str(puente), str(_SITIO / "qr.js"), json.dumps(_TEXTOS_DEL_BILLETE)],
+        capture_output=True, text=True, encoding="utf-8", timeout=60,
+    )
+    assert resultado.returncode == 0, (
+        "Node no pudo ejecutar `sitio/qr.js`: " + resultado.stderr
+    )
+    del_sitio = json.loads(resultado.stdout)
+
+    for texto in _TEXTOS_DEL_BILLETE:
+        de_python = "\n".join("".join(map(str, fila)) for fila in construir(texto))
+        assert del_sitio[texto] == de_python, (
+            f"`sitio/qr.js` y `scripts/generar_qr.py` dibujan distinto {texto!r}. "
+            "Son el mismo algoritmo a propósito: el que cambió tiene que "
+            "arrastrar al otro."
+        )

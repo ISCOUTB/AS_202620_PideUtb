@@ -1696,6 +1696,229 @@ input.codigo-canje {
   box-shadow: none;
 }
 
+/* --- El tablero (S17) ---------------------------------------------------
+   La cola era una lista, y en hora pico quien atiende tenía que leer el estado
+   de cada fila para saber cuál era la suya. Ahora el estado es la columna:
+   por preparar, en preparación, listos. La mirada va sola a la que toca, y la
+   cuenta de cada columna dice cuánto trabajo hay sin contar tarjetas.
+
+   Las tres columnas se apilan en el teléfono y se ponen una al lado de la
+   otra a partir de 900 px, que es lo que mide una tablet apaisada: el equipo
+   que de verdad hay en el mostrador. */
+
+.panel main { max-width: 1320px; }
+
+/* Los botones de la barra del mostrador van en fila con los campos: nada de
+   margen arriba, que es el que un botón lleva cuando cierra un formulario. */
+.barra-mostrador button { margin-top: 0; }
+
+.tablero {
+  display: grid;
+  gap: var(--e4);
+  align-items: start;
+}
+
+.columna {
+  background: var(--crema-hundido);
+  border-radius: var(--radio);
+  padding: var(--e3);
+}
+
+/* La de los listos se tiñe del azul de apoyo: es la columna que mira quien
+   llega al mostrador con el teléfono en la mano, y tiene que encontrarse de
+   un vistazo entre las otras dos. */
+.columna-listos { background: var(--azul-niebla); }
+
+.columna-titulo {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  margin: 0 0 var(--e3);
+  font-family: var(--fuente);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--carbon);
+}
+
+.columna-titulo .punto { margin-top: 0; }
+
+.columna-cuenta {
+  margin-left: auto;
+  min-width: 1.75rem;
+  padding: 2px var(--e2);
+  border-radius: var(--radio-pildora);
+  background: var(--papel);
+  color: var(--azul);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Una columna sin pedidos lo dice: un hueco vacío parece una lista que no
+   cargó, y un recuadro punteado parece un sitio donde algo va a caer. */
+.columna .items:empty::after {
+  content: "Nada por aquí";
+  display: block;
+  padding: var(--e5) var(--e4);
+  text-align: center;
+  color: var(--carbon-tenue);
+  font-size: 0.875rem;
+  border: 1.5px dashed var(--linea-fuerte);
+  border-radius: var(--radio-chico);
+}
+
+/* La tarjeta se pone de pie: datos arriba, botones abajo y a lo ancho. En una
+   columna de 400 px la fila con los botones al lado no cabía. */
+.pedido {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--e3);
+  padding: var(--e4);
+}
+
+.pedido-cabecera {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--e2) var(--e3);
+  flex-wrap: wrap;
+}
+
+/* El número es lo que se grita por encima del mostrador: va con la letra de
+   los títulos y en el azul de la marca, como el código en el billete. */
+.pedido .item-nombre {
+  font-family: var(--fuente-titulo);
+  font-size: 1.6rem;
+  font-weight: 400;
+  color: var(--azul);
+  line-height: 1.1;
+}
+
+.pedido-cabecera .pedido-recogida { margin-top: 0; }
+
+.pedido-lineas {
+  list-style: none;
+  margin: 0;
+  padding: var(--e2) 0 0;
+  display: grid;
+  gap: var(--e1);
+  border-top: 1px solid var(--linea);
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.pedido-cantidad {
+  display: inline-block;
+  min-width: 2.2em;
+  font-weight: 700;
+  color: var(--carbon);
+}
+
+.pedido-pie {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  margin-top: var(--e3);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--carbon-medio);
+}
+
+.pedido-pie .punto { margin-top: 0; }
+
+/* Un pedido que espera el pago todavía no es trabajo: borde punteado, sin
+   sombra y con el número en gris. Con color y no con `opacity`, por lo mismo
+   que un producto agotado: atenuar la tarjeta entera deja el texto por debajo
+   del contraste mínimo sin que ninguna prueba lo vea. */
+.pedido-sin-pagar {
+  border-style: dashed;
+  border-color: var(--linea-fuerte);
+  box-shadow: none;
+}
+
+.pedido-sin-pagar .item-nombre { color: var(--carbon-medio); }
+
+.pedido .acciones button:first-child { flex: 1 1 auto; }
+
+/* Lo terminado se pliega: está para resolver un reclamo, no para operar. */
+.terminados { margin-top: var(--e5); }
+
+.terminados summary {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  padding: var(--e3) 0;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--carbon-medio);
+  list-style: none;
+}
+
+.terminados summary::-webkit-details-marker { display: none; }
+
+.terminados summary::before {
+  content: "";
+  width: 0.5em;
+  height: 0.5em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--dur-breve) var(--curva-salida);
+}
+
+.terminados[open] summary::before { transform: rotate(45deg); }
+
+.terminados summary .columna-cuenta { margin-left: 0; background: var(--crema-hundido); color: var(--carbon-medio); }
+
+.terminados .items { margin-top: var(--e2); }
+
+.terminados .pedido .item-nombre {
+  font-size: 1.15rem;
+  color: var(--carbon);
+}
+
+/* --- La cámara (ADR-0016) ------------------------------------------------- */
+
+#dialogo-camara { max-width: 22rem; }
+
+.camara {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  margin: var(--e3) 0;
+  border-radius: var(--radio-chico);
+  background: var(--carbon);
+}
+
+/* --- El QR del billete (ADR-0016) -----------------------------------------
+   Debajo del código y más chico que sus letras: la cámara lo lee a un palmo,
+   y el código grande sigue siendo lo que se dicta si la cámara falla. */
+
+.billete-qr {
+  width: min(160px, 50%);
+  margin: var(--e3) auto 0;
+}
+
+.billete-qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-chico);
+}
+
+.billete-qr-pie {
+  margin: var(--e2) 0 0;
+  color: var(--carbon-tenue);
+  font-size: 0.78rem;
+}
+
+@media (min-width: 900px) {
+  .tablero { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .billete-qr { width: 180px; }
+}
+
 /* ===========================================================================
    ESCRITORIO
    ===========================================================================
