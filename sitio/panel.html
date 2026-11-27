@@ -132,6 +132,23 @@
       </summary>
       <ul class="items" data-lista="terminados"></ul>
     </details>
+
+    <!-- El inventario del día (ADR-0015). Plegado como los terminados: se abre
+         por la mañana para contar y al mediodía para corregir, no se mira en
+         cada vistazo. La carta se pide al abrirlo, no al entrar: es una
+         petición que la mayoría de los turnos no necesita. -->
+    <details class="terminados inventario" id="inventario">
+      <summary>
+        Inventario de hoy
+        <span class="columna-cuenta" data-cuenta="inventario">–</span>
+      </summary>
+      <p class="nota">
+        Cuántas unidades hay hoy de cada producto. Vacío es «sin contar»: se vende
+        como siempre. Cero es «agotado». La carta lo muestra y la API no deja pedir
+        más de lo que queda.
+      </p>
+      <ul class="items" id="inventario-lista"></ul>
+    </details>
   </section>
 
   <div id="error" class="error oculto" role="alert"></div>
