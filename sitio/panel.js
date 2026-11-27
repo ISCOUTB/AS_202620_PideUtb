@@ -1,9 +1,10 @@
 // Panel del mostrador.
 //
-// Consume cuatro operaciones declaradas en `contracts/consumidor-web.yaml`:
-// `iniciarSesion`, `cerrarSesion`, `listarPedidosDeEstablecimiento` y
-// `cambiarEstadoDePedido`. Si el proveedor deja de emitir un campo de los
-// declarados, su pipeline falla.
+// Consume seis operaciones declaradas en `contracts/consumidor-web.yaml`:
+// `iniciarSesion`, `cerrarSesion`, `listarPedidosDeEstablecimiento`,
+// `cambiarEstadoDePedido`, y desde la S17 `listarItemsDeEstablecimiento` y
+// `fijarInventarioDelDia` para el inventario del día (ADR-0015). Si el
+// proveedor deja de emitir un campo de los declarados, su pipeline falla.
 //
 // Cubre ESC-03 (gestionar el estado de un pedido en ≤10 s y ≤3 interacciones,
 // sin recargar la página) y, desde la 2.0.0 del contrato, ESC-04: entregar
@@ -254,6 +255,8 @@ function mostrarPantalla() {
     for (const lista of document.querySelectorAll("[data-lista]")) lista.innerHTML = "";
     for (const cuenta of document.querySelectorAll("[data-cuenta]")) cuenta.textContent = "0";
     $("cola-vacia").classList.add("oculto");
+    $("inventario-lista").innerHTML = "";
+    $("inventario").open = false;
     $("ultima-carga").textContent = "";
     huellaPintada = null;
     // Y lo que se recuerda de lo pintado, que si no haría que el turno
@@ -787,6 +790,146 @@ async function refrescarTrasFallo() {
 }
 
 // --------------------------------------------------------------------------
+// El inventario del día (ADR-0015)
+//
+// El mostrador cuenta lo que tiene y lo escribe; la API lo descuenta con cada
+// pedido y la carta lo enseña. Esta pantalla solo hace dos cosas: pedir la
+// carta del establecimiento de la sesión, y mandar un número por producto a
+// `POST /v1/menu/items/{id}/inventario`. Vacío manda `null`, que es «sin
+// contar»; cero es «agotado».
+// --------------------------------------------------------------------------
+
+/** Qué dice la pastilla de un producto según su conteo, o nada si no lo lleva. */
+function etiquetaDeInventario(unidades) {
+  if (unidades === null || unidades === undefined) return "";
+  if (unidades === 0) return "Agotado";
+  return `Quedan ${unidades}`;
+}
+
+function actualizarCuentaDelInventario() {
+  const filas = [...$("inventario-lista").querySelectorAll("input")];
+  const contados = filas.filter((i) => i.value.trim() !== "").length;
+  const cuenta = document.querySelector("[data-cuenta='inventario']");
+  if (cuenta) cuenta.textContent = `${contados} de ${filas.length} contados`;
+}
+
+function pintarInventario(items) {
+  const lista = $("inventario-lista");
+  lista.innerHTML = "";
+
+  for (const item of items) {
+    const fila = document.createElement("li");
+    fila.className = "item inventario-fila";
+
+    const datos = document.createElement("div");
+    datos.className = "item-datos";
+    const nombre = document.createElement("div");
+    nombre.className = "item-nombre";
+    nombre.textContent = item.nombre;
+    const pastilla = document.createElement("span");
+    pastilla.className = "etiqueta-agotado";
+    pastilla.textContent = etiquetaDeInventario(item.unidades_hoy);
+    pastilla.classList.toggle("oculto", !pastilla.textContent);
+    nombre.appendChild(pastilla);
+    datos.appendChild(nombre);
+    if (item.categoria) {
+      const categoria = document.createElement("div");
+      categoria.className = "item-descripcion";
+      categoria.textContent = item.categoria;
+      datos.appendChild(categoria);
+    }
+    fila.appendChild(datos);
+
+    const campo = document.createElement("label");
+    campo.className = "campo";
+    const texto = document.createElement("span");
+    texto.className = "nota";
+    texto.textContent = "Hoy";
+    const entrada = document.createElement("input");
+    entrada.type = "number";
+    entrada.inputMode = "numeric";
+    entrada.min = "0";
+    entrada.max = "999";
+    entrada.placeholder = "—";
+    entrada.value = typeof item.unidades_hoy === "number" ? String(item.unidades_hoy) : "";
+    campo.append(texto, entrada);
+    fila.appendChild(campo);
+
+    const guardar = document.createElement("button");
+    guardar.type = "button";
+    guardar.className = "secundario";
+    guardar.textContent = "Guardar";
+    const enviar = () => lanzar(fijarInventario(item, entrada, pastilla, guardar));
+    guardar.addEventListener("click", enviar);
+    entrada.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        enviar();
+      }
+    });
+    fila.appendChild(guardar);
+
+    lista.appendChild(fila);
+  }
+
+  actualizarCuentaDelInventario();
+}
+
+async function cargarInventario() {
+  if (!sesion) return;
+  try {
+    // La carta del establecimiento de la sesión, con todo: un producto agotado
+    // o fuera de franja también se cuenta.
+    const carta = await api(
+      `/v1/menu/establecimientos/${encodeURIComponent(sesion.usuario.establecimiento_id)}/items`
+    );
+    pintarInventario(carta.items);
+  } catch (e) {
+    if (e.status === 401 || e.status === 403) {
+      caducar();
+      return;
+    }
+    fallar(`No se pudo cargar la carta: ${e.message}`);
+  }
+}
+
+async function fijarInventario(item, entrada, pastilla, boton) {
+  const crudo = entrada.value.trim();
+  // Vacío apaga el control; cualquier otra cosa tiene que ser un entero. El
+  // 422 de la API cubre lo demás, pero un número a medias no debería ni salir.
+  const unidades = crudo === "" ? null : Number(crudo);
+  if (unidades !== null && (!Number.isInteger(unidades) || unidades < 0 || unidades > 999)) {
+    fallar(`«${crudo}» no es un conteo: tiene que ser un entero entre 0 y 999, o vacío.`);
+    return;
+  }
+
+  boton.disabled = true;
+  try {
+    const actualizado = await api(`/v1/menu/items/${encodeURIComponent(item.item_id)}/inventario`, {
+      method: "POST",
+      body: JSON.stringify({ unidades_hoy: unidades }),
+    });
+    limpiarError();
+    item.unidades_hoy = actualizado.unidades_hoy;
+    pastilla.textContent = etiquetaDeInventario(actualizado.unidades_hoy);
+    pastilla.classList.toggle("oculto", !pastilla.textContent);
+    actualizarCuentaDelInventario();
+  } catch (e) {
+    if (e.status === 401 || e.status === 403) {
+      caducar();
+      return;
+    }
+    if (e.status === 404) {
+      fallar(`«${item.nombre}» ya no está en tu carta. Vuelve a abrir el inventario.`);
+      return;
+    }
+    fallar(`No se pudo guardar el conteo de «${item.nombre}»: ${e.message}`);
+  } finally {
+    boton.disabled = false;
+  }
+}
+
+// --------------------------------------------------------------------------
 // Arranque
 // --------------------------------------------------------------------------
 
@@ -828,6 +971,11 @@ $("orden-cola").addEventListener("change", () => {
 $("cancelar-canje").addEventListener("click", () => $("dialogo-canje").close("cancelar"));
 $("cerrar-camara").addEventListener("click", () => $("dialogo-camara").close());
 $("escanear").addEventListener("click", () => lanzar(entregarEscaneando()));
+// La carta se pide cada vez que se abre el pliegue, para ver lo que la API ya
+// descontó desde la última vez.
+$("inventario").addEventListener("toggle", () => {
+  if ($("inventario").open) lanzar(cargarInventario());
+});
 
 // Los botones de cámara solo existen donde la cámara se puede usar.
 $("escanear").classList.toggle("oculto", !hayLectorDeCodigos);
