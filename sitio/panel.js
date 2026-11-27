@@ -249,8 +249,10 @@ function mostrarPantalla() {
       `${sesion.usuario.correo} · establecimiento ${sesion.usuario.establecimiento_id}`;
   } else {
     // Al salir se borra lo pintado. Dejar la cola visible detrás del
-    // formulario mostraría pedidos de un turno que ya terminó.
-    $("cola").innerHTML = "";
+    // formulario mostraría pedidos de un turno que ya terminó. Se vacían las
+    // listas y no `#cola` entero, que ahora es el tablero con sus columnas.
+    for (const lista of document.querySelectorAll("[data-lista]")) lista.innerHTML = "";
+    for (const cuenta of document.querySelectorAll("[data-cuenta]")) cuenta.textContent = "0";
     $("cola-vacia").classList.add("oculto");
     $("ultima-carga").textContent = "";
     huellaPintada = null;
@@ -322,6 +324,125 @@ function caducar() {
 // Pintar la cola
 // --------------------------------------------------------------------------
 
+// En qué columna del tablero va cada estado.
+//
+// Un pedido que espera el pago va en la primera, apagado y sin botones: no se
+// puede preparar todavía, pero ya existe y conviene verlo venir. Los dos
+// estados finales no son columna sino el pliegue de abajo.
+const COLUMNA_POR_ESTADO = {
+  pendiente_pago: "por-preparar",
+  pagado: "por-preparar",
+  en_preparacion: "en-preparacion",
+  listo_para_recoger: "listos",
+  entregado: "terminados",
+  cancelado: "terminados",
+};
+
+/**
+ * La tarjeta de un pedido.
+ *
+ * Es una función aparte de `pintar` porque la tarjeta es la misma en las tres
+ * columnas y en el pliegue de los terminados: lo que cambia es dónde cae, no
+ * qué dice.
+ */
+function tarjeta(pedido, antes) {
+  const fila = document.createElement("li");
+  fila.className = "item pedido";
+  if (pedido.estado === "pendiente_pago") fila.classList.add("pedido-sin-pagar");
+
+  if (!antes.has(pedido.pedido_id)) {
+    // Nuevo: entra.
+    fila.classList.add("entra");
+  } else if (antes.get(pedido.pedido_id) !== pedido.estado) {
+    // Ya estaba, pero se movió: se tiñe y se apaga, que es un rastro y no
+    // una respuesta. Quien pulsó el botón ya lo sabe; esto es para quien
+    // levanta la vista medio segundo después.
+    fila.classList.add("cambia");
+  }
+
+  const datos = document.createElement("div");
+  datos.className = "item-datos";
+
+  // La cabecera: el número grande, y a su lado la hora. El número es lo que se
+  // grita por encima del mostrador, así que es lo más grande de la tarjeta.
+  const cabecera = document.createElement("div");
+  cabecera.className = "pedido-cabecera";
+
+  const titulo = document.createElement("div");
+  titulo.className = "item-nombre";
+  titulo.textContent = `#${pedido.pedido_id}`;
+  cabecera.appendChild(titulo);
+
+  // A qué hora lo quieren. La hora es lo que se mira, así que se destaca solo
+  // cuando la hay: «lo antes posible» es el caso normal.
+  const recogida = document.createElement("div");
+  recogida.className = pedido.hora_recogida
+    ? "pedido-recogida programada"
+    : "pedido-recogida";
+  recogida.textContent = pedido.hora_recogida
+    ? `Recoger a las ${pedido.hora_recogida.slice(11, 16)}`
+    : "Lo antes posible";
+  cabecera.appendChild(recogida);
+  datos.appendChild(cabecera);
+
+  // Una línea por producto, con la cantidad delante y grande: lo que el
+  // mostrador lee para preparar es «2 ×», y después qué.
+  const lineas = document.createElement("ul");
+  lineas.className = "pedido-lineas";
+  for (const l of pedido.lineas) {
+    const linea = document.createElement("li");
+    const cantidad = document.createElement("span");
+    cantidad.className = "pedido-cantidad";
+    cantidad.textContent = `${l.cantidad} ×`;
+    linea.append(cantidad, ` ${l.nombre_item}`);
+    lineas.appendChild(linea);
+  }
+  datos.appendChild(lineas);
+
+  // El estado y el total, en una línea. El estado se repite aunque la columna
+  // ya lo diga, porque en el teléfono las columnas se apilan y la tarjeta
+  // puede verse lejos de su título.
+  const estado = document.createElement("div");
+  estado.className = "pedido-pie";
+  const punto = document.createElement("span");
+  punto.className = `punto ${PUNTO_ESTADO[pedido.estado] || "espera"}`;
+  const texto = document.createElement("span");
+  // El código **no** se muestra mientras el pedido esté por entregar, desde
+  // la 2.0.0 del contrato: si estuviera en la pantalla del mostrador, pedirlo
+  // al cliente sería un trámite que se puede saltar leyendo la propia lista.
+  texto.textContent = `${ETIQUETA_ESTADO[pedido.estado] || pedido.estado} · ${pesos(pedido.total_centavos)}`;
+  estado.append(punto, texto);
+  datos.appendChild(estado);
+
+  // Una vez entregado sí se enseña, y eso no reabre nada: la comparación ya
+  // ocurrió. A partir de ese momento el código deja de ser la llave y pasa a
+  // ser el registro de con qué se abrió — útil para resolver un reclamo sin
+  // consultar la base.
+  if (pedido.estado === "entregado" && pedido.codigo_canje) {
+    const canjeado = document.createElement("div");
+    canjeado.className = "codigo-entregado";
+    canjeado.textContent = `Canjeado con ${pedido.codigo_canje}`;
+    datos.appendChild(canjeado);
+  }
+
+  fila.appendChild(datos);
+
+  const acciones = document.createElement("div");
+  acciones.className = "acciones";
+  for (const accion of ACCIONES_POR_ESTADO[pedido.estado] || []) {
+    const boton = document.createElement("button");
+    boton.textContent = accion.texto;
+    if (accion.secundario) boton.className = "secundario";
+    boton.addEventListener("click", () =>
+      lanzar(cambiarEstado(pedido.pedido_id, accion, boton))
+    );
+    acciones.appendChild(boton);
+  }
+  fila.appendChild(acciones);
+
+  return fila;
+}
+
 function pintar(recibidos) {
   ultimaCola = recibidos;
   const pedidos = ordenarCola(recibidos);
@@ -349,105 +470,26 @@ function pintar(recibidos) {
   const antes = estadoPintado;
   estadoPintado = new Map(pedidos.map((p) => [p.pedido_id, p.estado]));
 
-  const cola = $("cola");
-  cola.innerHTML = "";
+  const listas = {};
+  const cuentas = {};
+  for (const lista of document.querySelectorAll("[data-lista]")) {
+    listas[lista.dataset.lista] = lista;
+    lista.innerHTML = "";
+    cuentas[lista.dataset.lista] = 0;
+  }
   $("cola-vacia").classList.toggle("oculto", pedidos.length > 0);
 
   for (const pedido of pedidos) {
-    const fila = document.createElement("li");
-    fila.className = "item pedido";
+    const columna = COLUMNA_POR_ESTADO[pedido.estado] || "por-preparar";
+    listas[columna].appendChild(tarjeta(pedido, antes));
+    // Un pedido sin pagar no cuenta como trabajo: la cuenta de la columna es
+    // cuántos hay que preparar, no cuántas tarjetas hay.
+    if (pedido.estado !== "pendiente_pago") cuentas[columna] += 1;
+  }
 
-    if (!antes.has(pedido.pedido_id)) {
-      // Nuevo: entra.
-      fila.classList.add("entra");
-    } else if (antes.get(pedido.pedido_id) !== pedido.estado) {
-      // Ya estaba, pero se movió: se tiñe y se apaga, que es un rastro y no
-      // una respuesta. Quien pulsó el botón ya lo sabe; esto es para quien
-      // levanta la vista medio segundo después.
-      fila.classList.add("cambia");
-    }
-
-    const datos = document.createElement("div");
-    datos.className = "item-datos";
-
-    const titulo = document.createElement("div");
-    titulo.className = "item-nombre";
-    titulo.textContent = `#${pedido.pedido_id}`;
-    datos.appendChild(titulo);
-
-    // Una linea por producto. Antes era un solo renglon porque un pedido era
-    // un producto; desde la 3.0.0 el mostrador tiene que ver todo lo que
-    // prepara, y resumirlo en «3 productos» le haria abrir algo para saber
-    // cuales.
-    const detalle = document.createElement("div");
-    detalle.className = "item-precio";
-    detalle.textContent = pedido.lineas
-      .map((l) => `${l.cantidad} × ${l.nombre_item}`)
-      .join(" · ");
-    datos.appendChild(detalle);
-
-    const estado = document.createElement("div");
-    estado.className = "estado-linea";
-    const punto = document.createElement("span");
-    punto.className = `punto ${PUNTO_ESTADO[pedido.estado] || "espera"}`;
-    estado.appendChild(punto);
-    const texto = document.createElement("span");
-    texto.className = "item-precio";
-    estado.appendChild(texto);
-    datos.appendChild(estado);
-
-    // A qué hora lo quieren. La hora es lo que se mira, así que se destaca solo
-    // cuando la hay: «lo antes posible» es el caso normal.
-    const recogida = document.createElement("div");
-    recogida.className = pedido.hora_recogida
-      ? "pedido-recogida programada"
-      : "pedido-recogida";
-    recogida.textContent = pedido.hora_recogida
-      ? `Recoger a las ${pedido.hora_recogida.slice(11, 16)}`
-      : "Lo antes posible";
-    datos.appendChild(recogida);
-
-    // El código **no** se muestra mientras el pedido esté por entregar, desde
-    // la 2.0.0 del contrato.
-    //
-    // Antes se pintaba junto al estado, para que quien atiende lo viera. Eso
-    // vacía ESC-04 de contenido: si el código está en la pantalla del
-    // mostrador, pedirlo al cliente es un trámite que se puede saltar leyendo
-    // la propia lista. Ahora hay que pedírselo, y el servidor lo compara.
-    texto.textContent = `${ETIQUETA_ESTADO[pedido.estado] || pedido.estado} · ${pesos(pedido.total_centavos)}`;
-
-    // Una vez entregado sí se enseña, y eso no reabre nada: la comparación ya
-    // ocurrió. A partir de ese momento el código deja de ser la llave y pasa a
-    // ser el registro de con qué se abrió — útil para resolver un reclamo sin
-    // consultar la base.
-    //
-    // Es además lo que cierra la cadena a la vista: el cliente tiene CL219G en
-    // su pantalla y el mostrador acaba de escribirlo, así que las dos dicen lo
-    // mismo. Enseñarlo antes lo haría innecesario; enseñarlo después lo hace
-    // comprobable.
-    if (pedido.estado === "entregado" && pedido.codigo_canje) {
-      const canjeado = document.createElement("div");
-      canjeado.className = "codigo-entregado";
-      canjeado.textContent = `Canjeado con ${pedido.codigo_canje}`;
-      datos.appendChild(canjeado);
-    }
-
-    fila.appendChild(datos);
-
-    const acciones = document.createElement("div");
-    acciones.className = "acciones";
-    for (const accion of ACCIONES_POR_ESTADO[pedido.estado] || []) {
-      const boton = document.createElement("button");
-      boton.textContent = accion.texto;
-      if (accion.secundario) boton.className = "secundario";
-      boton.addEventListener("click", () =>
-        lanzar(cambiarEstado(pedido.pedido_id, accion, boton))
-      );
-      acciones.appendChild(boton);
-    }
-    fila.appendChild(acciones);
-
-    cola.appendChild(fila);
+  for (const [nombre, cuantos] of Object.entries(cuentas)) {
+    const cuenta = document.querySelector(`[data-cuenta="${nombre}"]`);
+    if (cuenta) cuenta.textContent = String(cuantos);
   }
 }
 
@@ -508,11 +550,28 @@ function pedirCodigo(pedidoId) {
   return new Promise((resolver) => {
     const alCerrar = () => {
       dialogo.removeEventListener("close", alCerrar);
+      $("escanear-en-dialogo").onclick = null;
       resolver(dialogo.returnValue === "confirmar" && campo.value.trim()
         ? campo.value.trim()
         : null);
     };
     dialogo.addEventListener("close", alCerrar);
+
+    // La cámara desde dentro del diálogo: lee el QR, y si es de este pedido
+    // rellena el campo y entrega. Si es de otro, lo dice y deja el diálogo
+    // abierto, porque lo más probable es que haya dos clientes en el
+    // mostrador y se haya pulsado el botón del pedido equivocado.
+    $("escanear-en-dialogo").onclick = () => lanzar((async () => {
+      const leido = await escanearQR();
+      if (!leido) return;
+      if (leido.pedidoId !== pedidoId) {
+        fallar(`Ese QR es del pedido #${leido.pedidoId}, no del #${pedidoId}.`);
+        return;
+      }
+      campo.value = leido.codigo;
+      dialogo.close("confirmar");
+    })());
+
     dialogo.returnValue = "cancelar";
     dialogo.showModal();
     campo.focus();
@@ -532,9 +591,21 @@ async function cambiarEstado(pedidoId, accion, boton) {
   // rápidas enviarían la misma transición dos veces y la segunda respondería
   // 409, que asusta sin motivo.
   boton.disabled = true;
+  const movido = await enviarTransicion(pedidoId, accion.estado, codigo);
+  if (!movido) boton.disabled = false;
+}
 
+/**
+ * Pide al servidor una transición, y explica lo que pase.
+ *
+ * Devuelve `true` si el pedido se movió o si ya no tiene sentido volver a
+ * intentarlo desde este botón (la cola se refrescó), y `false` si falló de una
+ * forma en la que reintentar tiene sentido. Está separada de `cambiarEstado`
+ * porque la cámara también entrega, y sin pasar por un botón de tarjeta.
+ */
+async function enviarTransicion(pedidoId, estado, codigo) {
   try {
-    const cuerpo = { estado: accion.estado };
+    const cuerpo = { estado };
     if (codigo) cuerpo.codigo_canje = codigo;
 
     // Codificado por lo mismo que en `app.js`: el identificador llega en la
@@ -548,10 +619,11 @@ async function cambiarEstado(pedidoId, accion, boton) {
     limpiarError();
     huellaPintada = null;   // el estado cambió: repintar sí o sí
     await cargarCola();
+    return true;
   } catch (e) {
     if (e.status === 401 || e.status === 403) {
       caducar();
-      return;
+      return true;
     }
     if (e.status === 409) {
       // El 409 cubre dos causas que el panel trata igual: la transición ya no
@@ -560,7 +632,7 @@ async function cambiarEstado(pedidoId, accion, boton) {
       // realidad, así que se refresca la cola y se explica.
       fallar(`El pedido #${pedidoId} no se pudo mover: ${e.message} Se actualizó la cola.`);
       await refrescarTrasFallo();
-      return;
+      return true;
     }
     if (e.status === 404) {
       // Un pedido de otro establecimiento responde 404 igual que uno
@@ -568,11 +640,136 @@ async function cambiarEstado(pedidoId, accion, boton) {
       // es casi siempre que la cola estaba vieja.
       fallar(`El pedido #${pedidoId} ya no está en tu cola. Se actualizó la lista.`);
       await refrescarTrasFallo();
-      return;
+      return true;
     }
     fallar(`No se pudo actualizar el pedido #${pedidoId}: ${e.message}`);
-    boton.disabled = false;
+    return false;
   }
+}
+
+// --------------------------------------------------------------------------
+// La cámara (ADR-0016)
+//
+// El billete del cliente lleva el código también como QR, y el panel lo lee
+// con `BarcodeDetector`, que es la API del navegador para eso: sin bibliotecas,
+// por el mismo motivo que el resto del sitio. La trae Chrome y Edge, en
+// escritorio y Android, que es lo que hay en el mostrador. Donde no esté, los
+// dos botones de cámara no aparecen y se teclea, que es lo que siempre
+// funcionó. La cámara es la forma rápida, no la única.
+//
+// Lo que se lee es `pideutb:<pedido>:<código>`, y las dos partes se validan
+// con la misma forma que la API exige antes de mandarlas a ninguna ruta.
+// --------------------------------------------------------------------------
+
+const FORMA_DEL_QR = /^pideutb:(\d{1,9}):([A-Z0-9]{6})$/;
+
+const hayLectorDeCodigos =
+  typeof BarcodeDetector === "function" &&
+  typeof navigator.mediaDevices?.getUserMedia === "function";
+
+/** Lo que dice un QR nuestro, o `null` si es cualquier otra cosa. */
+function interpretarQR(texto) {
+  const partes = FORMA_DEL_QR.exec((texto || "").trim());
+  return partes ? { pedidoId: Number(partes[1]), codigo: partes[2] } : null;
+}
+
+/**
+ * Abre la cámara y resuelve con `{pedidoId, codigo}` al leer un QR nuestro, o
+ * con `null` si se cancela o la cámara no se puede abrir.
+ *
+ * La cámara se apaga siempre al cerrar, pase lo que pase: una cámara que se
+ * queda encendida en un equipo compartido es un problema distinto de todos los
+ * demás de esta pantalla.
+ */
+function escanearQR() {
+  const dialogo = $("dialogo-camara");
+  const video = $("camara");
+  const estado = $("camara-estado");
+
+  if (!hayLectorDeCodigos || typeof dialogo.showModal !== "function") {
+    return Promise.resolve(null);
+  }
+
+  return new Promise((resolver) => {
+    let flujo = null;
+    let temporizadorLectura = null;
+    let resuelto = false;
+
+    const terminar = (resultado) => {
+      if (resuelto) return;
+      resuelto = true;
+      clearInterval(temporizadorLectura);
+      if (flujo) for (const pista of flujo.getTracks()) pista.stop();
+      video.srcObject = null;
+      dialogo.removeEventListener("close", alCerrar);
+      if (dialogo.open) dialogo.close();
+      resolver(resultado);
+    };
+    const alCerrar = () => terminar(null);
+
+    dialogo.addEventListener("close", alCerrar);
+    estado.textContent = "Abriendo la cámara…";
+    dialogo.showModal();
+
+    // Lo que sigue es asíncrono y la promesa de fuera ya está devuelta: se
+    // lanza con `lanzar`, para que un fallo inesperado se vea y no se pierda.
+    lanzar((async () => {
+      try {
+        // La trasera si la hay: en una tablet es la que apunta al cliente.
+        flujo = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false,
+        });
+      } catch (e) {
+        // Sin permiso o sin cámara. No es un error del pedido: se dice en el
+        // propio diálogo y se deja teclear.
+        estado.textContent = "No se pudo abrir la cámara. Teclea el código.";
+        return;
+      }
+      if (resuelto) {
+        for (const pista of flujo.getTracks()) pista.stop();
+        return;
+      }
+      video.srcObject = flujo;
+      estado.textContent = "Apunta al QR del cliente.";
+
+      const lector = new BarcodeDetector({ formats: ["qr_code"] });
+      let leyendo = false;
+      // Cinco lecturas por segundo. Más no acelera nada —la cámara entrega 30
+      // cuadros, pero enfocar un QR tarda más que eso— y menos se nota como
+      // retraso al apuntar.
+      temporizadorLectura = setInterval(async () => {
+        if (leyendo || video.readyState < 2) return;
+        leyendo = true;
+        try {
+          const codigos = await lector.detect(video);
+          for (const codigo of codigos) {
+            const leido = interpretarQR(codigo.rawValue);
+            if (leido) {
+              terminar(leido);
+              return;
+            }
+          }
+          if (codigos.length) estado.textContent = "Ese QR no es de un pedido de PideUTB.";
+        } catch {
+          // Una lectura fallida no es noticia: se intenta en el siguiente tic.
+        } finally {
+          leyendo = false;
+        }
+      }, 200);
+    })());
+  });
+}
+
+/**
+ * «Escanear QR» desde la barra: no hace falta saber de qué pedido es. Se lee,
+ * y se entrega el que diga el QR. Si ese pedido no está listo todavía, el
+ * servidor responde 409 y el mensaje lo explica.
+ */
+async function entregarEscaneando() {
+  const leido = await escanearQR();
+  if (!leido) return;
+  await enviarTransicion(leido.pedidoId, "entregado", leido.codigo);
 }
 
 /**
@@ -629,6 +826,12 @@ $("orden-cola").addEventListener("change", () => {
   pintar(ultimaCola);
 });
 $("cancelar-canje").addEventListener("click", () => $("dialogo-canje").close("cancelar"));
+$("cerrar-camara").addEventListener("click", () => $("dialogo-camara").close());
+$("escanear").addEventListener("click", () => lanzar(entregarEscaneando()));
+
+// Los botones de cámara solo existen donde la cámara se puede usar.
+$("escanear").classList.toggle("oculto", !hayLectorDeCodigos);
+$("escanear-en-dialogo").classList.toggle("oculto", !hayLectorDeCodigos);
 
 // No se refresca mientras la pestaña está oculta. El motivo original era la
 // cuota de tráfico del plan gratuito; hoy el límite es otro —la API corre con
