@@ -48,7 +48,7 @@ COPY *.html *.css *.js *.svg ./
 # que los HTML piden, porque el fallo realista no es que el sellado se rompa,
 # es que alguien añada un guion nuevo y no lo apunte acá.
 RUN set -eu; \
-    for activo in estilos.css pasarela.css config.js app.js panel.js pasarela.js; do \
+    for activo in estilos.css pasarela.css config.js qr.js app.js panel.js pasarela.js; do \
         huella="$(sha256sum "$activo" | cut -c1-8)"; \
         sed -i "s|=\"$activo\"|=\"$activo?v=$huella\"|g" *.html; \
     done; \

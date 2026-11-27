@@ -59,12 +59,26 @@
   </section>
 
   <!-- ====================================================================
-       La cola. Solo con sesión.
+       El tablero. Solo con sesión.
+
+       Tres columnas y no una lista, desde la S17: la lista mezclaba lo que
+       hay que empezar, lo que está en el fuego y lo que espera a que alguien
+       venga, y en hora pico quien atiende tenía que leer el estado de cada
+       fila para saber cuál era la suya. En un tablero el estado es la
+       columna, y la mirada va sola a la que toca.
+
+       `#cola` envuelve a las tres: lo que antes era una lista ahora es un
+       tablero, pero lo que hay dentro siguen siendo `.pedido`, y así lo
+       buscan las pruebas de navegador.
        ==================================================================== -->
   <section id="operacion" class="oculto">
 
-    <div class="barra">
+    <div class="barra barra-mostrador">
       <span id="quien" class="nota"></span>
+      <!-- Solo aparece si el navegador sabe leer códigos (`BarcodeDetector`).
+           Si no, se teclea, como siempre: la cámara es la forma rápida, no la
+           única (ADR-0016). -->
+      <button id="escanear" class="oculto" type="button">Escanear QR</button>
       <button id="refrescar" class="secundario">Refrescar</button>
       <button id="salir" class="secundario">Salir</button>
       <div class="orden">
@@ -80,7 +94,44 @@
     <!-- Estado vacío: no tener pedidos es lo normal fuera de hora pico, no un error. -->
     <p id="cola-vacia" class="nota oculto">No hay pedidos en este establecimiento.</p>
 
-    <ul id="cola" class="items"></ul>
+    <div id="cola" class="tablero">
+      <section class="columna" data-columna="por-preparar" aria-labelledby="titulo-por-preparar">
+        <h2 id="titulo-por-preparar" class="columna-titulo">
+          <span class="punto ok" aria-hidden="true"></span>
+          Por preparar
+          <span class="columna-cuenta" data-cuenta="por-preparar">0</span>
+        </h2>
+        <ul class="items" data-lista="por-preparar"></ul>
+      </section>
+
+      <section class="columna" data-columna="en-preparacion" aria-labelledby="titulo-en-preparacion">
+        <h2 id="titulo-en-preparacion" class="columna-titulo">
+          <span class="punto espera" aria-hidden="true"></span>
+          En preparación
+          <span class="columna-cuenta" data-cuenta="en-preparacion">0</span>
+        </h2>
+        <ul class="items" data-lista="en-preparacion"></ul>
+      </section>
+
+      <section class="columna columna-listos" data-columna="listos" aria-labelledby="titulo-listos">
+        <h2 id="titulo-listos" class="columna-titulo">
+          <span class="punto ok" aria-hidden="true"></span>
+          Listos para recoger
+          <span class="columna-cuenta" data-cuenta="listos">0</span>
+        </h2>
+        <ul class="items" data-lista="listos"></ul>
+      </section>
+    </div>
+
+    <!-- Lo que ya terminó se queda a mano pero plegado: sirve para resolver un
+         reclamo —«¿con qué código se entregó el 41?»— y no para operar. -->
+    <details class="terminados">
+      <summary>
+        Entregados y cancelados
+        <span class="columna-cuenta" data-cuenta="terminados">0</span>
+      </summary>
+      <ul class="items" data-lista="terminados"></ul>
+    </details>
   </section>
 
   <div id="error" class="error oculto" role="alert"></div>
@@ -108,6 +159,11 @@
                maxlength="16" autocapitalize="characters" spellcheck="false"
                class="codigo-canje" inputmode="text">
       </div>
+      <!-- La alternativa a teclear. Se esconde si el navegador no sabe leer
+           códigos; el campo de arriba siempre está. -->
+      <button id="escanear-en-dialogo" class="secundario oculto" type="button">
+        Leer el QR con la cámara
+      </button>
       <div class="acciones">
         <button id="confirmar-canje" value="confirmar">Entregar</button>
         <button id="cancelar-canje" value="cancelar" class="secundario" type="button">
@@ -115,6 +171,22 @@
         </button>
       </div>
     </form>
+  </dialog>
+
+  <!-- ====================================================================
+       La cámara. Un diálogo aparte del del código porque se abre desde dos
+       sitios: desde «Escanear QR» en la barra, sin saber de qué pedido es, y
+       desde dentro del diálogo del código, para un pedido concreto.
+       ==================================================================== -->
+  <dialog id="dialogo-camara" aria-labelledby="titulo-camara">
+    <h2 id="titulo-camara">Apunta al QR del cliente</h2>
+    <!-- `playsinline` para que iOS no lo abra a pantalla completa, y `muted`
+         porque sin eso algunos navegadores no arrancan la reproducción sola. -->
+    <video id="camara" class="camara" autoplay playsinline muted></video>
+    <p id="camara-estado" class="nota" aria-live="polite"></p>
+    <div class="acciones">
+      <button id="cerrar-camara" class="secundario" type="button">Cancelar</button>
+    </div>
   </dialog>
 
 </main>

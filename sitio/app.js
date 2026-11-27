@@ -2196,6 +2196,32 @@ function dibujarElBillete(pedido, respuesta) {
 
   billete.append(rotulo, codigo, estado);
 
+  // El mismo código, como QR, para que el mostrador lo lea con la cámara en vez
+  // de teclearlo (ADR-0016). Va debajo y más chico que las letras, no encima:
+  // teclearlo sigue funcionando, y si la cámara falla el código grande es lo
+  // que se dicta. Solo mientras el pedido está por entregar; entregado o
+  // cancelado, un QR escaneable sería una llave dibujada sobre una puerta ya
+  // cerrada. Y si `qr.js` no cargó, el billete sale sin él: el QR es una
+  // comodidad, no la llave.
+  if (
+    typeof QR !== "undefined" &&
+    ["pagado", "en_preparacion", "listo_para_recoger"].includes(pedido.estado)
+  ) {
+    const cuadro = document.createElement("div");
+    cuadro.className = "billete-qr";
+    cuadro.appendChild(
+      QR.aSvg(
+        QR.construir(`pideutb:${pedido.pedido_id}:${pedido.codigo_canje}`),
+        `Código QR del pedido ${pedido.pedido_id}`
+      )
+    );
+    const pie = document.createElement("p");
+    pie.className = "billete-qr-pie";
+    pie.textContent = "Muéstralo en el mostrador, o dicta el código.";
+    cuadro.appendChild(pie);
+    billete.append(cuadro);
+  }
+
   // Sin hora programada no se dice nada: lo antes posible es lo normal.
   if (pedido.hora_recogida) {
     const recogida = document.createElement("p");
