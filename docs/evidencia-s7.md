@@ -190,16 +190,16 @@ La rama se borró; el run permanece en el historial.
 
 ## 4. arc42 §6 — Vista de ejecución
 
-Ubicación: [`docs/arc42/arc42.md`](arc42/arc42.md) **líneas 454 a 859**.
+Ubicación: [`docs/arc42/arc42.md`](arc42/arc42.md) **líneas 462 a 926**.
 
 | Subsección | Línea | Contenido |
 |---|---|---|
-| 6.1 Resumen de los flujos y sus fronteras | 469 | Tabla de 6 flujos con protocolo, formato, modo y qué pasa si el otro lado no responde |
-| 6.2 Crear un pedido | 490 | Diagrama de secuencia — síncrono, en proceso |
-| 6.3 Pagar un pedido | 555 | Diagrama de secuencia — dos fases, cruza la frontera asíncrona |
-| 6.4 Consultar el estado | 637 | Diagrama de secuencia — cómo se entera el usuario |
-| 6.5 Modos de fallo | 670 | 9 modos de fallo, cada uno con la prueba que lo cubre |
-| 6.6 Deuda conocida | 843 | Limitaciones del transporte en proceso |
+| 6.1 Resumen de los flujos y sus fronteras | 477 | Tabla de 6 flujos con protocolo, formato, modo y qué pasa si el otro lado no responde |
+| 6.2 Crear un pedido | 498 | Diagrama de secuencia — síncrono, en proceso |
+| 6.3 Pagar un pedido | 578 | Diagrama de secuencia — dos fases, cruza la frontera asíncrona |
+| 6.4 Consultar el estado | 660 | Diagrama de secuencia — cómo se entera el usuario |
+| 6.5 Modos de fallo | 737 | 9 modos de fallo, cada uno con la prueba que lo cubre |
+| 6.6 Deuda conocida | 910 | Limitaciones del transporte en proceso |
 
 La tabla de §6.1, reproducida:
 

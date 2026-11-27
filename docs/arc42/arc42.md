@@ -449,6 +449,14 @@ El contenedor "API PideUTB" se descompone en los cuatro módulos de dominio defi
 > cerró. `pagos` **solicita** la transición; `pedidos` la ejecuta. Ver
 > [`ddd-contextos.md` §3](../ddd-contextos.md).
 
+> **Desde la S17 `menu` también escribe, y lo hace por la misma regla.** El
+> inventario del día (`menu_items.unidades_hoy`,
+> [ADR-0015](../adr/0015-inventario-diario-por-producto.md)) lo fija el mostrador por
+> `POST /v1/menu/items/{id}/inventario`, y lo descuenta y lo devuelve `pedidos`
+> **pidiéndoselo** a `menu.service` (`reservar_unidades`, `liberar_unidades`), nunca
+> tocando la tabla. Pedidos sigue sin escribir nada del catálogo; Catálogo sigue
+> siendo su único escritor.
+
 ------------------------------------------------------------------------
 
 ## 6. Vista de tiempo de ejecución (runtime)
@@ -524,11 +532,19 @@ sequenceDiagram
             SP-->>R: EstablecimientoInactivoError
             R-->>F: 409 {detail}
         else el establecimiento opera
-            SP->>SP: total_centavos = precio_unitario_centavos x cantidad
-            SP->>RP: guardar(pedido, estado = pendiente_pago)
-            RP-->>SP: Pedido
-            SP-->>R: PedidoPublicado
-            R-->>F: 201 Created · PedidoResponse
+            SP->>SM: reservar_unidades([(item_id, cantidad)])
+            alt no alcanzan las unidades de hoy (ADR-0015)
+                SM-->>SP: UnidadesInsuficientesError
+                SP-->>R: ItemNoDisponibleError
+                R-->>F: 409 {detail: "Solo quedan 2 de Arepa de huevo"}
+            else reservadas
+                SM-->>SP: ok
+                SP->>SP: total_centavos = precio_unitario_centavos x cantidad
+                SP->>RP: guardar(pedido, estado = pendiente_pago)
+                RP-->>SP: Pedido
+                SP-->>R: PedidoPublicado
+                R-->>F: 201 Created · PedidoResponse
+            end
         end
     end
 ```
@@ -545,6 +561,13 @@ arquitectura ocurriendo a la vez:
 3. **Quién decide si el establecimiento opera es `usuarios`**, su único escritor
    ([ADR-0002](../adr/0002-propiedad-datos-establecimiento.md)). Pedidos
    pregunta en lugar de guardar una copia que envejecería.
+4. **Las unidades las reserva Catálogo, no Pedidos** (desde la S17,
+   [ADR-0015](../adr/0015-inventario-diario-por-producto.md)). Se reservan
+   **antes** de guardar el pedido y en una sola transacción para todas las
+   líneas: un carrito con un producto agotado se rechaza entero, igual que uno con
+   un producto inexistente. Si guardar el pedido fallara después, Pedidos las
+   libera: dos escrituras en dos contextos no comparten transacción, y se eligió
+   reservar primero porque vender de más es peor que una unidad retenida de más.
 
 Todo ocurre dentro del mismo proceso, así que el acoplamiento temporal entre
 estos módulos es total — y **gratuito**: si el proceso está vivo, los tres lo
@@ -664,6 +687,50 @@ el consumidor encuentra siempre la clave y solo comprueba si vale `null`, en vez
 de distinguir entre «ausente» y «vacío». La decisión está en
 [`openapi.yaml`](../api/openapi.yaml) y la razón en
 [la política de versionado](../api/politica-versionado.md).
+
+<a id="runtime-entregar"></a>
+
+### 6.8 Entregar un pedido — el código, tecleado o leído de un QR
+
+Es la operación que cierra [ESC-04](#esc-04). Desde la S17 el billete del cliente
+lleva el código también como QR y el panel puede leerlo con la cámara
+([ADR-0016](../adr/0016-canje-por-qr-y-tablero-del-mostrador.md)). **La regla del
+servidor es la misma por los dos caminos**: entregar exige el código, se compara en
+tiempo constante, y `entregado` es final.
+
+``` mermaid
+sequenceDiagram
+    actor C as Cliente
+    actor M as Mostrador
+    participant F as Frontend Web (billete)
+    participant P as Panel del mostrador
+    participant R as pedidos.router
+    participant SP as pedidos.service
+
+    F->>F: dibuja el QR «pideutb:41:7KQ2ZP» con qr.js
+    C->>M: enseña el teléfono
+    alt el navegador del panel tiene BarcodeDetector
+        M->>P: «Escanear QR»
+        P->>P: lee la cámara, valida la forma, saca pedido y código
+    else no lo tiene
+        C->>M: dicta «7KQ2ZP»
+        M->>P: teclea el código en el diálogo
+    end
+    P->>R: POST /v1/pedidos/41/estado {estado: entregado, codigo_canje} · Bearer
+    R->>SP: avanzar_estado(41, ENTREGADO, establecimiento_id, codigo_canje)
+    alt coincide y el pedido está listo
+        SP-->>R: PedidoPublicado {estado: entregado}
+        R-->>P: 200
+    else no coincide, o ya se entregó
+        SP-->>R: CodigoDeCanjeInvalidoError / TransicionNoPermitidaError
+        R-->>P: 409 {detail}
+    end
+```
+
+El QR lleva el número de pedido además del código porque el panel **no sabe** qué
+código tiene cada pedido —a propósito, desde la 2.0.0 del contrato— y sin el número
+tendría que probar el código contra cada pedido listo, que es la enumeración que
+ESC-04 prohíbe. El número ya es secuencial y visible; el código sigue siendo la llave.
 
 <a id="runtime-modos-de-fallo"></a>
 
@@ -1755,6 +1822,8 @@ arreglar. Quedan como [R-10](#riesgos) y la deuda D-04 de la misma sección.
 
 ---
 
+<a id="seccion-9"></a>
+
 ## 9. Decisiones de arquitectura
 
 Las decisiones arquitectónicas relevantes se documentan como ADRs en
@@ -1782,6 +1851,9 @@ arquitectura sin abrir nada.
 | [ADR-0013](../adr/0013-correo-obligatorio-para-el-comprobante.md) | Pedir siempre el correo, para que el código de recogida tenga una copia fuera de la pantalla | [ESC-05](#esc-05) | Aceptada — modifica en parte ADR-0012; contrato 5.0.0 |
 | [ADR-0014](../adr/0014-topes-del-pedido-y-demora-estimada.md) | Poner topes al pedido por producto y por tipo, y avisar su demora antes de pagar | [ESC-03](#esc-03) | Aceptada — revisa V-03 tras un pedido de más de 800 000 pesos; contrato 6.0.0 |
 | [ADR-0011](../adr/0011-un-solo-esquema-para-los-cuatro-contextos.md) | Guardar los cuatro contextos en un solo esquema con integridad referencial cruzada, que es la decisión de datos más cara de deshacer | [ESC-02](#esc-02) | Aceptada — pone precio a la reversión que ADR-0009 deja abierta |
+| [ADR-0015](../adr/0015-inventario-diario-por-producto.md) | Llevar un inventario diario por producto que fija el mostrador, que la carta muestra y que el pedido reserva al crearse y libera al cancelarse | [ESC-03](#esc-03) | Aceptada — responde a la sustentación del 25/11: no vender lo que no hay; contrato 6.1.0 |
+| [ADR-0016](../adr/0016-canje-por-qr-y-tablero-del-mostrador.md) | Entregar leyendo un QR con la cámara del mostrador, y ordenar la cola en un tablero por estado | [ESC-04](#esc-04) | Aceptada — responde a la sustentación del 25/11; la cámara es la forma rápida, teclear sigue valiendo |
+| [ADR-0017](../adr/0017-devoluciones-aplazadas.md) | Aplazar las devoluciones de dinero, y dejar escrito cómo se harían | [ESC-05](#esc-05) | **Aplazada** — pasarela en sandbox, sin cuentas de cliente y sin caja contra la que cuadrar; la regla hoy es devolver en caja con el código |
 
 *(Este índice se amplía en cada entrega a medida que surgen nuevas
 decisiones. Tres de las de arriba **revisan** a otras en vez de añadirse: ADR-0008
@@ -1964,6 +2036,12 @@ impacto medio y riesgo bajo.
                                       reutilización de un código ya
                                       canjeado**.
   -----------------------------------------------------------------------
+
+Desde la S17 el estímulo tiene dos formas: el cliente **dicta** el código o
+**enseña el QR** del billete, y el mostrador lo lee con la cámara
+([ADR-0016](../adr/0016-canje-por-qr-y-tablero-del-mostrador.md), [§6.8](#runtime-entregar)).
+La respuesta y la medida no cambian: es la misma petición al mismo servicio, y la
+reutilización se rechaza porque `entregado` es final, no porque el lector sea listo.
 
 <a id="esc-05"></a>
 
@@ -2278,6 +2356,8 @@ de scrypt, la otra opción, empeora R-07 mientras mejora R-02.
 Las dos correcciones apuntan en direcciones opuestas, y eso es exactamente lo
 que hay que resolver con un número delante.
 
+<a id="deuda-tecnica"></a>
+
 ### 11.2 Deuda técnica
 
 | ID | Deuda | Qué cuesta | Qué la pagaría |
@@ -2286,6 +2366,8 @@ que hay que resolver con un número delante.
 | **D-02** | **El canal de eventos solo tiene suscriptores prescindibles** (correo y aviso, [ADR-0012](../adr/0012-avisos-y-comprobante-prescindibles.md)) | Quien lea `publicar(...)` puede creer que algo depende de eso | Evaluado en [ADR-0010](../adr/0010-notificar-al-panel-por-sondeo.md): se conserva como costura, y la trampa se desactiva nombrándola |
 | **D-03** | ~~ESC-03 no se ha vuelto a medir en la plataforma nueva.~~ **Pagada en la S14.** Con la red medida contra el despliegue del laboratorio y el servidor contra PostgreSQL, la cadena consume 5 320 ms en el peor caso y deja 4,68 s para la persona, tras bajar el sondeo a 5 000 ms ([§10.7](#evaluacion)) | — | Se repite con `backend/scripts/medir_esc03.py`. Desde el 22/11/2026 `test_medicion_esc03.py` comprueba en cada construcción que el guion sigue hablando el contrato vigente |
 | **D-04** | **No hay forma de restablecer una contraseña en producción.** La cuenta inicial se siembra una vez | Una contraseña perdida deja el panel inaccesible sin tocar la base | Se analiza en la S13 |
+| **D-05** | **Un pedido pagado que el mostrador cancela no devuelve el dinero por sí solo** ([ADR-0017](../adr/0017-devoluciones-aplazadas.md)) | La regla hoy es devolver en caja, a mano, contra el código. No hay registro de que se deba una devolución | Una pasarela en producción y una caja contra la que cuadrar; el diseño está escrito en el ADR |
+| **D-06** | **Un pedido abandonado sin pagar retiene sus unidades del día** ([ADR-0015](../adr/0015-inventario-diario-por-producto.md)) | Al final de un turno la carta puede decir «quedan 2» cuando quedan 4 | El mostrador corrige el conteo en cualquier momento; una caducidad de los `pendiente_pago` lo haría sola, y es la pieza que falta |
 
 D-01 es la que explica a las demás. El patrón está en
 [§7.6](#despliegue-deuda) y se resume en una frase: **la prueba y el entorno real
